@@ -9,12 +9,15 @@ export interface NullabilityFacts {
   readonly nonNullAggregates: ReadonlySet<string>;
   /** Functions and operators whose result is non-null whenever every argument is. */
   readonly nonNullWhenArgumentsAre: ReadonlySet<string>;
-  /** Functions that never return null, whatever their arguments, such as `concat`. */
+  /** Functions that never return null for any list of arguments, such as `concat`. */
   readonly neverNull: ReadonlySet<string>;
+  /** Built-in cast functions; a user-defined cast may return null for a non-null value. */
+  readonly nonNullCasts: ReadonlySet<string>;
 }
 
 // Node field values from Postgres 18 (parsenodes.h, primnodes.h); the reader is pinned to that major.
 const COMMAND_SELECT = "1";
+const COMMAND_MERGE = "5";
 const RTE_RELATION = "0";
 const RTE_SUBQUERY = "1";
 const RTE_JOIN = "2";
@@ -42,7 +45,11 @@ interface Scope {
  */
 export function nullableColumns(query: NodeObject, facts: NullabilityFacts): boolean[] {
   const scope: Scope = { query, parent: null, facts, visiting: new Set() };
-  return visibleEntries(query).map((entry) => !provesColumn(scope, Number(scalar(entry, "resno"))));
+  // MERGE joins its source and target after analysis, so the tree marks no column as nulled by it.
+  const merge = scalar(query, "commandType") === COMMAND_MERGE;
+  return visibleEntries(query).map(
+    (entry) => merge || !provesColumn(scope, Number(scalar(entry, "resno"))),
+  );
 }
 
 function visibleEntries(query: NodeObject): NodeObject[] {
@@ -136,15 +143,18 @@ const rules: Readonly<Record<string, (node: NodeObject, scope: Scope) => boolean
 };
 
 function provesFunction(node: NodeObject, scope: Scope): boolean {
+  const oid = scalar(node, "funcid") ?? "";
   const format = scalar(node, "funcformat");
   if (format === COERCE_EXPLICIT_CAST || format === COERCE_IMPLICIT_CAST) {
-    return provesNonNull(list(field(node, "args"))[0], scope);
+    return scope.facts.nonNullCasts.has(oid) && provesNonNull(list(field(node, "args"))[0], scope);
   }
-  const oid = scalar(node, "funcid") ?? "";
-  return (
-    scope.facts.neverNull.has(oid) ||
-    (scope.facts.nonNullWhenArgumentsAre.has(oid) && allArguments(node, scope))
-  );
+  // A VARIADIC array argument may itself be null, which makes even `concat` return null.
+  const neverNull = scope.facts.neverNull.has(oid) && scalar(node, "funcvariadic") !== "true";
+  return neverNull || (isNonNullWhenArgumentsAre(scope, oid) && allArguments(node, scope));
+}
+
+function isNonNullWhenArgumentsAre(scope: Scope, oid: string): boolean {
+  return scope.facts.nonNullWhenArgumentsAre.has(oid) || scope.facts.neverNull.has(oid);
 }
 
 /** A column reference not nulled by an outer join or the `old` side of RETURNING, whose source is non-null. */

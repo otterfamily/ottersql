@@ -129,3 +129,15 @@ function unescape(raw: string): string {
   const unquoted = raw.startsWith('"') ? raw.slice(1, -1) : raw;
   return unquoted.replaceAll(/\\(?<character>.)/gsv, "$<character>");
 }
+
+/** Every node of `type` anywhere in `value`, including nested queries. */
+export function nodesOfType(value: NodeValue | undefined, type: string): NodeObject[] {
+  if (isList(value)) {
+    return value.flatMap((item) => nodesOfType(item, type));
+  }
+  if (!isNodeObject(value)) {
+    return [];
+  }
+  const nested = [...value.fields.values()].flatMap((item) => nodesOfType(item, type));
+  return value.type === type ? [value, ...nested] : nested;
+}

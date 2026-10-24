@@ -4,8 +4,9 @@ import type { NullabilityFacts } from "./nullability.ts";
 
 export type BuiltInFacts = Omit<NullabilityFacts, "isNotNullColumn">;
 
-// Built-ins checked to return non-null for non-null arguments. Overloads on ranges and multiranges
-// are left out because `lower` and `upper` of an unbounded range are null.
+// Built-ins that return non-null for non-null arguments. Overloads taking ranges or multiranges,
+// including the polymorphic anyrange family, are left out because `lower` and `upper` of an
+// unbounded range are null; `to_char` is left out because some formats yield null.
 const nonNullWhenArgumentsAre = [
   "abs",
   "bit_length",
@@ -38,14 +39,13 @@ const nonNullWhenArgumentsAre = [
   "rtrim",
   "sign",
   "statement_timestamp",
-  "to_char",
   "transaction_timestamp",
   "trunc",
   "upper",
 ];
 
-// Comparison, arithmetic and concatenation; record comparisons are left out because they are null
-// when a field comparison is.
+// Comparison, arithmetic and concatenation. Record operators are left out: their handling of null
+// fields has not been checked.
 const operators = ["+", "-", "*", "/", "%", "=", "<>", "<", "<=", ">", ">=", "||"];
 
 const nonNullAggregates = [
@@ -64,6 +64,7 @@ export async function readBuiltInFacts(db: PGlite): Promise<BuiltInFacts> {
     readonly functions: readonly string[];
     readonly operators: readonly string[];
     readonly concat: readonly string[];
+    readonly casts: readonly string[];
   }>(
     `select
        array(select oid::text from pg_proc
@@ -73,12 +74,17 @@ export async function readBuiltInFacts(db: PGlite): Promise<BuiltInFacts> {
              where p.pronamespace = 'pg_catalog'::regnamespace and p.prokind = 'f'
                and p.proname = any($2::text[])
                and not exists (select from unnest(p.proargtypes) as arg(type)
-                               join pg_type t on t.oid = arg.type where t.typtype in ('r', 'm'))) as functions,
+                               join pg_type t on t.oid = arg.type
+                               where t.typtype in ('r', 'm')
+                                 or t.typname in ('anyrange', 'anymultirange', 'anycompatiblerange',
+                                                  'anycompatiblemultirange'))) as functions,
        array(select o.oid::text from pg_operator o
              where o.oprnamespace = 'pg_catalog'::regnamespace and o.oprname = any($3::text[])
                and o.oprleft <> 'record'::regtype and o.oprright <> 'record'::regtype) as operators,
        array(select oid::text from pg_proc
-             where pronamespace = 'pg_catalog'::regnamespace and proname = 'concat') as concat`,
+             where pronamespace = 'pg_catalog'::regnamespace and proname = 'concat') as concat,
+       array(select c.castfunc::text from pg_cast c join pg_proc p on p.oid = c.castfunc
+             where p.pronamespace = 'pg_catalog'::regnamespace) as casts`,
     [nonNullAggregates, nonNullWhenArgumentsAre, operators],
   );
   const [row] = rows;
@@ -89,5 +95,6 @@ export async function readBuiltInFacts(db: PGlite): Promise<BuiltInFacts> {
     nonNullAggregates: new Set(row.aggregates),
     nonNullWhenArgumentsAre: new Set([...row.functions, ...row.operators]),
     neverNull: new Set(row.concat),
+    nonNullCasts: new Set(row.casts),
   };
 }

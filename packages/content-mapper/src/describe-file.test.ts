@@ -13,6 +13,11 @@ const schemaSql = `
     status text not null check (status in ('draft', 'published'))
   );
   create view post_titles as select id, title from posts;
+  create table spans (id int8 primary key, r int4range not null, a int[] not null);
+  create function maybe(i int) returns text language sql as 'select null';
+  create type wrapped as (v text);
+  create function wrap(i int) returns wrapped language sql as 'select null::wrapped';
+  create cast (int as wrapped) with function wrap(int);
   create view author_posts as
     select u.name, p.title from users u left join posts p on p.author_id = u.id;
 `;
@@ -165,6 +170,22 @@ describe("nullability (ADR 0009)", () => {
       sql: "select id from users full join posts using (id)",
       expected: { id: true },
     },
+    {
+      sql: "select lower(r) as lo, upper(r) as hi from spans",
+      expected: { lo: true, hi: true },
+    },
+    {
+      sql: "select to_char(now(), '') as a, concat(variadic null::text[]) as b, concat(variadic a::text[]) as c, concat('x', null) as d from spans",
+      expected: { a: true, b: true, c: true, d: false },
+    },
+    {
+      sql: "select (1::int)::wrapped as w from spans",
+      expected: { w: true },
+    },
+    {
+      sql: "select a + 1 as b from (select id as a from users) q",
+      expected: { b: false },
+    },
   ])("proves non-null only what it can in $sql", async ({ sql, expected }, { session }) => {
     await expect(nullability(session, sql)).resolves.toStrictEqual(expected);
   });
@@ -185,5 +206,33 @@ describe("problems", () => {
     expect(file.problems.map(({ message }) => message)).toStrictEqual([
       "SQL must follow a -- @name line",
     ]);
+  });
+});
+
+describe("merge", () => {
+  test("types every column RETURNING by MERGE as nullable, since its join is built after analysis", async ({
+    session,
+  }) => {
+    await expect(
+      nullability(
+        session,
+        "merge into users u using posts p on p.author_id = u.id when not matched by source then delete returning u.name, p.title",
+      ),
+    ).resolves.toStrictEqual({ name: true, title: true });
+  });
+});
+
+describe("determinism", () => {
+  test("proves the same columns whatever the session described before", async () => {
+    const fresh = await openQuerySession("create table t (a int not null);");
+    try {
+      await expect(
+        nullability(fresh, "select a + 1 as b from (select a from t) q"),
+      ).resolves.toStrictEqual({
+        b: false,
+      });
+    } finally {
+      await fresh.close();
+    }
   });
 });

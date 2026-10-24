@@ -6,7 +6,7 @@ import type { Query, Span } from "@ottersql/sql";
 
 import { readBuiltInFacts } from "./built-in-functions.ts";
 import type { BuiltInFacts } from "./built-in-functions.ts";
-import { field, isNode, list, scalar } from "./node-tree.ts";
+import { nodesOfType, scalar } from "./node-tree.ts";
 import type { NodeObject } from "./node-tree.ts";
 import { nullableColumns } from "./nullability.ts";
 import { renderFile } from "./render.ts";
@@ -164,9 +164,10 @@ async function cached<Value>(
   return cache;
 }
 
+/** Every table, view and other relation the analyzed tree reads from, however deeply nested. */
 function relationOids(tree: NodeObject | null): number[] {
-  return list(tree === null ? undefined : field(tree, "rtable")).flatMap((entry) => {
-    const relid = isNode(entry, "RANGETBLENTRY") ? scalar(entry, "relid") : undefined;
+  return nodesOfType(tree ?? undefined, "RANGETBLENTRY").flatMap((entry) => {
+    const relid = scalar(entry, "relid");
     return relid === undefined ? [] : [Number(relid)];
   });
 }
