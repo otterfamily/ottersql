@@ -7,3 +7,4 @@ export type {
   SourceMapEntry,
   Span,
 } from "./query-file.ts";
+export type { Connection, Interval, Range } from "./values.ts";

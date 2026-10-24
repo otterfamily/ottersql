@@ -7,12 +7,16 @@ import type { Query, Span } from "@ottersql/sql";
 import { field, isNode, list, scalar } from "./node-tree.ts";
 import type { NodeObject } from "./node-tree.ts";
 import { nullableColumns } from "./nullability.ts";
+import { renderFile } from "./render.ts";
+import type { RenderedFile } from "./render.ts";
 import { describeStatement } from "./statement.ts";
 import type { PostgresError, StatementDescription } from "./statement.ts";
 
 export interface QuerySession {
   /** Describes every query of a `.sql` file against the schema the session was opened with. */
   readonly describeFile: (content: string) => Promise<DescribedFile>;
+  /** The TypeScript module a `.sql` file stands for, with its diagnostics. */
+  readonly renderFile: (content: string) => Promise<RenderedFile>;
   readonly close: () => Promise<void>;
 }
 
@@ -23,6 +27,8 @@ export interface DescribedFile {
 }
 
 export interface Problem {
+  /** Whether the `.sql` file itself is malformed, or Postgres rejected a query in it. */
+  readonly source: "queryFile" | "postgres";
   readonly message: string;
   readonly span: Span;
 }
@@ -77,18 +83,24 @@ export async function openQuerySession(schemaSql: string): Promise<QuerySession>
   };
   return {
     describeFile: async (content) => describeFile(context, content),
+    renderFile: async (content) =>
+      renderFile(await describeFile(context, content), context.catalog),
     close: async () => schema.close(),
   };
 }
 
 async function describeFile(context: Context, content: string): Promise<DescribedFile> {
   const file = readQueryFile(content);
-  const problems: Problem[] = [...file.problems];
+  const problems: Problem[] = file.problems.map((problem) => ({ source: "queryFile", ...problem }));
   const queries: DescribedQuery[] = [];
   for (const query of file.queries) {
     const result = await describeStatement(context.db, query.sql);
     if (result.kind === "error") {
-      problems.push({ message: result.message, span: errorSpan(query, result) });
+      problems.push({
+        source: "postgres",
+        message: result.message,
+        span: errorSpan(query, result),
+      });
     } else {
       queries.push(await describeQuery(context, query, result));
     }
