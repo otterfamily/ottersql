@@ -1,46 +1,83 @@
 import { columnNames } from "./columns.ts";
-import { parseEnforcement } from "./constraints.ts";
-import type { Check } from "./model.ts";
+import { constraintStateFields, parseEnforcement } from "./constraint-state.ts";
+import type { ConstraintStateRow } from "./constraint-state.ts";
+import type { Check, DomainCheck } from "./model.ts";
 
-/** Selects the check constraints of the table whose `pg_class` row is aliased `alias`, as `parseCheck` reads them. */
-export function checksJson(alias: string): string {
-  return `coalesce((
-    select json_agg(json_build_object(
-      'name', con.conname,
-      'expression', pg_get_expr(con.conbin, con.conrelid),
-      'columns', ${columnNames("con.conrelid", "con.conkey")},
-      'quotedColumns', array(select quote_ident(name) from unnest(${columnNames("con.conrelid", "con.conkey")}) as name),
-      'validated', con.convalidated,
-      'enforced', con.conenforced
-    ) order by con.conname)
-    from pg_constraint con
-    where con.conrelid = ${alias}.oid and con.contype = 'c'
-  ), '[]') as checks`;
+/**
+ * Selects the fields `parseCheckBase` reads from the `pg_constraint` row `alias`, whose expression
+ * is printed against `relationOid` (`0` for a domain).
+ */
+function checkFields(alias: string, relationOid: string): string {
+  return `'name', ${alias}.conname, 'expression', pg_get_expr(${alias}.conbin, ${relationOid}),
+    ${constraintStateFields(alias)}`;
 }
 
-export interface CheckRow {
+export interface CheckBaseRow extends ConstraintStateRow {
   readonly name: string;
   readonly expression: string;
-  readonly columns: readonly string[];
-  readonly quotedColumns: readonly string[];
-  readonly validated: boolean;
-  readonly enforced: boolean;
 }
 
-export function parseCheck(row: CheckRow): Check {
+/**
+ * Selects the check constraints of the table `relationOid` as `parseTableCheck` reads them. Its
+ * aliases start with `check_` so they cannot shadow the caller's.
+ */
+export function checksJson(relationOid: string): string {
+  return `coalesce((
+    select json_agg(json_build_object(
+      ${checkFields("check_con", "check_con.conrelid")},
+      'columns', check_columns.names,
+      'quotedColumns', array(select quote_ident(check_name) from unnest(check_columns.names) as check_name)
+    ) order by check_con.conname)
+    from pg_constraint check_con
+    cross join lateral (
+      select ${columnNames("check_con.conrelid", "check_con.conkey")} as names
+    ) as check_columns
+    where check_con.conrelid = ${relationOid} and check_con.contype = 'c'
+  ), '[]')`;
+}
+
+/**
+ * Selects the check constraints of the domain `typeOid` as `parseDomainCheck` reads them. Its
+ * aliases start with `check_` so they cannot shadow the caller's.
+ */
+export function domainChecksJson(typeOid: string): string {
+  return `coalesce((
+    select json_agg(json_build_object(${checkFields("check_con", "0")}) order by check_con.conname)
+    from pg_constraint check_con
+    where check_con.contypid = ${typeOid} and check_con.contype = 'c'
+  ), '[]')`;
+}
+
+export interface TableCheckRow extends CheckBaseRow {
+  readonly columns: readonly string[];
+  readonly quotedColumns: readonly string[];
+}
+
+export function parseTableCheck(row: TableCheckRow): Check {
   const [column, ...others] = row.columns;
   const [quoted] = row.quotedColumns;
   const values =
-    column !== undefined && quoted !== undefined && others.length === 0
-      ? allowedValues(row.expression, quoted)
-      : null;
+    column === undefined || quoted === undefined || others.length > 0
+      ? null
+      : allowedValuesOf(row, quoted);
   return {
-    name: row.name,
-    expression: row.expression,
+    ...parseCheckBase(row),
     columns: row.columns,
-    allowedValues: column !== undefined && values !== null ? { column, values } : null,
-    enforcement: parseEnforcement(row),
+    allowedValues: column === undefined || values === null ? null : { column, values },
   };
+}
+
+export function parseDomainCheck(row: CheckBaseRow): DomainCheck {
+  return { ...parseCheckBase(row), allowedValues: allowedValuesOf(row, "VALUE") };
+}
+
+function parseCheckBase(row: CheckBaseRow): Pick<Check, "name" | "expression" | "enforcement"> {
+  return { name: row.name, expression: row.expression, enforcement: parseEnforcement(row) };
+}
+
+/** A check that does not hold for every existing row cannot narrow a type (ADR 0002). */
+function allowedValuesOf(row: CheckBaseRow, subject: string): string[] | null {
+  return parseEnforcement(row) === "validated" ? allowedValues(row.expression, subject) : null;
 }
 
 const textCast = String.raw`::(?:character varying|text)`;
@@ -48,10 +85,10 @@ const literal = String.raw`'(?<body>(?:''|[^'])*)'${textCast}`;
 
 /**
  * The string values a check allows for `subject`, when the check is exactly `subject IN (...)` as
- * Postgres prints it back. Any other shape, including numbers until their codec is settled (#2),
- * gives `null`: reading SQL beyond these printed forms would mean parsing it (ADR 0001).
+ * Postgres prints it back. Any other shape gives `null`: reading SQL beyond these printed forms
+ * would mean parsing it (ADR 0001).
  */
-export function allowedValues(expression: string, subject: string): string[] | null {
+function allowedValues(expression: string, subject: string): string[] | null {
   const name = RegExp.escape(subject);
   const lhs = String.raw`(?:${name}|\(${name}\)::text)`;
   const single = new RegExp(String.raw`^\(${lhs} = ${literal}\)$`, "v").exec(expression);

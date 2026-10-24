@@ -86,4 +86,17 @@ describe("tables", () => {
     const column = table(catalog, "t").columns.find((candidate) => candidate.name === "a");
     expect(column?.value).toStrictEqual(value);
   });
+
+  test("treats a column as nullable while its not-null constraint is not valid", async () => {
+    const catalog = await loadCatalog(`
+      create table t (a int, b int not null);
+      alter table t add constraint t_a_not_null not null a not valid;
+    `);
+    expect(
+      table(catalog, "t").columns.map(({ name, notNull }) => ({ name, notNull })),
+    ).toStrictEqual([
+      { name: "a", notNull: false },
+      { name: "b", notNull: true },
+    ]);
+  });
 });

@@ -8,8 +8,18 @@ let emptyDataDir: Promise<Blob> | null = null;
  * time and every catalog load needs a clean one.
  */
 export async function freshDatabase(): Promise<PGlite> {
+  return PGlite.create({ loadDataDir: await emptySnapshot() });
+}
+
+/** A failed snapshot is forgotten, so the next load tries again instead of failing for good. */
+async function emptySnapshot(): Promise<Blob> {
   emptyDataDir ??= snapshotEmptyDatabase();
-  return PGlite.create({ loadDataDir: await emptyDataDir });
+  try {
+    return await emptyDataDir;
+  } catch (error) {
+    emptyDataDir = null;
+    throw error;
+  }
 }
 
 async function snapshotEmptyDatabase(): Promise<Blob> {

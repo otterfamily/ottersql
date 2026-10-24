@@ -1,58 +1,53 @@
 import type { PGlite } from "@electric-sql/pglite";
 
-import { checksJson, parseCheck } from "./checks.ts";
-import type { CheckRow } from "./checks.ts";
+import { checksJson, parseTableCheck } from "./checks.ts";
+import type { TableCheckRow } from "./checks.ts";
+import { decode } from "./codes.ts";
+import { columnsJson, parseColumnBase } from "./columns.ts";
+import type { ColumnBaseRow } from "./columns.ts";
 import { parseComment } from "./comments.ts";
-import { constraintsJson, parseConstraints } from "./constraints.ts";
-import type { ConstraintRows } from "./constraints.ts";
+import { keysJson, parseKeys } from "./constraints.ts";
+import type { KeyRows } from "./constraints.ts";
 import { indexesJson, parseIndex } from "./indexes.ts";
 import type { IndexRow } from "./indexes.ts";
 import type { Column, ColumnValue, Table } from "./model.ts";
 import { userObject } from "./scope.ts";
-import { parseTypeRef, typeRefJson } from "./type-ref.ts";
-import type { TypeRow } from "./type-ref.ts";
 
-interface TableRow extends ConstraintRows {
-  readonly comment: string | null;
-  readonly checks: readonly CheckRow[];
-  readonly indexes: readonly IndexRow[];
+interface TableRow extends KeyRows {
   readonly schema: string;
   readonly name: string;
   readonly columns: readonly ColumnRow[];
-}
-
-interface ColumnRow {
-  readonly name: string;
-  readonly type: TypeRow;
-  readonly typeSql: string;
-  readonly notNull: boolean;
-  readonly identity: "" | "a" | "d";
-  readonly generated: "" | "s" | "v";
-  readonly expression: string | null;
+  readonly checks: readonly TableCheckRow[];
+  readonly indexes: readonly IndexRow[];
   readonly comment: string | null;
 }
 
+interface ColumnRow extends ColumnBaseRow {
+  readonly notNull: boolean;
+  readonly identity: string;
+  readonly generated: string;
+  readonly expression: string | null;
+}
+
+// A NOT VALID not-null constraint still sets attnotnull, but existing rows may hold NULL.
+const columnFields = `
+  'notNull', col_attr.attnotnull and not exists (
+    select from pg_constraint col_not_null
+    where col_not_null.conrelid = col_attr.attrelid and col_not_null.contype = 'n'
+      and col_not_null.conkey[1] = col_attr.attnum and not col_not_null.convalidated
+  ),
+  'identity', col_attr.attidentity,
+  'generated', col_attr.attgenerated,
+  'expression', pg_get_expr(col_default.adbin, col_default.adrelid)`;
+
 export async function readTables(db: PGlite): Promise<Table[]> {
   const { rows } = await db.query<TableRow>(`
-    select n.nspname as schema, c.relname as name, obj_description(c.oid, 'pg_class') as comment,
-      coalesce((
-        select json_agg(json_build_object(
-          'name', a.attname,
-          'type', ${typeRefJson("a.atttypid")},
-          'typeSql', format_type(a.atttypid, a.atttypmod),
-          'notNull', a.attnotnull,
-          'comment', col_description(a.attrelid, a.attnum),
-          'identity', a.attidentity,
-          'generated', a.attgenerated,
-          'expression', pg_get_expr(d.adbin, d.adrelid)
-        ) order by a.attnum)
-        from pg_attribute a
-        left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
-        where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
-      ), '[]') as columns,
-      ${constraintsJson("c")},
-      ${checksJson("c")},
-      ${indexesJson("c")}
+    select n.nspname as schema, c.relname as name,
+      ${columnsJson("c.oid", columnFields)} as columns,
+      ${keysJson("c.oid")},
+      ${checksJson("c.oid")} as checks,
+      ${indexesJson("c.oid")} as indexes,
+      obj_description(c.oid, 'pg_class') as comment
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where c.relkind in ('r', 'p') and ${userObject("pg_class", "c.oid", "c.relnamespace")}
     order by n.nspname, c.relname
@@ -61,37 +56,37 @@ export async function readTables(db: PGlite): Promise<Table[]> {
 }
 
 function parseTable(row: TableRow): Table {
+  const { primaryKey, uniqueConstraints, foreignKeys } = parseKeys(row);
   return {
     schema: row.schema,
     name: row.name,
     columns: row.columns.map((column) => parseColumn(column)),
-    ...parseConstraints(row),
-    checks: row.checks.map((check) => parseCheck(check)),
+    primaryKey,
+    uniqueConstraints,
+    foreignKeys,
+    checks: row.checks.map((check) => parseTableCheck(check)),
     indexes: row.indexes.map((index) => parseIndex(index)),
     comment: parseComment(row.comment),
   };
 }
 
 function parseColumn(row: ColumnRow): Column {
-  return {
-    name: row.name,
-    type: parseTypeRef(row.type),
-    typeSql: row.typeSql,
-    notNull: row.notNull,
-    value: parseColumnValue(row),
-    comment: parseComment(row.comment),
-  };
+  return { ...parseColumnBase(row), notNull: row.notNull, value: parseColumnValue(row) };
 }
+
+const identityGenerations = { a: "always", d: "by default" } as const;
+const generatedStorages = { s: "stored", v: "virtual" } as const;
 
 function parseColumnValue(row: ColumnRow): ColumnValue {
   if (row.identity !== "") {
-    return { kind: "identity", generation: row.identity === "a" ? "always" : "by default" };
+    const generation = decode(identityGenerations, row.identity, "pg_attribute.attidentity");
+    return { kind: "identity", generation };
   }
   if (row.expression === null) {
     return { kind: "none" };
   }
   if (row.generated !== "") {
-    const storage = row.generated === "s" ? "stored" : "virtual";
+    const storage = decode(generatedStorages, row.generated, "pg_attribute.attgenerated");
     return { kind: "generated", storage, expression: row.expression };
   }
   return { kind: "default", expression: row.expression };

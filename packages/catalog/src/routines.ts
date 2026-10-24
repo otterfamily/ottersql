@@ -1,5 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 
+import { decode } from "./codes.ts";
 import { parseComment } from "./comments.ts";
 import type { Routine, RoutineArgument, RoutineResult } from "./model.ts";
 import { userObject } from "./scope.ts";
@@ -9,8 +10,8 @@ import type { TypeRow } from "./type-ref.ts";
 interface RoutineRow {
   readonly schema: string;
   readonly name: string;
-  readonly kind: "a" | "f" | "p" | "w";
-  readonly volatility: "i" | "s" | "v";
+  readonly kind: string;
+  readonly volatility: string;
   readonly setOf: boolean;
   readonly resultType: TypeRow;
   readonly resultTypeSql: string;
@@ -21,7 +22,7 @@ interface RoutineRow {
 
 interface ParameterRow {
   readonly name: string | null;
-  readonly mode: InputMode | OutputMode;
+  readonly mode: string;
   readonly type: TypeRow;
   readonly typeSql: string;
 }
@@ -54,70 +55,55 @@ export async function readRoutines(db: PGlite): Promise<Routine[]> {
   return rows.map((row) => parseRoutine(row));
 }
 
-function parseRoutine(row: RoutineRow): Routine {
-  const inputs = row.parameters.filter((parameter) => isInput(parameter));
-  const firstDefault = inputs.length - row.defaults;
-  return {
-    schema: row.schema,
-    name: row.name,
-    kind: routineKinds[row.kind],
-    arguments: inputs.map((parameter, position) =>
-      parseArgument(parameter, position >= firstDefault),
-    ),
-    returns: parseResult(row),
-    volatility: volatilities[row.volatility],
-    comment: parseComment(row.comment),
-  };
-}
-
-type InputMode = "b" | "i" | "v";
-type OutputMode = "b" | "o" | "t";
-
-const argumentModes = {
-  b: "inout",
-  i: "in",
-  v: "variadic",
-} as const satisfies Record<InputMode, RoutineArgument["mode"]>;
-
 const routineKinds = {
   a: "aggregate",
   f: "function",
   p: "procedure",
   w: "window",
-} as const satisfies Record<RoutineRow["kind"], Routine["kind"]>;
+} as const satisfies Record<string, Routine["kind"]>;
 
 const volatilities = {
   i: "immutable",
   s: "stable",
   v: "volatile",
-} as const satisfies Record<RoutineRow["volatility"], Routine["volatility"]>;
+} as const satisfies Record<string, Routine["volatility"]>;
 
-function isInput(row: ParameterRow): row is ParameterRow & { readonly mode: InputMode } {
-  return row.mode === "i" || row.mode === "b" || row.mode === "v";
-}
+// Since Postgres 14 a procedure's callers pass its OUT parameters too, so they are arguments.
+const functionArgumentModes = {
+  b: "inout",
+  i: "in",
+  v: "variadic",
+} as const satisfies Record<string, RoutineArgument["mode"]>;
+const procedureArgumentModes = { ...functionArgumentModes, o: "out" } as const;
 
-function isOutput(row: ParameterRow): boolean {
-  return row.mode === "o" || row.mode === "b" || row.mode === "t";
-}
+const resultModes = new Set(["b", "o", "t"]);
 
-function parseArgument(
-  row: ParameterRow & { readonly mode: InputMode },
-  hasDefault: boolean,
-): RoutineArgument {
+function parseRoutine(row: RoutineRow): Routine {
+  const kind = decode(routineKinds, row.kind, "pg_proc.prokind");
+  const argumentModes = kind === "procedure" ? procedureArgumentModes : functionArgumentModes;
+  const callable = row.parameters.filter((parameter) =>
+    Object.hasOwn(argumentModes, parameter.mode),
+  );
+  const firstDefault = callable.length - row.defaults;
   return {
+    schema: row.schema,
     name: row.name,
-    mode: argumentModes[row.mode],
-    type: parseTypeRef(row.type),
-    typeSql: row.typeSql,
-    hasDefault,
+    kind,
+    arguments: callable.map((parameter, position) => ({
+      name: parameter.name,
+      mode: decode(argumentModes, parameter.mode, "pg_proc.proargmodes"),
+      type: parseTypeRef(parameter.type),
+      typeSql: parameter.typeSql,
+      hasDefault: position >= firstDefault,
+    })),
+    returns: parseResult(row, kind),
+    volatility: decode(volatilities, row.volatility, "pg_proc.provolatile"),
+    comment: parseComment(row.comment),
   };
 }
 
-function parseResult(row: RoutineRow): RoutineResult {
-  if (row.kind === "p") {
-    return { kind: "none" };
-  }
-  const columns = row.parameters.filter((parameter) => isOutput(parameter));
+function parseResult(row: RoutineRow, kind: Routine["kind"]): RoutineResult {
+  const columns = row.parameters.filter((parameter) => resultModes.has(parameter.mode));
   if (columns.length > 0) {
     return {
       kind: "row",
@@ -128,6 +114,9 @@ function parseResult(row: RoutineRow): RoutineResult {
         typeSql: column.typeSql,
       })),
     };
+  }
+  if (kind === "procedure") {
+    return { kind: "none" };
   }
   return {
     kind: "value",

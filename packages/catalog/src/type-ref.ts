@@ -1,3 +1,4 @@
+import { decode } from "./codes.ts";
 import type { NamedTypeRef, TypeRef } from "./model.ts";
 
 /**
@@ -36,34 +37,19 @@ export function parseTypeRef(row: TypeRow): TypeRef {
 }
 
 function parseNamedTypeRef(row: Omit<TypeRow, "element">): NamedTypeRef {
-  return { kind: typeKind(row.typtype), schema: row.schema, name: row.name };
+  return {
+    kind: decode(typeKinds, row.typtype, "pg_type.typtype"),
+    schema: row.schema,
+    name: row.name,
+  };
 }
 
-function typeKind(typtype: string): NamedTypeRef["kind"] {
-  switch (typtype) {
-    case "b": {
-      return "base";
-    }
-    case "c": {
-      return "composite";
-    }
-    case "d": {
-      return "domain";
-    }
-    case "e": {
-      return "enum";
-    }
-    case "m": {
-      return "multirange";
-    }
-    case "p": {
-      return "pseudo";
-    }
-    case "r": {
-      return "range";
-    }
-    default: {
-      throw new Error(`unknown pg_type.typtype ${JSON.stringify(typtype)}`);
-    }
-  }
-}
+const typeKinds = {
+  b: "base",
+  c: "composite",
+  d: "domain",
+  e: "enum",
+  m: "multirange",
+  p: "pseudo",
+  r: "range",
+} as const satisfies Record<string, NamedTypeRef["kind"]>;

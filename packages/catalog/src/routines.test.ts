@@ -92,4 +92,25 @@ describe("routines", () => {
       },
     ]);
   });
+
+  test("reads a procedure's OUT and INOUT parameters as arguments and as the row it returns", async () => {
+    const catalog = await loadCatalog(`
+      create procedure swap(inout x int, out y int) language sql as 'select x, x';
+    `);
+    expect(routine(catalog, "swap")).toMatchObject({
+      kind: "procedure",
+      arguments: [
+        { name: "x", mode: "inout", type: int4, typeSql: "integer", hasDefault: false },
+        { name: "y", mode: "out", type: int4, typeSql: "integer", hasDefault: false },
+      ],
+      returns: {
+        kind: "row",
+        setOf: false,
+        columns: [
+          { name: "x", type: int4, typeSql: "integer" },
+          { name: "y", type: int4, typeSql: "integer" },
+        ],
+      },
+    });
+  });
 });

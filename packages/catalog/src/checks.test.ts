@@ -48,4 +48,17 @@ describe("check constraints", () => {
     const [check] = table(catalog, "t").checks;
     expect(check?.allowedValues).toBeNull();
   });
+
+  test("recognises no allowed values in a check that does not hold for every row", async () => {
+    const catalog = await loadCatalog(`
+      create table t (a text, b text constraint t_b_check check (b in ('x')) not enforced);
+      alter table t add constraint t_a_check check (a in ('x')) not valid;
+    `);
+    expect(
+      table(catalog, "t").checks.map(({ name, allowedValues }) => ({ name, allowedValues })),
+    ).toStrictEqual([
+      { name: "t_a_check", allowedValues: null },
+      { name: "t_b_check", allowedValues: null },
+    ]);
+  });
 });

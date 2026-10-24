@@ -2,11 +2,11 @@ import { columnNames } from "./columns.ts";
 import type { Index, IndexKey, QualifiedName } from "./model.ts";
 
 /**
- * Selects the indexes of the table whose `pg_class` row is aliased `alias`, as `parseIndex` reads
- * them. Indexes that exist only to back a primary key, unique or exclusion constraint are left out,
- * since the constraint describes them. Its aliases start with `idx_`.
+ * Selects the indexes of the table `relationOid` as `parseIndex` reads them. Indexes that back a
+ * primary key or unique constraint are left out, since the constraint describes them. Its aliases
+ * start with `idx_` so they cannot shadow the caller's.
  */
-export function indexesJson(alias: string): string {
+export function indexesJson(relationOid: string): string {
   return `coalesce((
     select json_agg(json_build_object(
       'name', idx_class.relname,
@@ -44,12 +44,12 @@ export function indexesJson(alias: string): string {
     from pg_index idx
     join pg_class idx_class on idx_class.oid = idx.indexrelid
     join pg_am idx_am on idx_am.oid = idx_class.relam
-    where idx.indrelid = ${alias}.oid and not exists (
+    where idx.indrelid = ${relationOid} and not exists (
       select from pg_constraint idx_con
       where idx_con.conrelid = idx.indrelid and idx_con.conindid = idx.indexrelid
-        and idx_con.contype in ('p', 'u', 'x')
+        and idx_con.contype in ('p', 'u')
     )
-  ), '[]') as indexes`;
+  ), '[]')`;
 }
 
 export interface IndexRow {
@@ -72,7 +72,15 @@ interface IndexKeyRow {
 }
 
 export function parseIndex(row: IndexRow): Index {
-  return { ...row, keys: row.keys.map((key) => parseIndexKey(key)) };
+  return {
+    name: row.name,
+    method: row.method,
+    unique: row.unique,
+    nullsNotDistinct: row.nullsNotDistinct,
+    keys: row.keys.map((key) => parseIndexKey(key)),
+    include: row.include,
+    predicate: row.predicate,
+  };
 }
 
 function parseIndexKey(row: IndexKeyRow): IndexKey {

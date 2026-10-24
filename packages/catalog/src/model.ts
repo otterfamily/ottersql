@@ -51,11 +51,14 @@ export interface NamedTypeRef {
 export interface PrimaryKey {
   readonly name: string;
   readonly columns: readonly string[];
+  readonly include: readonly string[];
+  readonly deferral: Deferral;
 }
 
 export interface UniqueConstraint {
   readonly name: string;
   readonly columns: readonly string[];
+  readonly include: readonly string[];
   readonly nullsNotDistinct: boolean;
   readonly deferral: Deferral;
 }
@@ -86,7 +89,10 @@ export interface Check {
   readonly name: string;
   readonly expression: string;
   readonly columns: readonly string[];
-  /** Set when the check limits one column to a list of strings; types narrow it to a union. */
+  /**
+   * Set when a validated, enforced check limits one column to a list of strings, so types can
+   * narrow it to a union.
+   */
   readonly allowedValues: { readonly column: string; readonly values: readonly string[] } | null;
   readonly enforcement: Enforcement;
 }
@@ -112,7 +118,10 @@ export interface Domain {
 export interface DomainCheck {
   readonly name: string;
   readonly expression: string;
-  /** Set when the check limits the domain to a list of strings; types narrow it to a union. */
+  /**
+   * Set when a validated, enforced check limits the domain to a list of strings, so types can
+   * narrow it to a union.
+   */
   readonly allowedValues: readonly string[] | null;
   readonly enforcement: Enforcement;
 }
@@ -185,7 +194,10 @@ export interface Routine {
   readonly schema: string;
   readonly name: string;
   readonly kind: "function" | "procedure" | "aggregate" | "window";
-  /** The parameters a caller passes, in order; OUT and TABLE parameters are in `returns`. */
+  /**
+   * The parameters a caller passes, in order. A function's OUT and TABLE parameters are only in
+   * `returns`.
+   */
   readonly arguments: readonly RoutineArgument[];
   readonly returns: RoutineResult;
   readonly volatility: "immutable" | "stable" | "volatile";
@@ -194,15 +206,16 @@ export interface Routine {
 
 export interface RoutineArgument {
   readonly name: string | null;
-  readonly mode: "in" | "inout" | "variadic";
+  /** `out` appears only on procedures, whose callers pass a placeholder for each OUT parameter. */
+  readonly mode: "in" | "inout" | "out" | "variadic";
   readonly type: TypeRef;
   readonly typeSql: string;
   readonly hasDefault: boolean;
 }
 
 /**
- * What a routine gives back. Procedures return nothing; routines with OUT, INOUT or TABLE
- * parameters return rows of those columns; others return a value of one type.
+ * What a routine gives back: rows of its OUT, INOUT and TABLE parameters when it has any, otherwise
+ * a value of one type for a function and nothing for a procedure.
  */
 export type RoutineResult =
   | { readonly kind: "none" }
@@ -221,10 +234,7 @@ export interface RoutineColumn {
   readonly typeSql: string;
 }
 
-/**
- * What the database the catalog was read from supports. Only Postgres is read today; hosts such as
- * Aurora DSQL will add what they lack here.
- */
+/** What the database the catalog was read from supports. */
 export interface Capabilities {
   readonly engine: "postgres";
   readonly version: { readonly major: number; readonly minor: number };

@@ -6,7 +6,12 @@ import { table } from "./test-helpers.ts";
 describe("keys", () => {
   test("reads a composite primary key in key order", async () => {
     const catalog = await loadCatalog(`create table t (a int, b int, primary key (b, a));`);
-    expect(table(catalog, "t").primaryKey).toStrictEqual({ name: "t_pkey", columns: ["b", "a"] });
+    expect(table(catalog, "t").primaryKey).toStrictEqual({
+      name: "t_pkey",
+      columns: ["b", "a"],
+      include: [],
+      deferral: "not deferrable",
+    });
   });
 
   test("has no primary key when the table declares none", async () => {
@@ -26,10 +31,17 @@ describe("keys", () => {
       {
         name: "t_b_a_key",
         columns: ["b", "a"],
+        include: [],
         nullsNotDistinct: false,
         deferral: "not deferrable",
       },
-      { name: "t_c_key", columns: ["c"], nullsNotDistinct: true, deferral: "initially deferred" },
+      {
+        name: "t_c_key",
+        columns: ["c"],
+        include: [],
+        nullsNotDistinct: true,
+        deferral: "initially deferred",
+      },
     ]);
   });
 
@@ -77,6 +89,28 @@ describe("keys", () => {
         deferral: "initially immediate",
         enforcement: "validated",
       },
+    ]);
+  });
+
+  test("reads included columns and deferral of primary keys and unique constraints", async () => {
+    const catalog = await loadCatalog(`
+      create table t (
+        a int, b int, c int, d int,
+        constraint t_pkey primary key (a) include (b) deferrable initially deferred,
+        constraint t_c_key unique (c) include (d, b)
+      );
+    `);
+    expect([table(catalog, "t").primaryKey, table(catalog, "t").uniqueConstraints]).toStrictEqual([
+      { name: "t_pkey", columns: ["a"], include: ["b"], deferral: "initially deferred" },
+      [
+        {
+          name: "t_c_key",
+          columns: ["c"],
+          include: ["d", "b"],
+          nullsNotDistinct: false,
+          deferral: "not deferrable",
+        },
+      ],
     ]);
   });
 });
