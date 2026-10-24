@@ -5,3 +5,4 @@ coverage/
 .env.*
 mapper.log
 .DS_Store
+CLAUDE.local.md
