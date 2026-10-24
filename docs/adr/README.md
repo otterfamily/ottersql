@@ -13,3 +13,4 @@ Each record states one decision, why it was made, and what follows from it. Reco
 | [0007](0007-design-principles.md)                               | Design principles                                | Accepted |
 | [0008](0008-ottersql-decodes-values-from-text.md)               | ottersql decodes values from text                | Accepted |
 | [0009](0009-prove-non-null-from-the-analyzed-query.md)          | Prove non-null from the analyzed query           | Accepted |
+| [0010](0010-supported-postgres-versions.md)                     | Supported Postgres versions                      | Accepted |

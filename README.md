@@ -4,10 +4,11 @@ Otters hold hands while they sleep so they don't drift apart. ottersql keeps you
 
 ottersql is an AI-first TypeScript ORM and migration tool for Postgres, in the design stage before its first PoC.
 
-- **Plain SQL is the source of truth.** `schema.sql` describes the database, `migrations/*.sql` record how it got there, and `.sql` query files hold your queries.
-- **Types say only what the database guarantees.** No TypeScript-only enums, no types the database cannot enforce.
-- **No codegen step.** Types reach your editor through TypeScript 7.1 content mappers.
-- **Forward-only migrations** with plans that say what is safe to roll back and in what order to deploy.
+- **Correct types.** Types say only what the database guarantees: a column is non-null only when Postgres's own analysis of the query proves it, `int8` and `numeric` stay exact, dates and times are Temporal values, and a CHECK that lists values becomes a union of them.
+- **Safe migrations.** Forward-only plans from the difference between `schema.sql` and the database, written with the lock-safe recipes production teams apply by hand, saying what is safe to roll back, which steps run before and after a deploy, and resuming where a failed run stopped.
+- **Fast.** Close to the bare driver at runtime, quick in the editor, and measured to prove it.
+- **`schema.sql` is enough.** Types, checks and migration plans come from Postgres itself running in-process (PGlite), so no database is needed in the editor or in CI.
+- **Plain SQL is the source of truth.** `schema.sql` describes the database, `migrations/*.sql` record how it got there, and `.sql` query files hold your queries. Types reach your editor through TypeScript 7.1 content mappers, with no codegen step.
 - **Take only what you need.** Use typed SQL alone next to your current ORM, or add the relational API and migrations later.
 
 ## Goals
