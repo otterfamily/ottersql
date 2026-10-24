@@ -1,4 +1,4 @@
-import { decodeValue } from "./decode.ts";
+import { decodeColumn } from "./decode.ts";
 import { encodeParameter } from "./encode.ts";
 import { typeInfos } from "./type-info.ts";
 import type { TypeInfo } from "./type-info.ts";
@@ -38,6 +38,15 @@ export function columnNamesProblem(names: readonly string[]): string | null {
     : `Column "${duplicate}" appears more than once; give each column its own name with AS`;
 }
 
+/** Only `null` means NULL: a forgotten parameter would otherwise match nothing, silently. */
+function parameterValue(params: QueryParams | undefined, name: string): unknown {
+  const value = params !== undefined && Object.hasOwn(params, name) ? params[name] : undefined;
+  if (value === undefined) {
+    throw new TypeError(`Parameter "${name}" is missing; pass null for NULL`);
+  }
+  return value;
+}
+
 /** Assigning properties in a loop is several times faster than `Object.fromEntries`; `columnNamesProblem` keeps it safe. */
 function decodeRow(
   row: readonly (string | null)[],
@@ -45,7 +54,7 @@ function decodeRow(
 ): QueryRow {
   const decoded: Record<string, unknown> = {};
   for (const [index, { name, type }] of columns.entries()) {
-    decoded[name] = decodeValue(row[index] ?? null, type);
+    decoded[name] = decodeColumn(name, row[index] ?? null, type);
   }
   return decoded;
 }
@@ -61,7 +70,7 @@ export function defineQuery(
   type Params = QueryParams;
   type Row = QueryRow;
   const run = async (connection: Connection, params?: Params): Promise<Row[]> => {
-    const values = parameterNames.map((name) => encodeParameter(params?.[name] ?? null));
+    const values = parameterNames.map((name) => encodeParameter(parameterValue(params, name)));
     const result = await connection.query(sql, values);
     const problem = columnNamesProblem(result.fields.map(({ name }) => name));
     if (problem !== null) {

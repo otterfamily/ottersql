@@ -13,8 +13,32 @@ export class DecodeError extends Error {
   override readonly name = "DecodeError";
 }
 
-/** Decodes one value of Postgres's text output into the JavaScript value ADR 0008 assigns its type. */
-export function decodeValue(text: string | null, type: TypeInfo): unknown {
+/**
+ * Decodes one column's value of Postgres's text output into the JavaScript value ADR 0008 assigns
+ * its type. Throws a `DecodeError` naming the column and the value when the value does not fit.
+ */
+export function decodeColumn(column: string, text: string | null, type: TypeInfo): unknown {
+  try {
+    return decodeValue(text, type);
+  } catch (error) {
+    throw new DecodeError(
+      `Column "${column}": "${String(text)}" cannot be decoded as ${typeName(type)}`,
+      { cause: error },
+    );
+  }
+}
+
+function typeName(type: TypeInfo): string {
+  if (type.kind === "array") {
+    return `${typeName(type.element)}[]`;
+  }
+  if (type.kind === "range" || type.kind === "multirange") {
+    return `${type.kind} of ${typeName(type.subtype)}`;
+  }
+  return type.kind === "text" ? "text" : type.name;
+}
+
+function decodeValue(text: string | null, type: TypeInfo): unknown {
   if (text === null) {
     return null;
   }
@@ -61,7 +85,7 @@ export interface BaseCodec {
 
 export const baseCodecs: Readonly<Record<string, BaseCodec>> = {
   bool: { type: "boolean", decode: (text) => text === "t" },
-  bytea: { type: "Uint8Array", decode: (text) => bytesFromHex(text.slice(String.raw`\x`.length)) },
+  bytea: { type: "Uint8Array", decode: bytesFromHex },
   date: { type: "Temporal.PlainDate", decode: (text) => Temporal.PlainDate.from(isoYear(text)) },
   float4: { type: "number", decode: Number },
   float8: { type: "number", decode: Number },
@@ -87,17 +111,7 @@ export const baseCodecs: Readonly<Record<string, BaseCodec>> = {
 
 function decodeBase(text: string, name: string): unknown {
   const decode = baseCodecs[name]?.decode;
-  if (decode === undefined) {
-    return text;
-  }
-  try {
-    return decode(text);
-  } catch (error) {
-    throw new DecodeError(
-      `"${text}" cannot be decoded as ${name}: ${error instanceof Error ? error.message : String(error)}`,
-      { cause: error },
-    );
-  }
+  return decode === undefined ? text : decode(text);
 }
 
 const yearDigits = /^\d+/v;
@@ -124,13 +138,18 @@ function isoYear(text: string): string {
 const HEX_DIGITS_PER_BYTE = 2;
 const HEX = 16;
 
-function bytesFromHex(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / HEX_DIGITS_PER_BYTE);
+const byteaHex = /^\\x(?:[\da-f]{2})*$/v;
+const HEX_PREFIX_LENGTH = 2;
+
+/** Only the hex output format: reading `bytea_output = escape` text as hex would corrupt it. */
+function bytesFromHex(text: string): Uint8Array {
+  if (!byteaHex.test(text)) {
+    throw new TypeError("not bytea in the hex output format");
+  }
+  const bytes = new Uint8Array((text.length - HEX_PREFIX_LENGTH) / HEX_DIGITS_PER_BYTE);
   for (let index = 0; index < bytes.length; index += 1) {
-    bytes[index] = Number.parseInt(
-      hex.slice(index * HEX_DIGITS_PER_BYTE, (index + 1) * HEX_DIGITS_PER_BYTE),
-      HEX,
-    );
+    const start = HEX_PREFIX_LENGTH + index * HEX_DIGITS_PER_BYTE;
+    bytes[index] = Number.parseInt(text.slice(start, start + HEX_DIGITS_PER_BYTE), HEX);
   }
   return bytes;
 }

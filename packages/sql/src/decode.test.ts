@@ -1,7 +1,9 @@
+import { PGlite } from "@electric-sql/pglite";
 import { describe, expect, test as base } from "vitest";
 
-import { defineQuery, json } from "./index.ts";
+import { DecodeError, defineQuery, json } from "./index.ts";
 import type { Connection } from "./index.ts";
+import { pgliteConnection } from "./pglite.ts";
 import { openDrivers } from "./test-drivers.ts";
 
 const test = base.extend<{ drivers: readonly Connection[] }>({
@@ -105,16 +107,33 @@ describe("decoding values (ADR 0008)", () => {
   });
 
   test.for<readonly [string, string, string]>([
-    ["infinite date", "'infinity'::date", "infinity"],
-    ["time 24:00", "'24:00:00'::time", "24:00:00"],
+    ["infinite date", "'infinity'::date", 'Column "v": "infinity" cannot be decoded as date'],
+    ["time 24:00", "'24:00:00'::time", 'Column "v": "24:00:00" cannot be decoded as time'],
+    [
+      "infinite date in an array",
+      "array['infinity']::date[]",
+      'Column "v": "{infinity}" cannot be decoded as date[]',
+    ],
   ])(
-    "rejects a value its type cannot hold exactly: %s",
-    async ([, expression, value], { drivers }) => {
+    "rejects a value its type cannot hold exactly, naming the column: %s",
+    async ([, expression, message], { drivers }) => {
       for (const connection of drivers) {
-        await expect(selectOne(connection, expression)).rejects.toThrow(`"${value}"`);
+        await expect(selectOne(connection, expression)).rejects.toThrow(new DecodeError(message));
       }
     },
   );
+
+  test("rejects bytea in the escape output format, which hex decoding would corrupt", async () => {
+    const db = await PGlite.create();
+    try {
+      await db.exec("set bytea_output = escape");
+      await expect(selectOne(pgliteConnection(db), "'abc'::bytea")).rejects.toThrow(
+        new DecodeError('Column "v": "abc" cannot be decoded as bytea'),
+      );
+    } finally {
+      await db.close();
+    }
+  });
 });
 
 describe("encoding parameters", () => {
@@ -167,6 +186,20 @@ describe("rows", () => {
   ] as const)("reject columns they cannot hold: %s", async ([sql, message], { drivers }) => {
     for (const connection of drivers) {
       await expect(defineQuery(sql, [])(connection)).rejects.toThrow(message);
+    }
+  });
+});
+
+describe("parameters", () => {
+  test.for([
+    ["a missing parameter", {}, "a"],
+    ["an undefined parameter", { a: undefined }, "a"],
+    ["a parameter named after an Object method", {}, "toString"],
+  ] as const)("reject %s rather than sending NULL", async ([, params, name], { drivers }) => {
+    for (const connection of drivers) {
+      await expect(defineQuery(`select $1::text as v`, [name])(connection, params)).rejects.toThrow(
+        `Parameter "${name}" is missing; pass null for NULL`,
+      );
     }
   });
 });
