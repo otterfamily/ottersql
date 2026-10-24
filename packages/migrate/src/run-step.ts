@@ -16,7 +16,7 @@ export interface RunOptions {
    * no other query.
    */
   readonly lockTimeout?: number;
-  /** How many times a step that gave up a lock is retried. */
+  /** How many times a step that gave up waiting for a lock, or was ended by a deadlock, is retried. */
   readonly retries?: number;
   /** Milliseconds to wait before retry `attempt`, counted from 1. */
   readonly retryDelay?: (attempt: number) => number;
@@ -43,13 +43,17 @@ const defaults: Settings = {
 };
 
 const LOCK_NOT_AVAILABLE = "55P03";
+// A foreign key locks two tables, so it can deadlock with a transaction writing to both; Postgres
+// ends one of them, and running the step again then succeeds.
+const DEADLOCK_DETECTED = "40P01";
+const retried: ReadonlySet<string | null> = new Set([LOCK_NOT_AVAILABLE, DEADLOCK_DETECTED]);
 
 export interface StepFailure {
   readonly code: string | null;
   readonly message: string;
 }
 
-/** Runs one step and records it, retrying while it gives up waiting for a lock. */
+/** Runs one step and records it, retrying while it gives up waiting for a lock or deadlocks. */
 export async function runStep(
   connection: Connection,
   pending: PendingStep,
@@ -173,7 +177,7 @@ async function leftIndex(
   return row[0] === "t" ? "valid" : "invalid";
 }
 
-/** Retries a step that gave up waiting for a lock; any other error ends the run. */
+/** Retries a step that gave up waiting for a lock or was ended by a deadlock; any other error ends the run. */
 async function withRetries(
   run: () => Promise<void>,
   settings: Settings,
@@ -184,7 +188,7 @@ async function withRetries(
       return null;
     } catch (error) {
       const code = sqlState(error);
-      if (code !== LOCK_NOT_AVAILABLE || attempt > settings.retries) {
+      if (!retried.has(code) || attempt > settings.retries) {
         return { code, message: error instanceof Error ? error.message : String(error) };
       }
       await sleep(settings.retryDelay(attempt));

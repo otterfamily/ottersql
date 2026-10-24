@@ -109,6 +109,29 @@ describe("planMigration", () => {
     ]);
   });
 
+  test.for([
+    {
+      change: "a column dropped and another of the same type added",
+      to: "create table users (id int8 primary key, mail text)",
+      object: "public.users.email",
+      reason:
+        "public.users.email is dropped and public.users.mail of the same type is added, which may be a rename that would lose the column's data; write it by hand: RENAME COLUMN for a rename (or add, backfill and switch, to keep the old app working), or DROP COLUMN and ADD COLUMN otherwise",
+    },
+    {
+      change: "a table dropped and another with the same columns created",
+      to: "create table accounts (id int8 primary key, email text)",
+      object: "public.users",
+      reason:
+        "public.users is dropped and public.accounts with the same columns is created, which may be a rename that would lose the table's data; write it by hand: RENAME for a rename, or DROP TABLE and CREATE TABLE otherwise",
+    },
+  ])(
+    "leaves what may be a rename to be written by hand: $change",
+    async ({ to, object, reason }) => {
+      const plan = planMigration(await loadCatalog(users), await loadCatalog(to));
+      expect(plan).toStrictEqual({ steps: [], manual: [{ object, reason }] });
+    },
+  );
+
   test("leaves new and changed functions to be written by hand", async () => {
     const plan = planMigration(await loadCatalog(users), await loadCatalog(`${uuid7}; ${users}`));
     expect(plan).toStrictEqual({

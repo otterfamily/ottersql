@@ -1,8 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { findTable } from "@ottersql/catalog";
 import type {
-  Catalog,
   Check,
   Enforcement,
   ForeignKey,
@@ -14,16 +12,15 @@ import type {
 
 import type { Step } from "./plan.ts";
 import {
-  columnList,
+  alterTable,
   createIndex,
   deferral,
   enforcement,
   foreignKeyDefinition,
   identifier,
 } from "./sql-text.ts";
-import { combine, matchByName, only, outsideStep, step } from "./steps.ts";
+import { combine, matchByName, noChanges, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
-import { alterTable, objectName } from "./table-sql.ts";
 
 /**
  * Constraints added to a table that has rows hold for new rows first and are validated in a step of
@@ -35,10 +32,15 @@ export function constraintChanges(before: Table, after: Table): Changes {
   const drop = (item: { readonly name: string }): Changes =>
     dropConstraint(after, item.name, { kind: "dropConstraint", phase: "expand" });
   return combine([
-    keyedChanges(before.checks, after.checks, { drop, add: (check) => addCheck(after, check) }),
+    keyedChanges(before.checks, after.checks, {
+      drop,
+      add: (check) => addCheck(after, check),
+      validate: (check) => validateStep(after, check.name, "validateCheck"),
+    }),
     keyedChanges(before.foreignKeys, after.foreignKeys, {
       drop: (key) => dropConstraint(after, key.name, { kind: "dropForeignKey", phase: "expand" }),
       add: (key) => addForeignKey(after, key),
+      validate: (key) => validateStep(after, key.name, "validateForeignKey"),
     }),
     keyedChanges(before.uniqueConstraints, after.uniqueConstraints, {
       drop,
@@ -55,23 +57,43 @@ function primaryKeys(table: Table): PrimaryKey[] {
   return table.primaryKey === null ? [] : [table.primaryKey];
 }
 
-/** A constraint whose definition changed under the same name is dropped and added again. */
-function keyedChanges<Item extends { readonly name: string }>(
+interface KeyedPlan<Item> {
+  readonly add: (item: Item) => Changes;
+  readonly drop: (item: Item) => Changes;
+  /** Validates an item that was NOT VALID and is otherwise unchanged; without it, it is re-added. */
+  readonly validate?: (item: Item) => Changes;
+}
+
+/**
+ * A constraint whose definition changed under the same name is dropped and added again, except
+ * one that only became validated, which is validated in place.
+ */
+function keyedChanges<Item extends { readonly name: string; readonly enforcement?: Enforcement }>(
   before: readonly Item[],
   after: readonly Item[],
-  plan: { readonly add: (item: Item) => Changes; readonly drop: (item: Item) => Changes },
+  plan: KeyedPlan<Item>,
 ): Changes {
   const { added, removed, kept } = matchByName(before, after);
   const changed = kept.filter(([old, current]) => !isDeepStrictEqual(old, current));
+  const validated = changed.filter(
+    ([old, current]) =>
+      plan.validate !== undefined &&
+      old.enforcement === "not valid" &&
+      current.enforcement === "validated" &&
+      isDeepStrictEqual({ ...old, enforcement: null }, { ...current, enforcement: null }),
+  );
+  const redefined = changed.filter((pair) => !validated.includes(pair));
   return combine([
-    ...[...removed, ...changed.map(([old]) => old)].map((item) => plan.drop(item)),
-    ...[...added, ...changed.map(([, current]) => current)].map((item) => plan.add(item)),
+    ...[...removed, ...redefined.map(([old]) => old)].map((item) => plan.drop(item)),
+    ...[...added, ...redefined.map(([, current]) => current)].map((item) => plan.add(item)),
+    ...validated.map(([, current]) => plan.validate?.(current) ?? noChanges),
   ]);
 }
 
 /**
  * Foreign keys are dropped as a kind of their own, so that they go before the keys they reference
- * and the tables those keys belong to.
+ * and the tables those keys belong to. Once rows that break the constraint are written, it cannot
+ * be added back without changing them, so dropping it is lossy.
  */
 export function dropConstraint(
   table: Table,
@@ -85,7 +107,7 @@ export function dropConstraint(
       object: objectName(table, name),
       statements: [statement],
       phase,
-      reversal: "reversible",
+      reversal: "lossy",
       lock: "access exclusive",
     }),
   );
@@ -115,19 +137,38 @@ function addThenValidate(addition: Addition): Changes {
     reversal: "reversible",
     lock: kind === "check" ? "access exclusive" : "share row exclusive",
   });
-  const validate = step({
-    kind: kind === "check" ? "validateCheck" : "validateForeignKey",
-    object,
-    statements: [alterTable(table, `VALIDATE CONSTRAINT ${identifier(name)}`)],
-    phase: "contract",
-    reversal: "reversible",
-    lock: "share update exclusive",
-    reason: "Checking existing rows takes a lock that lets reads and writes go on",
-  });
-  return addition.enforcement === "validated" ? only(add, validate) : only(add);
+  if (addition.enforcement !== "validated") {
+    return only(add);
+  }
+  const validate = validateStep(
+    table,
+    name,
+    kind === "check" ? "validateCheck" : "validateForeignKey",
+  );
+  return combine([only(add), validate]);
 }
 
-function addCheck(table: Table, check: Check): Changes {
+/** Checks existing rows against a constraint added NOT VALID, which lets reads and writes go on. */
+function validateStep(
+  table: Table,
+  name: string,
+  kind: "validateCheck" | "validateForeignKey",
+): Changes {
+  const statement = alterTable(table, `VALIDATE CONSTRAINT ${identifier(name)}`);
+  return only(
+    step({
+      kind,
+      object: objectName(table, name),
+      statements: [statement],
+      phase: "contract",
+      reversal: "reversible",
+      lock: "share update exclusive",
+      reason: "Checking existing rows takes a lock that lets reads and writes go on",
+    }),
+  );
+}
+
+export function addCheck(table: Table, check: Check): Changes {
   return addThenValidate({
     table,
     name: check.name,
@@ -199,84 +240,4 @@ function indexBackedKey(
       lock: "access exclusive",
     }),
   );
-}
-
-function include(columns: readonly string[]): string {
-  return columns.length > 0 ? ` INCLUDE ${columnList(columns)}` : "";
-}
-
-/** Table constraints as written inside `CREATE TABLE`, where there are no rows to check yet. */
-export function inlineConstraints(table: Table): string[] {
-  const { primaryKey } = table;
-  const primary =
-    primaryKey === null
-      ? []
-      : [
-          `CONSTRAINT ${identifier(primaryKey.name)} PRIMARY KEY ${columnList(primaryKey.columns)}${include(primaryKey.include)}${deferral(primaryKey.deferral)}`,
-        ];
-  const unique = table.uniqueConstraints.map(
-    (key) =>
-      `CONSTRAINT ${identifier(key.name)} UNIQUE${key.nullsNotDistinct ? " NULLS NOT DISTINCT" : ""} ${columnList(key.columns)}${include(key.include)}${deferral(key.deferral)}`,
-  );
-  const checks = table.checks
-    .filter((check) => check.enforcement !== "not valid")
-    .map(
-      (check) =>
-        `CONSTRAINT ${identifier(check.name)} CHECK (${check.expression})${enforcement(check.enforcement)}`,
-    );
-  return [...primary, ...unique, ...checks];
-}
-
-/**
- * What a new table adds after `CREATE TABLE`: foreign keys, once every table they may refer to
- * exists, and checks meant to skip existing rows, which `CREATE TABLE` cannot write.
- */
-/**
- * Whether `table` has a key a foreign key to `columns` can reference: a primary key, a unique
- * constraint or a unique index without a predicate, on the same columns in any order.
- */
-function hasKey(table: Table, columns: readonly string[]): boolean {
-  const same = (other: readonly string[]): boolean =>
-    other.length === columns.length && other.every((column) => columns.includes(column));
-  return (
-    (table.primaryKey !== null && same(table.primaryKey.columns)) ||
-    table.uniqueConstraints.some((key) => same(key.columns)) ||
-    table.indexes.some(
-      (index) =>
-        index.unique &&
-        index.predicate === null &&
-        same(index.keys.flatMap((key) => (key.kind === "column" ? [key.column] : []))),
-    )
-  );
-}
-
-/**
- * The constraints of a new table that cannot be part of CREATE TABLE. A foreign key to a key that
- * `from` lacks on an existing table waits until that key is added, after the deploy.
- */
-export function newTableConstraints(table: Table, from: Catalog): Changes {
-  const unvalidatedChecks = table.checks.filter((check) => check.enforcement === "not valid");
-  const waitsForKey = (key: ForeignKey): boolean => {
-    const referenced = findTable(from, key.references.schema, key.references.table);
-    return referenced !== undefined && !hasKey(referenced, key.references.columns);
-  };
-  const foreignKeys = table.foreignKeys.map((key) =>
-    step({
-      kind: "addForeignKey",
-      object: objectName(table, key.name),
-      statements: [
-        alterTable(
-          table,
-          `ADD CONSTRAINT ${identifier(key.name)} ${foreignKeyDefinition(key)}${enforcement(key.enforcement)}`,
-        ),
-      ],
-      phase: waitsForKey(key) ? "contract" : "expand",
-      reversal: "reversible",
-      lock: "share row exclusive",
-    }),
-  );
-  return combine([
-    ...unvalidatedChecks.map((check) => addCheck(table, check)),
-    only(...foreignKeys),
-  ]);
 }

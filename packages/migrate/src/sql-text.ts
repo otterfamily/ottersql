@@ -87,3 +87,24 @@ export function createIndex(table: QualifiedName, index: Index, concurrently: bo
     index.predicate === null ? "" : ` WHERE ${index.predicate}`,
   ].join("");
 }
+
+// Postgres truncates longer names, so a longer name ottersql makes up would not be the one it uses.
+const MAX_NAME_BYTES = 63;
+
+/** Whether `name` is too long for Postgres to keep whole. */
+export function exceedsNameLimit(name: string): boolean {
+  return new TextEncoder().encode(name).length > MAX_NAME_BYTES;
+}
+
+export function alterTable(table: QualifiedName, action: string): string {
+  return `ALTER TABLE ${qualified(table.schema, table.name)} ${action}`;
+}
+
+export function columnSqlName(table: QualifiedName, column: string): string {
+  return `${qualified(table.schema, table.name)}.${identifier(column)}`;
+}
+
+/** Re-runnable: a run that dropped the index but failed before recording it finds it gone. */
+export function dropIndexStatement(table: QualifiedName, index: string): string {
+  return `DROP INDEX CONCURRENTLY IF EXISTS ${qualified(table.schema, index)}`;
+}

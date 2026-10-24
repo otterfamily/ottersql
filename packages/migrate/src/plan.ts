@@ -63,6 +63,7 @@ export const stepKinds = [
   "dropConstraint",
   "createIndex",
   "dropIndex",
+  "renameIndex",
   "comment",
   "custom",
 ] as const;

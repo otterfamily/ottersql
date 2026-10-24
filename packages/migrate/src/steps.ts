@@ -1,3 +1,5 @@
+import type { QualifiedName } from "@ottersql/catalog";
+
 import type { InsideStep, ManualChange, OutsideStep, Step } from "./plan.ts";
 
 /** A step that runs in a transaction and needs no explanation unless told otherwise. */
@@ -56,4 +58,9 @@ export function matchByName<Item extends { readonly name: string }>(
       return before === undefined ? [] : [[before, item] as const];
     }),
   };
+}
+
+/** `schema.table.name`, as plans name what a step changes. */
+export function objectName(table: QualifiedName, name: string): string {
+  return `${table.schema}.${table.name}.${name}`;
 }

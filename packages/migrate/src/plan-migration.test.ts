@@ -45,7 +45,45 @@ describe("planMigration, run on PGlite to the target schema", () => {
       change: "drops NOT NULL before the deploy",
       from: "create table users (id int8 primary key, email text not null)",
       to: users,
-      steps: ["expand dropNotNull public.users.email (reversible, inside, access exclusive)"],
+      steps: ["expand dropNotNull public.users.email (lossy, inside, access exclusive)"],
+    },
+    {
+      change:
+        "drops a check and a foreign key before the deploy, which cannot be put back once rows break them",
+      from: `${users}; create table posts (id int8 primary key, author_id int8 references users check (author_id > 0))`,
+      to: `${users}; create table posts (id int8 primary key, author_id int8)`,
+      steps: [
+        "expand dropForeignKey public.posts.posts_author_id_fkey (lossy, inside, access exclusive)",
+        "expand dropConstraint public.posts.posts_author_id_check (lossy, inside, access exclusive)",
+      ],
+    },
+    {
+      change: "validates a check that was NOT VALID, with VALIDATE alone",
+      from: `${users}; alter table users add constraint email_has_at check (email like '%@%') not valid`,
+      to: `${users}; alter table users add constraint email_has_at check (email like '%@%')`,
+      steps: [
+        "contract validateCheck public.users.email_has_at (reversible, inside, share update exclusive)",
+      ],
+    },
+    {
+      change: "validates a foreign key that was NOT VALID, with VALIDATE alone",
+      from: `${users}; create table posts (id int8 primary key, author_id int8);
+        alter table posts add foreign key (author_id) references users not valid`,
+      to: `${users}; create table posts (id int8 primary key, author_id int8);
+        alter table posts add foreign key (author_id) references users`,
+      steps: [
+        "contract validateForeignKey public.posts.posts_author_id_fkey (reversible, inside, share update exclusive)",
+      ],
+    },
+    {
+      change: "rebuilds a changed index under a temporary name, so queries never go without it",
+      from: `${users}; create index users_lookup on users (email)`,
+      to: `${users}; create index users_lookup on users (lower(email))`,
+      steps: [
+        "contract createIndex public.users.ottersql_new_users_lookup (reversible, outside, share update exclusive)",
+        "contract dropIndex public.users.users_lookup (reversible, outside, share update exclusive)",
+        "contract renameIndex public.users.users_lookup (reversible, inside, share update exclusive)",
+      ],
     },
     {
       change: "adds a foreign key unvalidated, then validates it",

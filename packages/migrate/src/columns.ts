@@ -4,20 +4,32 @@ import { findDomain } from "@ottersql/catalog";
 import type { Catalog, Column, Domain, Table, TypeRef } from "@ottersql/catalog";
 
 import { commentChange } from "./comments.ts";
-import { columnDefinition, identifier } from "./sql-text.ts";
-import { combine, manual, matchByName, noChanges, only, step } from "./steps.ts";
+import {
+  alterTable,
+  columnDefinition,
+  columnSqlName,
+  exceedsNameLimit,
+  identifier,
+} from "./sql-text.ts";
+import { combine, manual, matchByName, noChanges, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
-import { alterTable, columnSqlName, objectName } from "./table-sql.ts";
-
-// Postgres truncates longer names, so a longer helper constraint name would not be the one dropped.
-const MAX_NAME_BYTES = 63;
 
 /** The changes from `before` to `after`, a table of the catalog `to`. */
 export function columnChanges(before: Table, after: Table, to: Catalog): Changes {
   const { added, removed, kept } = matchByName(before.columns, after.columns);
+  const renamed = (column: Column): Column | undefined =>
+    added.find((other) => other.typeSql === column.typeSql);
+  const suspects = removed.filter((column) => renamed(column) !== undefined);
   return combine([
-    ...added.map((column) => addColumn(after, column, to)),
-    ...removed.map((column) => dropColumn(after, column)),
+    ...added
+      .filter((column) => !suspects.some((suspect) => renamed(suspect) === column))
+      .map((column) => addColumn(after, column, to)),
+    ...removed.map((column) => {
+      const other = renamed(column);
+      return other === undefined
+        ? dropColumn(after, column)
+        : maybeRenamedColumn(after, column, other);
+    }),
     ...kept.map(([old, current]) => changeColumn(after, old, current)),
   ]);
 }
@@ -95,6 +107,14 @@ function addColumn(table: Table, column: Column, to: Catalog): Changes {
       after: column.comment,
     }),
   ]);
+}
+
+function maybeRenamedColumn(table: Table, dropped: Column, added: Column): Changes {
+  const object = objectName(table, dropped.name);
+  return manual(
+    object,
+    `${object} is dropped and ${objectName(table, added.name)} of the same type is added, which may be a rename that would lose the column's data; write it by hand: RENAME COLUMN for a rename (or add, backfill and switch, to keep the old app working), or DROP COLUMN and ADD COLUMN otherwise`,
+  );
 }
 
 function dropColumn(table: Table, column: Column): Changes {
@@ -183,7 +203,7 @@ function notNullChange(table: Table, before: Column, after: Column): Changes {
       object: objectName(table, after.name),
       statements: [statement],
       phase: "expand",
-      reversal: "reversible",
+      reversal: "lossy",
       lock: "access exclusive",
     }),
   );
@@ -195,7 +215,7 @@ function notNullChange(table: Table, before: Column, after: Column): Changes {
  */
 function setNotNull(table: Table, column: Column): Changes {
   const check = `ottersql_not_null_${column.name}`;
-  if (new TextEncoder().encode(check).length > MAX_NAME_BYTES) {
+  if (exceedsNameLimit(check)) {
     return manual(
       objectName(table, column.name),
       `The helper check "${check}" would be longer than Postgres's 63-byte names; make the column NOT NULL by hand`,
