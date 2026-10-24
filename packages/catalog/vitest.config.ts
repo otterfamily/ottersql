@@ -7,6 +7,7 @@ const config: ViteUserConfig = defineConfig({
     // once per file, all at the same time; on small CI runners that contention timed tests out.
     isolate: false,
     fileParallelism: false,
+    setupFiles: ["./src/test-setup.ts"],
   },
 });
 
