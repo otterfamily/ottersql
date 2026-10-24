@@ -17,8 +17,8 @@ Each kind of information has one home.
 - Code says how (through names and structure). Comments say only why not (why another way was not chosen); no comments that restate the code, history or TODOs.
 - Tests say what is guaranteed (in their names).
 - Commit messages say why.
-- GitHub issues hold designs, open questions and units of work.
-- Docs hold only rules and procedures that are still in force. Decisions and their reasons go in `docs/adr` (never rewritten; a changed decision gets a new ADR that supersedes the old one).
+- GitHub issues hold designs, open questions and units of work. A spec is a parent issue; its work items are sub-issues.
+- Docs hold only rules and procedures that are still in force. Only major decisions, the pillars that shape the whole project, go in `docs/adr` with their reasons (never rewritten; a changed decision gets a new ADR that supersedes the old one). Detailed design is decided in issues and closed there.
 - Research notes go in the private `otterfamily/ottersql-research` repository, not here. Records that cite it must summarise what they rely on, since outside readers cannot open it.
 
 ## Tests
