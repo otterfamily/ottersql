@@ -4,7 +4,8 @@ import type { Connection } from "@ottersql/sql";
 
 import { record } from "./ledger.ts";
 import type { PendingStep } from "./ledger.ts";
-import type { Lock, Step } from "./plan.ts";
+import { writeBlockingLocks } from "./plan.ts";
+import type { Step } from "./plan.ts";
 
 export interface RunOptions {
   /**
@@ -40,7 +41,6 @@ const defaults: Settings = {
 };
 
 const LOCK_NOT_AVAILABLE = "55P03";
-const writeBlocking: ReadonlySet<Lock> = new Set(["access exclusive", "share row exclusive"]);
 
 export interface StepFailure {
   readonly code: string | null;
@@ -66,7 +66,7 @@ interface Timeouts {
 }
 
 function timeouts(step: Step, settings: Settings): Timeouts {
-  const statement = writeBlocking.has(step.lock) ? settings.statementTimeout : 0;
+  const statement = writeBlockingLocks.has(step.lock) ? settings.statementTimeout : 0;
   // A step outside a transaction, such as CREATE INDEX CONCURRENTLY, waits at its end for every
   // older transaction in the database; that wait holds up no other query, and giving it up throws
   // away the index built so far.

@@ -67,6 +67,12 @@ export const locks = [
   "access exclusive",
 ] as const;
 
+/** Locks that stop writes to the table while held; steps under them must not scan or rewrite it. */
+export const writeBlockingLocks: ReadonlySet<Lock> = new Set([
+  "access exclusive",
+  "share row exclusive",
+]);
+
 /** A difference the plan leaves out, because it needs a decision or a procedure ottersql does not generate. */
 export interface ManualChange {
   readonly object: string;
