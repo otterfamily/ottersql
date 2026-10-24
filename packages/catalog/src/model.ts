@@ -3,6 +3,7 @@ export interface Catalog {
   readonly enums: readonly Enum[];
   readonly domains: readonly Domain[];
   readonly views: readonly View[];
+  readonly routines: readonly Routine[];
 }
 
 export interface Table {
@@ -176,4 +177,45 @@ export interface ViewColumn {
   readonly type: TypeRef;
   readonly typeSql: string;
   readonly comment: Comment | null;
+}
+
+/** A function, procedure, aggregate or window function. Overloads are separate routines. */
+export interface Routine {
+  readonly schema: string;
+  readonly name: string;
+  readonly kind: "function" | "procedure" | "aggregate" | "window";
+  /** The parameters a caller passes, in order; OUT and TABLE parameters are in `returns`. */
+  readonly arguments: readonly RoutineArgument[];
+  readonly returns: RoutineResult;
+  readonly volatility: "immutable" | "stable" | "volatile";
+  readonly comment: Comment | null;
+}
+
+export interface RoutineArgument {
+  readonly name: string | null;
+  readonly mode: "in" | "inout" | "variadic";
+  readonly type: TypeRef;
+  readonly typeSql: string;
+  readonly hasDefault: boolean;
+}
+
+/**
+ * What a routine gives back. Procedures return nothing; routines with OUT, INOUT or TABLE
+ * parameters return rows of those columns; others return a value of one type.
+ */
+export type RoutineResult =
+  | { readonly kind: "none" }
+  | {
+      readonly kind: "value";
+      readonly setOf: boolean;
+      readonly type: TypeRef;
+      readonly typeSql: string;
+    }
+  | { readonly kind: "row"; readonly setOf: boolean; readonly columns: readonly RoutineColumn[] };
+
+export interface RoutineColumn {
+  /** `null` for an unnamed OUT parameter; Postgres then chooses the result column's name. */
+  readonly name: string | null;
+  readonly type: TypeRef;
+  readonly typeSql: string;
 }

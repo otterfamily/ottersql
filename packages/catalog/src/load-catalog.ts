@@ -2,6 +2,7 @@ import { readDomains } from "./domains.ts";
 import { readEnums } from "./enums.ts";
 import { freshDatabase } from "./fresh-database.ts";
 import type { Catalog } from "./model.ts";
+import { readRoutines } from "./routines.ts";
 import { readTables } from "./tables.ts";
 import { readViews } from "./views.ts";
 
@@ -15,6 +16,7 @@ export async function loadCatalog(schemaSql: string): Promise<Catalog> {
       enums: await readEnums(db),
       domains: await readDomains(db),
       views: await readViews(db),
+      routines: await readRoutines(db),
     };
   } finally {
     await db.close();
