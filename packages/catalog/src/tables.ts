@@ -4,6 +4,8 @@ import { checksJson, parseCheck } from "./checks.ts";
 import type { CheckRow } from "./checks.ts";
 import { constraintsJson, parseConstraints } from "./constraints.ts";
 import type { ConstraintRows } from "./constraints.ts";
+import { indexesJson, parseIndex } from "./indexes.ts";
+import type { IndexRow } from "./indexes.ts";
 import type { Column, ColumnValue, Table } from "./model.ts";
 import { userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson } from "./type-ref.ts";
@@ -11,6 +13,7 @@ import type { TypeRow } from "./type-ref.ts";
 
 interface TableRow extends ConstraintRows {
   readonly checks: readonly CheckRow[];
+  readonly indexes: readonly IndexRow[];
   readonly schema: string;
   readonly name: string;
   readonly columns: readonly ColumnRow[];
@@ -44,7 +47,8 @@ export async function readTables(db: PGlite): Promise<Table[]> {
         where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
       ), '[]') as columns,
       ${constraintsJson("c")},
-      ${checksJson("c")}
+      ${checksJson("c")},
+      ${indexesJson("c")}
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where c.relkind in ('r', 'p') and ${userObject("pg_class", "c.oid", "c.relnamespace")}
     order by n.nspname, c.relname
@@ -59,6 +63,7 @@ function parseTable(row: TableRow): Table {
     columns: row.columns.map((column) => parseColumn(column)),
     ...parseConstraints(row),
     checks: row.checks.map((check) => parseCheck(check)),
+    indexes: row.indexes.map((index) => parseIndex(index)),
   };
 }
 

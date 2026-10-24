@@ -12,6 +12,7 @@ export interface Table {
   readonly uniqueConstraints: readonly UniqueConstraint[];
   readonly foreignKeys: readonly ForeignKey[];
   readonly checks: readonly Check[];
+  readonly indexes: readonly Index[];
 }
 
 export interface Column {
@@ -108,3 +109,32 @@ export interface DomainCheck {
   readonly allowedValues: readonly string[] | null;
   readonly enforcement: Enforcement;
 }
+
+export interface QualifiedName {
+  readonly schema: string;
+  readonly name: string;
+}
+
+export interface Index {
+  readonly name: string;
+  /** The access method, such as `btree`, `hash`, `gin` or `gist`. */
+  readonly method: string;
+  readonly unique: boolean;
+  readonly nullsNotDistinct: boolean;
+  readonly keys: readonly IndexKey[];
+  readonly include: readonly string[];
+  /** The `WHERE` condition of a partial index. */
+  readonly predicate: string | null;
+}
+
+export type IndexKey = (
+  | { readonly kind: "column"; readonly column: string }
+  | { readonly kind: "expression"; readonly expression: string }
+) & {
+  readonly order: "asc" | "desc";
+  readonly nulls: "first" | "last";
+  /** Set only when the key uses an operator class other than its type's default. */
+  readonly operatorClass: QualifiedName | null;
+  /** Set only when the key uses a collation other than its column's or the database default. */
+  readonly collation: QualifiedName | null;
+};
