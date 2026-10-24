@@ -1,10 +1,15 @@
 import { isDeepStrictEqual } from "node:util";
 
-import type { Catalog, Index, Table } from "@ottersql/catalog";
+import type { Catalog, ForeignKey, Index, Table } from "@ottersql/catalog";
 
 import { columnChanges } from "./columns.ts";
 import { commentChange } from "./comments.ts";
-import { constraintChanges, inlineConstraints, newTableConstraints } from "./constraints.ts";
+import {
+  constraintChanges,
+  dropConstraint,
+  inlineConstraints,
+  newTableConstraints,
+} from "./constraints.ts";
 import { columnDefinition, createIndex, literal, qualified } from "./sql-text.ts";
 import { combine, matchByName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
@@ -18,8 +23,8 @@ export function tableChanges(from: Catalog, to: Catalog): Changes {
   const { added, removed, kept } = matchByName(withKey(from.tables), withKey(to.tables));
   return combine([
     ...added.map(({ table }) => createTable(table)),
-    ...added.map(({ table }) => newTableConstraints(table)),
-    ...removed.map(({ table }) => dropTable(table)),
+    ...added.map(({ table }) => newTableConstraints(table, from)),
+    ...removed.map(({ table }) => dropTable(table, removed)),
     ...kept.map(([before, after]) => changeTable(before.table, after.table, to)),
   ]);
 }
@@ -62,17 +67,33 @@ function createTable(table: Table): Changes {
   );
 }
 
-function dropTable(table: Table): Changes {
-  return only(
-    step({
-      kind: "dropTable",
-      object: `${table.schema}.${table.name}`,
-      statements: [`DROP TABLE ${qualified(table.schema, table.name)}`],
-      phase: "contract",
-      reversal: "irreversible",
-      lock: "access exclusive",
-    }),
-  );
+/**
+ * A table's foreign keys to other tables dropped with it go first, so the tables can be dropped in
+ * any order, even when they reference each other.
+ */
+function dropTable(
+  table: Table,
+  dropped: readonly { readonly name: string; readonly table: Table }[],
+): Changes {
+  const alsoDropped = (key: ForeignKey): boolean =>
+    dropped.some(
+      ({ table: other }) =>
+        other !== table &&
+        other.schema === key.references.schema &&
+        other.name === key.references.table,
+    );
+  const dropKey = (key: ForeignKey): Changes =>
+    dropConstraint(table, key.name, { kind: "dropForeignKey", phase: "contract" });
+  const dropKeys = table.foreignKeys.filter((key) => alsoDropped(key)).map((key) => dropKey(key));
+  const drop = step({
+    kind: "dropTable",
+    object: `${table.schema}.${table.name}`,
+    statements: [`DROP TABLE ${qualified(table.schema, table.name)}`],
+    phase: "contract",
+    reversal: "irreversible",
+    lock: "access exclusive",
+  });
+  return combine([...dropKeys, only(drop)]);
 }
 
 /** The changes from `before` to `after`, a table of the catalog `to`. */

@@ -1,6 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 
+import { findTable } from "@ottersql/catalog";
 import type {
+  Catalog,
   Check,
   Enforcement,
   ForeignKey,
@@ -10,6 +12,7 @@ import type {
   UniqueConstraint,
 } from "@ottersql/catalog";
 
+import type { Step } from "./plan.ts";
 import {
   columnList,
   createIndex,
@@ -29,11 +32,12 @@ import { alterTable, dropIndexStatement, objectName } from "./table-sql.ts";
  * so it runs before.
  */
 export function constraintChanges(before: Table, after: Table): Changes {
-  const drop = (item: { readonly name: string }): Changes => dropConstraint(after, item.name);
+  const drop = (item: { readonly name: string }): Changes =>
+    dropConstraint(after, item.name, { kind: "dropConstraint", phase: "expand" });
   return combine([
     keyedChanges(before.checks, after.checks, { drop, add: (check) => addCheck(after, check) }),
     keyedChanges(before.foreignKeys, after.foreignKeys, {
-      drop,
+      drop: (key) => dropConstraint(after, key.name, { kind: "dropForeignKey", phase: "expand" }),
       add: (key) => addForeignKey(after, key),
     }),
     keyedChanges(before.uniqueConstraints, after.uniqueConstraints, {
@@ -65,14 +69,22 @@ function keyedChanges<Item extends { readonly name: string }>(
   ]);
 }
 
-function dropConstraint(table: Table, name: string): Changes {
+/**
+ * Foreign keys are dropped as a kind of their own, so that they go before the keys they reference
+ * and the tables those keys belong to.
+ */
+export function dropConstraint(
+  table: Table,
+  name: string,
+  { kind, phase }: Pick<Step, "kind" | "phase">,
+): Changes {
   const statement = alterTable(table, `DROP CONSTRAINT ${identifier(name)}`);
   return only(
     step({
-      kind: "dropConstraint",
+      kind,
       object: objectName(table, name),
       statements: [statement],
-      phase: "expand",
+      phase,
       reversal: "reversible",
       lock: "access exclusive",
     }),
@@ -220,8 +232,35 @@ export function inlineConstraints(table: Table): string[] {
  * What a new table adds after `CREATE TABLE`: foreign keys, once every table they may refer to
  * exists, and checks meant to skip existing rows, which `CREATE TABLE` cannot write.
  */
-export function newTableConstraints(table: Table): Changes {
+/**
+ * Whether `table` has a key a foreign key to `columns` can reference: a primary key, a unique
+ * constraint or a unique index without a predicate, on the same columns in any order.
+ */
+function hasKey(table: Table, columns: readonly string[]): boolean {
+  const same = (other: readonly string[]): boolean =>
+    other.length === columns.length && other.every((column) => columns.includes(column));
+  return (
+    (table.primaryKey !== null && same(table.primaryKey.columns)) ||
+    table.uniqueConstraints.some((key) => same(key.columns)) ||
+    table.indexes.some(
+      (index) =>
+        index.unique &&
+        index.predicate === null &&
+        same(index.keys.flatMap((key) => (key.kind === "column" ? [key.column] : []))),
+    )
+  );
+}
+
+/**
+ * The constraints of a new table that cannot be part of CREATE TABLE. A foreign key to a key that
+ * `from` lacks on an existing table waits until that key is added, after the deploy.
+ */
+export function newTableConstraints(table: Table, from: Catalog): Changes {
   const unvalidatedChecks = table.checks.filter((check) => check.enforcement === "not valid");
+  const waitsForKey = (key: ForeignKey): boolean => {
+    const referenced = findTable(from, key.references.schema, key.references.table);
+    return referenced !== undefined && !hasKey(referenced, key.references.columns);
+  };
   const foreignKeys = table.foreignKeys.map((key) =>
     step({
       kind: "addForeignKey",
@@ -232,7 +271,7 @@ export function newTableConstraints(table: Table): Changes {
           `ADD CONSTRAINT ${identifier(key.name)} ${foreignKeyDefinition(key)}${enforcement(key.enforcement)}`,
         ),
       ],
-      phase: "expand",
+      phase: waitsForKey(key) ? "contract" : "expand",
       reversal: "reversible",
       lock: "share row exclusive",
     }),
