@@ -1,18 +1,23 @@
 import type { NamedTypeRef, TypeRef } from "./model.ts";
 
-/** Selects the columns `parseTypeRef` reads, for the type whose oid is `oidExpression`. */
+/**
+ * Selects the columns `parseTypeRef` reads, for the type whose oid is `oidExpression`. Its aliases
+ * start with `ref_` so they cannot shadow the caller's.
+ */
 export function typeRefJson(oidExpression: string): string {
   return `(
     select json_build_object(
-      'typtype', t.typtype, 'schema', tn.nspname, 'name', t.typname,
-      'element', case when t.typcategory = 'A' and t.typelem <> 0 then (
-        select json_build_object('typtype', e.typtype, 'schema', en.nspname, 'name', e.typname)
-        from pg_type e join pg_namespace en on en.oid = e.typnamespace
-        where e.oid = t.typelem
+      'typtype', ref_type.typtype, 'schema', ref_ns.nspname, 'name', ref_type.typname,
+      'element', case when ref_type.typcategory = 'A' and ref_type.typelem <> 0 then (
+        select json_build_object(
+          'typtype', ref_elem.typtype, 'schema', ref_elem_ns.nspname, 'name', ref_elem.typname
+        )
+        from pg_type ref_elem join pg_namespace ref_elem_ns on ref_elem_ns.oid = ref_elem.typnamespace
+        where ref_elem.oid = ref_type.typelem
       ) end
     )
-    from pg_type t join pg_namespace tn on tn.oid = t.typnamespace
-    where t.oid = ${oidExpression}
+    from pg_type ref_type join pg_namespace ref_ns on ref_ns.oid = ref_type.typnamespace
+    where ref_type.oid = ${oidExpression}
   )`;
 }
 

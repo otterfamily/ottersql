@@ -1,5 +1,7 @@
 export interface Catalog {
   readonly tables: readonly Table[];
+  readonly enums: readonly Enum[];
+  readonly domains: readonly Domain[];
 }
 
 export interface Table {
@@ -80,5 +82,29 @@ export interface Check {
   readonly columns: readonly string[];
   /** Set when the check limits one column to a list of strings; types narrow it to a union. */
   readonly allowedValues: { readonly column: string; readonly values: readonly string[] } | null;
+  readonly enforcement: Enforcement;
+}
+
+export interface Enum {
+  readonly schema: string;
+  readonly name: string;
+  readonly values: readonly string[];
+}
+
+export interface Domain {
+  readonly schema: string;
+  readonly name: string;
+  readonly baseType: TypeRef;
+  readonly baseTypeSql: string;
+  readonly notNull: boolean;
+  readonly default: string | null;
+  readonly checks: readonly DomainCheck[];
+}
+
+export interface DomainCheck {
+  readonly name: string;
+  readonly expression: string;
+  /** Set when the check limits the domain to a list of strings; types narrow it to a union. */
+  readonly allowedValues: readonly string[] | null;
   readonly enforcement: Enforcement;
 }

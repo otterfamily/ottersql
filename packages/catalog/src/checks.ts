@@ -51,7 +51,7 @@ const literal = String.raw`'(?<body>(?:''|[^'])*)'${textCast}`;
  * Postgres prints it back. Any other shape, including numbers until their codec is settled (#2),
  * gives `null`: reading SQL beyond these printed forms would mean parsing it (ADR 0001).
  */
-function allowedValues(expression: string, subject: string): string[] | null {
+export function allowedValues(expression: string, subject: string): string[] | null {
   const name = RegExp.escape(subject);
   const lhs = String.raw`(?:${name}|\(${name}\)::text)`;
   const single = new RegExp(String.raw`^\(${lhs} = ${literal}\)$`, "v").exec(expression);

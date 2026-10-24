@@ -5,7 +5,7 @@ import type { CheckRow } from "./checks.ts";
 import { constraintsJson, parseConstraints } from "./constraints.ts";
 import type { ConstraintRows } from "./constraints.ts";
 import type { Column, ColumnValue, Table } from "./model.ts";
-import { userRelation } from "./scope.ts";
+import { userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 
@@ -46,7 +46,7 @@ export async function readTables(db: PGlite): Promise<Table[]> {
       ${constraintsJson("c")},
       ${checksJson("c")}
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where c.relkind in ('r', 'p') and ${userRelation("c")}
+    where c.relkind in ('r', 'p') and ${userObject("pg_class", "c.oid", "c.relnamespace")}
     order by n.nspname, c.relname
   `);
   return rows.map((row) => parseTable(row));
