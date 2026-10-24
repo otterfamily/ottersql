@@ -1,0 +1,22 @@
+{
+  "name": "@ottersql/catalog",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Reads a Postgres schema into ottersql's catalog model",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
