@@ -170,6 +170,9 @@ catalogs:
     '@ottersql/catalog':
       specifier: workspace:*
       version: workspace:*
+    '@ottersql/content-mapper':
+      specifier: workspace:*
+      version: workspace:*
     '@ottersql/sql':
       specifier: workspace:*
       version: workspace:*
@@ -244,6 +247,19 @@ importers:
       simple-git-hooks:
         specifier: 'catalog:'
         version: 2.14.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+
+  examples/playground:
+    dependencies:
+      '@ottersql/sql':
+        specifier: 'catalog:'
+        version: link:../../packages/sql
+    devDependencies:
+      '@ottersql/content-mapper':
+        specifier: 'catalog:'
+        version: link:../../packages/content-mapper
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta

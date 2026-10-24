@@ -241,6 +241,18 @@
   },
   "overrides": [
     {
+      "files": ["examples/**"],
+      // tsgolint does not run TypeScript's content mappers, so what examples import from .sql files
+      // is unresolved for these rules; tsc --runExternalCode checks those imports instead.
+      "rules": {
+        "typescript/no-unsafe-argument": "off",
+        "typescript/no-unsafe-assignment": "off",
+        "typescript/no-unsafe-call": "off",
+        "typescript/no-unsafe-member-access": "off",
+        "typescript/no-unsafe-return": "off",
+      },
+    },
+    {
       "files": ["**/*.bench.ts"],
       // A benchmark measures; it has nothing to assert.
       "rules": { "vitest/expect-expect": "off" },
@@ -275,5 +287,6 @@
       },
     },
   ],
-  "ignorePatterns": ["**/node_modules/**", "**/dist/**"],
+  // Wrong on purpose, to show how errors are reported.
+  "ignorePatterns": ["**/node_modules/**", "**/dist/**", "examples/*/mistakes/**"],
 }

@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2025",
+    "module": "nodenext",
+    "lib": ["esnext"],
+    "strict": true,
+    "noEmit": true,
+    "types": [],
+    "allowImportingTsExtensions": true
+  },
+  "contentMappers": [
+    {
+      "package": "@ottersql/content-mapper",
+      "extensions": [".sql"],
+      "options": { "schema": "schema.sql" }
+    }
+  ],
+  "include": ["."]
+}

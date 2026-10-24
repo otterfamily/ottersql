@@ -1,0 +1,17 @@
+{
+  "name": "@ottersql/example-playground",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Open in VS Code to see .sql queries typed through the content mapper, and how mistakes are reported",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.ci.json --runExternalCode"
+  },
+  "dependencies": {
+    "@ottersql/sql": "catalog:"
+  },
+  "devDependencies": {
+    "@ottersql/content-mapper": "catalog:",
+    "typescript": "catalog:"
+  }
+}
