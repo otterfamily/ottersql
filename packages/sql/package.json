@@ -5,15 +5,33 @@
   "description": "Typed SQL at runtime: reads .sql query files and decodes values with ottersql's codecs",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./pg": "./src/pg.ts",
+    "./pglite": "./src/pglite.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",
     "test": "vitest run"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "catalog:",
+    "@ottersql/testing": "catalog:",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "pg": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@electric-sql/pglite": ">=0.5",
+    "pg": ">=8"
+  },
+  "peerDependenciesMeta": {
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    }
   }
 }

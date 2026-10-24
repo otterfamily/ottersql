@@ -193,9 +193,13 @@
         "treatMethodsAsReadonly": true,
         "allow": [
           { "from": "package", "name": "PGlite", "package": "@electric-sql/pglite" },
+          { "from": "package", "name": "PGliteInterface", "package": "@electric-sql/pglite" },
           { "from": "package", "name": "Client", "package": "pg" },
+          { "from": "package", "name": "Pool", "package": "pg" },
+          { "from": "package", "name": "PoolClient", "package": "pg" },
           { "from": "package", "name": "TestProject", "package": "vitest" },
           { "from": "lib", "name": "RegExp" },
+          { "from": "lib", "name": "Uint8Array" },
           { "from": "package", "name": "Buffer", "package": "buffer" },
         ],
       },

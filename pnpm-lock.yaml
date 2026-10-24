@@ -313,9 +313,21 @@ importers:
 
   packages/sql:
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: 'catalog:'
+        version: 0.5.11
+      '@ottersql/testing':
+        specifier: 'catalog:'
+        version: link:../testing
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.23.1
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.1
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta

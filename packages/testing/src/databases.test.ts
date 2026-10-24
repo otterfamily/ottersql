@@ -2,7 +2,7 @@ import { Client } from "pg";
 import type { QueryResultRow } from "pg";
 import { describe, expect, test } from "vitest";
 
-import { pglite, postgresDatabase } from "./index.ts";
+import { createPostgresDatabase, pglite, postgresDatabase } from "./index.ts";
 
 const schema = `
   create table users (id int primary key, name text not null);
@@ -47,5 +47,13 @@ describe("postgresDatabase", () => {
       "select count(*) from information_schema.tables where table_schema = 'public'",
     );
     expect(tables).toStrictEqual([{ count: "0" }]);
+  });
+
+  test("keeps a database made for a shared fixture until it is dropped", async () => {
+    const database = await createPostgresDatabase(schema);
+    const before = await queryOnce<{ name: string }>(database.url, "select name from users");
+    await database.drop();
+    await expect(queryOnce(database.url, "select 1")).rejects.toThrow("does not exist");
+    expect(before).toStrictEqual([{ name: "alice" }]);
   });
 });
