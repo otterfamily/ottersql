@@ -101,13 +101,13 @@ const app = [
   'const status: "draft" | "published" | undefined = rows[0]?.status;',
   "const title: string | undefined = rows[0]?.title;",
   "const bio: string | undefined = rows[0]?.bio;",
-  "await postsByAuthor(connection, { authorId: 1 });",
+  "await postsByAuthor(connection, { authorId: true });",
   "export { bio, status, title };",
 ].join("\n");
 
 const misuseErrors = [
   "app.ts(7,7): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.",
-  "app.ts(8,35): error TS2322: Type 'number' is not assignable to type 'string'.",
+  "app.ts(8,35): error TS2322: Type 'true' is not assignable to type 'string | number | bigint | null'.",
 ];
 
 describe("tsc with the content mapper", () => {

@@ -6,6 +6,11 @@ export type SqlTypeImport = "Interval" | "Range";
 
 export interface TypeContext {
   readonly catalog: Catalog;
+  /**
+   * Values ottersql decodes from Postgres (`output`) or encodes for it (`input`). Inputs may be
+   * wider: Postgres accepts any int8, so a JavaScript number or bigint is as good as a string.
+   */
+  readonly direction: "input" | "output";
   /** Collects the `@ottersql/sql` types the rendered text refers to. */
   readonly imports: Set<SqlTypeImport>;
 }
@@ -79,7 +84,15 @@ function namedType(type: NamedTypeRef, context: TypeContext): string {
   return namedTypes[type.kind](type, context);
 }
 
+const inputBaseTypes: Readonly<Record<string, string>> = {
+  int8: "string | number | bigint",
+};
+
 function baseType(type: NamedTypeRef, context: TypeContext): string {
+  const input = context.direction === "input" ? inputBaseTypes[type.name] : undefined;
+  if (type.schema === "pg_catalog" && input !== undefined) {
+    return input;
+  }
   const base = type.schema === "pg_catalog" ? (baseTypes[type.name] ?? "string") : "string";
   if (base === "Interval") {
     context.imports.add("Interval");

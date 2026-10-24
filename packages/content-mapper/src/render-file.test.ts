@@ -59,7 +59,7 @@ describe("rendered module", () => {
     expect(rendered.text).toBe(
       [
         'import type { Connection } from "@ottersql/sql";',
-        "export interface UserNameParams { readonly id: string | null; }",
+        "export interface UserNameParams { readonly id: string | number | bigint | null; }",
         "export interface UserNameRow { readonly name: string; }",
         "export declare function userName(connection: Connection, params: UserNameParams): Promise<UserNameRow[]>;",
         "export interface EveryoneRow { readonly id: string; }",
@@ -94,6 +94,24 @@ describe("rendered module", () => {
       real: "number | null",
       flag: "boolean | null",
       uid: "string | null",
+    });
+  });
+
+  test("accepts numbers and bigints for int8 parameters, while int8 results stay exact strings", async ({
+    session,
+  }) => {
+    const rendered = await session.renderFile(
+      "-- @name page\nselect id from users where id = any(:ids) limit :limit",
+    );
+    expect({
+      params: members(rendered.text, "PageParams"),
+      row: members(rendered.text, "PageRow"),
+    }).toStrictEqual({
+      params: {
+        ids: "(string | number | bigint | null)[] | null",
+        limit: "string | number | bigint | null",
+      },
+      row: { id: "string" },
     });
   });
 

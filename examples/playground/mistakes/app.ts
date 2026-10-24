@@ -5,8 +5,8 @@ import { postsWithAuthors, userById } from "../queries.sql";
 
 declare const connection: Connection;
 
-// The id parameter is a string (int8 stays exact), not a number.
-await userById(connection, { id: 1 });
+// The id parameter is an int8: a string, number or bigint, not a boolean.
+await userById(connection, { id: true });
 
 // The parameters object is required.
 await userById(connection);
@@ -20,7 +20,7 @@ user?.bio.toUpperCase();
 // The query does not select this column.
 user?.nickname;
 
-const posts = await postsWithAuthors(connection, { limit: "10" });
+const posts = await postsWithAuthors(connection, { limit: 10 });
 // author comes from the nullable side of a LEFT JOIN.
 const author: string | undefined = posts[0]?.author;
 // status is an enum; other strings are rejected.

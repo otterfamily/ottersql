@@ -42,7 +42,7 @@ const VERBATIM = 0;
 
 /** Renders a described `.sql` file as the TypeScript module its importers see. */
 export function renderFile(file: DescribedFile, catalog: Catalog): RenderedFile {
-  const context: TypeContext = { catalog, imports: new Set<SqlTypeImport>() };
+  const context: TypeContext = { catalog, direction: "output", imports: new Set<SqlTypeImport>() };
   const rejected = rejectedQueries(file.queries);
   const body = file.queries
     .filter((query) => !rejected.has(query))
@@ -117,8 +117,9 @@ function renderQuery(described: DescribedQuery, context: TypeContext): Piece[] {
 function renderParameters(
   described: DescribedQuery,
   typeName: string,
-  context: TypeContext,
+  outputs: TypeContext,
 ): Piece[] {
+  const context: TypeContext = { ...outputs, direction: "input" };
   return [
     { text: `export interface ${typeName}Params { ` },
     ...described.parameters.flatMap((parameter, index): Piece[] => {

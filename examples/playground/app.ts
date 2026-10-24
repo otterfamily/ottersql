@@ -16,8 +16,7 @@ const [user] = await userById(connection, { id: "1" });
 const plan: "free" | "pro" | undefined = user?.plan;
 const bio: string | null | undefined = user?.bio;
 
-// LIMIT takes an int8, which ottersql keeps exact as a string (ADR 0008).
-const posts = await postsWithAuthors(connection, { limit: "20" });
+const posts = await postsWithAuthors(connection, { limit: 20 });
 const author: string | null | undefined = posts[0]?.author;
 const status: "draft" | "published" | "archived" | undefined = posts[0]?.status;
 
