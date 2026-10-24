@@ -5,8 +5,15 @@ import { cachedEmptySnapshot } from "./snapshot-cache.ts";
 let emptyDataDir: Promise<Blob> | null = null;
 
 // Schemas and query descriptions keep almost no rows, so Postgres's default 128 MB of shared
-// buffers would only cost memory.
-const startParams = [...PGlite.defaultStartParams, "-c", "shared_buffers=16MB"];
+// buffers would only cost memory. The server log ranks LOG above ERROR, so without raising its
+// level every analyzed query tree sent to the client as a notice would also be written there.
+const startParams = [
+  ...PGlite.defaultStartParams,
+  "-c",
+  "shared_buffers=16MB",
+  "-c",
+  "log_min_messages=panic",
+];
 
 /**
  * An empty in-process Postgres, restored from a snapshot of a freshly initialised database, because

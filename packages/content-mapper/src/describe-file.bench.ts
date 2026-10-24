@@ -50,7 +50,25 @@ describe("describeFile", () => {
       const describeQueries = async (): Promise<void> => {
         await session.describeFile(queryFile);
       };
-      await bench("10 queries of common shapes", describeQueries).run({ iterations: 50, time: 0 });
+      await bench("10 queries of common shapes, described before", describeQueries).run({
+        iterations: 50,
+        time: 0,
+      });
+      let edit = 0;
+      // A comment changes each query's text, so every iteration misses the cache, as after an edit.
+      const describeEdited = async (): Promise<void> => {
+        edit += 1;
+        await session.describeFile(
+          queryFile.replaceAll(
+            /^(?<keyword>insert|select|update|with) /gmv,
+            `$<keyword> /* ${String(edit)} */ `,
+          ),
+        );
+      };
+      await bench("10 queries of common shapes, never described", describeEdited).run({
+        iterations: 50,
+        time: 0,
+      });
     } finally {
       await session.close();
     }

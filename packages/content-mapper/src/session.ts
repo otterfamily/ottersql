@@ -55,15 +55,22 @@ export interface DescribedColumn {
   } | null;
 }
 
+/** What a statement's SQL text alone determines, while the session's schema is loaded. */
+interface DescribedStatement {
+  readonly kind: "described";
+  readonly parameterTypes: readonly TypeRef[];
+  readonly columns: readonly DescribedColumn[];
+}
+
 interface Context {
   readonly db: PGlite;
   readonly catalog: Catalog;
   readonly builtIns: BuiltInFacts;
   /**
-   * Postgres's answer per SQL text: an editor asks for the whole file on every keystroke, and
-   * usually only one query in it has changed.
+   * The finished description per SQL text: an editor asks for the whole file on every keystroke,
+   * and usually only one query in it has changed.
    */
-  readonly statements: Map<string, StatementDescription | PostgresError>;
+  readonly statements: Map<string, DescribedStatement | PostgresError>;
   /** Oids do not change while a session's schema is loaded, so lookups are kept. */
   readonly types: Map<number, TypeRef>;
   readonly relations: Map<number, Relation>;
@@ -108,34 +115,43 @@ async function describeFile(context: Context, content: string): Promise<Describe
   const problems: Problem[] = file.problems.map((problem) => ({ source: "queryFile", ...problem }));
   const queries: DescribedQuery[] = [];
   for (const query of file.queries) {
-    const result = await describeCached(context, query.sql);
-    if (result.kind === "error") {
+    const statement = await describeCached(context, query.sql);
+    if (statement.kind === "error") {
       problems.push({
         source: "postgres",
-        message: result.message,
-        span: errorSpan(query, result),
+        message: statement.message,
+        span: errorSpan(query, statement),
       });
     } else {
-      queries.push(await describeQuery(context, query, result));
+      queries.push({
+        query,
+        name: query.name,
+        parameters: query.parameters.map((parameter, index) => ({
+          name: parameter.name,
+          type: knownType(statement.parameterTypes[index]),
+        })),
+        columns: statement.columns,
+      });
     }
   }
   return { queries, problems };
 }
 
-async function describeQuery(
+async function analyze(
   context: Context,
-  query: Query,
   description: StatementDescription,
-): Promise<DescribedQuery> {
+): Promise<DescribedStatement> {
   const { fields, parameterTypes, tree } = description;
   const types = await cached(
     context.types,
     [...parameterTypes, ...fields.map((column) => column.dataTypeID)],
     async (oids) => readTypeRefs(context.db, oids),
   );
+  // A computed column reports table oid 0, which no lookup can find.
+  const tableOids = fields.map((column) => column.tableID).filter((oid) => oid !== 0);
   const relations = await cached(
     context.relations,
-    [...fields.map((column) => column.tableID), ...relationOids(tree)],
+    [...tableOids, ...relationOids(tree)],
     async (oids) => readRelations(context.db, oids),
   );
   const nullable =
@@ -147,15 +163,11 @@ async function describeQuery(
           ...context.builtIns,
         });
   return {
-    query,
-    name: query.name,
-    parameters: query.parameters.map((parameter, index) => ({
-      name: parameter.name,
-      type: knownType(types, parameterTypes[index]),
-    })),
+    kind: "described",
+    parameterTypes: parameterTypes.map((oid) => knownType(types.get(oid), oid)),
     columns: fields.map((column, index) => ({
       name: column.name,
-      type: knownType(types, column.dataTypeID),
+      type: knownType(types.get(column.dataTypeID), column.dataTypeID),
       nullable: nullable[index] ?? true,
       origin: origin(relations.get(column.tableID), column.columnID),
     })),
@@ -183,12 +195,14 @@ const MAX_CACHED_STATEMENTS = 2000;
 async function describeCached(
   context: Context,
   sql: string,
-): Promise<StatementDescription | PostgresError> {
+): Promise<DescribedStatement | PostgresError> {
   const known = context.statements.get(sql);
   if (known !== undefined) {
     return known;
   }
-  const described = await describeStatement(context.db, sql);
+  const description = await describeStatement(context.db, sql);
+  const described =
+    description.kind === "error" ? description : await analyze(context, description);
   context.statements.set(sql, described);
   const [oldest] = context.statements.keys();
   if (context.statements.size > MAX_CACHED_STATEMENTS && oldest !== undefined) {
@@ -225,8 +239,7 @@ function origin(relation: Relation | undefined, attnum: number): DescribedColumn
     : { schema: relation.schema, table: relation.name, column };
 }
 
-function knownType(types: ReadonlyMap<number, TypeRef>, oid: number | undefined): TypeRef {
-  const type = oid === undefined ? undefined : types.get(oid);
+function knownType(type: TypeRef | undefined, oid?: number): TypeRef {
   if (type === undefined) {
     throw new Error(`Postgres reported type oid ${String(oid)}, which pg_type does not list`);
   }
