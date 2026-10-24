@@ -3,7 +3,12 @@
 import { readFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 
-import { applyMigrations, MigrationHistoryError, pendingChanges } from "@ottersql/migrate";
+import {
+  applyMigrations,
+  ApprovalRequiredError,
+  MigrationHistoryError,
+  pendingChanges,
+} from "@ottersql/migrate";
 import type { ApplyOptions, ApplyResult, MigrationFile } from "@ottersql/migrate";
 import { pgConnection } from "@ottersql/sql/pg";
 import { Client } from "pg";
@@ -105,6 +110,24 @@ async function waitForLock(): Promise<void> {
   await applying;
 }
 
+async function archivePosts(): Promise<void> {
+  console.log(
+    "\n5. Archive posts: an enum value cannot be removed once added, so it waits for approval",
+  );
+  try {
+    await applyThrough("20261026130000");
+  } catch (error) {
+    if (!(error instanceof ApprovalRequiredError)) {
+      throw error;
+    }
+    for (const { migration, step, kind, object } of error.steps) {
+      console.log(`  Needs approval: ${migration} step ${String(step)}, ${kind} ${object}`);
+    }
+    console.log("  Approved after review, the same pending steps run:");
+    await applyThrough("20261026130000", { approve: error.approval });
+  }
+}
+
 async function refuse(title: string, changed: readonly MigrationFile[]): Promise<void> {
   console.log(`\n${title}`);
   try {
@@ -133,8 +156,7 @@ try {
   await requireEmail();
   await uniqueEmail();
   await waitForLock();
-  console.log("\n5. Archive posts: a new enum value");
-  await applyThrough("20261026130000");
+  await archivePosts();
   const last = files.at(-1);
   if (last !== undefined) {
     await refuse("6a. A migration edited after it was applied", [
