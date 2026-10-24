@@ -9,7 +9,7 @@ export function typeRefJson(oidExpression: string): string {
   return `(
     select json_build_object(
       'typtype', ref_type.typtype, 'schema', ref_ns.nspname, 'name', ref_type.typname,
-      'element', case when ref_type.typcategory = 'A' and ref_type.typelem <> 0 then (
+      'element', case when ref_type.typinput = 'array_in'::regproc then (
         select json_build_object(
           'typtype', ref_elem.typtype, 'schema', ref_elem_ns.nspname, 'name', ref_elem.typname
         )

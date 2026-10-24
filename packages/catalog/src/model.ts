@@ -2,6 +2,7 @@ export interface Catalog {
   readonly capabilities: Capabilities;
   readonly tables: readonly Table[];
   readonly enums: readonly Enum[];
+  readonly ranges: readonly RangeType[];
   readonly domains: readonly Domain[];
   readonly views: readonly View[];
   readonly routines: readonly Routine[];
@@ -95,6 +96,15 @@ export interface Check {
    */
   readonly allowedValues: { readonly column: string; readonly values: readonly string[] } | null;
   readonly enforcement: Enforcement;
+}
+
+/** A range type the schema defines; its multirange type is created with it, in the same schema. */
+export interface RangeType {
+  readonly schema: string;
+  readonly name: string;
+  readonly multirange: string;
+  readonly subtype: TypeRef;
+  readonly comment: Comment | null;
 }
 
 export interface Enum {

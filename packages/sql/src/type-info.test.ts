@@ -30,7 +30,7 @@ describe("built-in types", () => {
       const { rows } = await connection.query(
         `select t.oid, t.typtype, t.typname, element.typname, subtype.typname
          from pg_type t
-         left join pg_type element on element.oid = t.typelem and t.typcategory = 'A'
+         left join pg_type element on element.oid = t.typelem and t.typinput = 'array_in'::regproc
          left join pg_range r on t.oid in (r.rngtypid, r.rngmultitypid)
          left join pg_type subtype on subtype.oid = r.rngsubtype
          where t.oid = any($1::oid[])`,

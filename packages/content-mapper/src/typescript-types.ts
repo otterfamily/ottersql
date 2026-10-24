@@ -1,4 +1,4 @@
-import { findDomain, findEnum } from "@ottersql/catalog";
+import { findDomain, findEnum, findRange } from "@ottersql/catalog";
 import type { Catalog, NamedTypeRef, TypeRef } from "@ottersql/catalog";
 import { baseCodecs, rangeSubtypes } from "@ottersql/sql";
 
@@ -35,8 +35,11 @@ const namedTypes: Readonly<
   Record<NamedTypeRef["kind"], (type: NamedTypeRef, context: TypeContext) => string>
 > = {
   base: (type, context) => baseType(type, context),
-  enum: (type, context) =>
-    literalUnion(findEnum(context.catalog, type.schema, type.name)?.values ?? []),
+  // An enum an extension defines is not in the catalog, so its values are unknown.
+  enum: (type, context) => {
+    const values = findEnum(context.catalog, type.schema, type.name)?.values;
+    return values === undefined ? "string" : literalUnion(values);
+  },
   domain: (type, context) => domainType(type, context),
   range: (type, context) => rangeType(type, context),
   multirange: (type, context) => rangeType(type, context),
@@ -72,10 +75,11 @@ function domainType(type: NamedTypeRef, context: TypeContext): string {
 
 function rangeType(type: NamedTypeRef, context: TypeContext): string {
   context.imports.add("Range");
-  const bound = type.schema === "pg_catalog" ? rangeSubtypes.get(type.name) : undefined;
-  const boundType =
-    bound === undefined
-      ? "string"
-      : namedType({ kind: "base", schema: "pg_catalog", name: bound }, context);
+  const builtIn = type.schema === "pg_catalog" ? rangeSubtypes.get(type.name) : undefined;
+  const subtype =
+    builtIn === undefined
+      ? findRange(context.catalog, type.schema, type.name)?.subtype
+      : { kind: "base" as const, schema: "pg_catalog", name: builtIn };
+  const boundType = subtype === undefined ? "string" : tsType(subtype, context);
   return type.kind === "range" ? `Range<${boundType}>` : `Range<${boundType}>[]`;
 }

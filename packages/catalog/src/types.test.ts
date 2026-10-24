@@ -29,6 +29,33 @@ describe("enums", () => {
   });
 });
 
+describe("vectors", () => {
+  test("refers to int2vector and oidvector as base types, since their text is not an array", async () => {
+    const catalog = await loadCatalog("create table t (a int2vector, b oidvector);");
+    expect(table(catalog, "t").columns.map((column) => column.type)).toStrictEqual([
+      { kind: "base", schema: "pg_catalog", name: "int2vector" },
+      { kind: "base", schema: "pg_catalog", name: "oidvector" },
+    ]);
+  });
+});
+
+describe("ranges", () => {
+  test("reads a range type's subtype and the multirange that goes with it", async () => {
+    const catalog = await loadCatalog(`
+      create type floatrange as range (subtype = float8);
+    `);
+    expect(catalog.ranges).toStrictEqual([
+      {
+        schema: "public",
+        name: "floatrange",
+        multirange: "floatmultirange",
+        subtype: { kind: "base", schema: "pg_catalog", name: "float8" },
+        comment: null,
+      },
+    ]);
+  });
+});
+
 describe("domains", () => {
   test("reads a domain's base type, nullability, default and checks", async () => {
     const catalog = await loadCatalog(`

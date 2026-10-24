@@ -22,6 +22,7 @@ export type {
   NamedTypeRef,
   PrimaryKey,
   QualifiedName,
+  RangeType,
   Routine,
   RoutineArgument,
   RoutineColumn,
@@ -34,4 +35,4 @@ export type {
 } from "./model.ts";
 export { readRelations, readTypeRefs } from "./by-oid.ts";
 export type { Relation } from "./by-oid.ts";
-export { findDomain, findEnum, findTable, sameType } from "./find.ts";
+export { findDomain, findEnum, findRange, findTable, sameType } from "./find.ts";

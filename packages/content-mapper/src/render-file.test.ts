@@ -6,6 +6,7 @@ import type { QuerySession } from "./index.ts";
 const schemaSql = `
   create type mood as enum ('ok', 'it''s bad');
   create domain level as text check (value in ('low', 'high'));
+  create type floatrange as range (subtype = float8);
   create table users (
     id int8 primary key,
     name text not null,
@@ -125,6 +126,18 @@ describe("rendered module", () => {
       params: members(rendered.text, "SetDataParams"),
       row: members(rendered.text, "SetDataRow"),
     }).toStrictEqual({ params: { data: "Json | null" }, row: { data: "unknown" } });
+  });
+
+  test("types the bounds of a range type the schema defines by its subtype", async ({
+    session,
+  }) => {
+    const rendered = await session.renderFile(
+      "-- @name spans\nselect floatrange(1, 2) as one, floatmultirange(floatrange(1, 2)) as many",
+    );
+    expect(members(rendered.text, "SpansRow")).toStrictEqual({
+      one: "Range<number> | null",
+      many: "Range<number>[] | null",
+    });
   });
 
   test("quotes a column name that is not an identifier", async ({ session }) => {

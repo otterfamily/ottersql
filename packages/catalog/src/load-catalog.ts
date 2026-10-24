@@ -1,14 +1,9 @@
 import type { PGlite } from "@electric-sql/pglite";
 
-import { readCapabilities } from "./capabilities.ts";
-import { readDomains } from "./domains.ts";
-import { readEnums } from "./enums.ts";
 import { freshDatabase } from "./fresh-database.ts";
 import type { Catalog } from "./model.ts";
-import { readRoutines } from "./routines.ts";
+import { readCatalog } from "./read-catalog.ts";
 import { schemaError } from "./schema-error.ts";
-import { readTables } from "./tables.ts";
-import { readViews } from "./views.ts";
 
 /** A throwaway in-process Postgres with a schema applied, and the catalog read from it. */
 export interface OpenSchema {
@@ -44,15 +39,4 @@ export async function loadCatalog(schemaSql: string): Promise<Catalog> {
   const schema = await openSchema(schemaSql);
   await schema.close();
   return schema.catalog;
-}
-
-async function readCatalog(db: PGlite): Promise<Catalog> {
-  return {
-    capabilities: await readCapabilities(db),
-    tables: await readTables(db),
-    enums: await readEnums(db),
-    domains: await readDomains(db),
-    views: await readViews(db),
-    routines: await readRoutines(db),
-  };
 }

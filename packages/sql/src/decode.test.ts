@@ -99,6 +99,7 @@ describe("decoding values (ADR 0008)", () => {
         upperInclusive: false,
       },
     ],
+    ["int2vector, as its text", "'1 2'::int2vector", "1 2"],
     ["null", "null::int4", null],
   ])("%s", async ([, expression, expected], { drivers }) => {
     for (const connection of drivers) {

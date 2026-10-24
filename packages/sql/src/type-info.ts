@@ -184,7 +184,7 @@ async function readPgTypes(
 ): Promise<ReadonlyMap<number, PgTypeRow>> {
   const { rows } = await connection.query(
     `select t.oid, n.nspname, t.typname, t.typtype,
-       case when t.typcategory = 'A' then t.typelem else 0 end,
+       case when t.typinput = 'array_in'::regproc then t.typelem else 0 end,
        coalesce(r.rngsubtype, multi.rngsubtype, 0), t.typbasetype
      from pg_type t
      join pg_namespace n on n.oid = t.typnamespace
