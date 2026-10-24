@@ -1,0 +1,19 @@
+{
+  "name": "@ottersql/sql",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Typed SQL at runtime: reads .sql query files and decodes values with ottersql's codecs",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

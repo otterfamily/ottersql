@@ -184,7 +184,7 @@
     "eslint/capitalized-comments": ["error", "always", { "ignoreConsecutiveComments": true }],
     // Type-only imports stay separate so they are erased (typescript/no-import-type-side-effects).
     "eslint/no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
-    // Connections and test hooks from libraries are stateful objects that cannot be readonly.
+    // Connections, test hooks and regular expressions (lastIndex) are stateful objects that cannot be readonly.
     "typescript/prefer-readonly-parameter-types": [
       "error",
       {
@@ -194,11 +194,12 @@
           { "from": "package", "name": "PGlite", "package": "@electric-sql/pglite" },
           { "from": "package", "name": "Client", "package": "pg" },
           { "from": "package", "name": "TestProject", "package": "vitest" },
+          { "from": "lib", "name": "RegExp" },
         ],
       },
     ],
     "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
-    "eslint/no-magic-numbers": ["error", { "ignore": [0, 1], "ignoreArrayIndexes": true }],
+    "eslint/no-magic-numbers": ["error", { "ignore": [-1, 0, 1], "ignoreArrayIndexes": true }],
     "vitest/consistent-test-it": ["error", { "fn": "test", "withinDescribe": "test" }],
 
     // Keys follow meaning (name before type, a value's kind before its details), not the alphabet.
