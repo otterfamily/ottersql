@@ -1,0 +1,14 @@
+{
+  "name": "sql-content-mapper",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PROTOTYPE, throwaway: maps .sql query files to typed TS functions using a PGlite loaded with schema.sql",
+  "typescript": {
+    "contentMapper": {
+      "exec": ["sh", "run.sh"],
+      "compilerOptions": [],
+      "dynamicConfig": true
+    }
+  }
+}

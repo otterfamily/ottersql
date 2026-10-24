@@ -1,0 +1,19 @@
+{
+  "name": "prototype-content-mapper",
+  "private": true,
+  "type": "module",
+  "description": "PROTOTYPE, throwaway: schema.sql + queries/*.sql -> TS types via TS 7.1 content mappers",
+  "devDependencies": {
+    "@types/node": "^24.19.2",
+    "sql-content-mapper": "link:mapper",
+    "typescript": "7.1.0-beta"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.11"
+  },
+  "scripts": {
+    "check": "tsc -p . --runExternalCode --extendedDiagnostics",
+    "watch": "tsc -p . --runExternalCode -w",
+    "start": "node --import sql-content-mapper/register.mjs src/run.ts"
+  }
+}

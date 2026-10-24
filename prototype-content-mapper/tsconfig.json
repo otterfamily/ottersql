@@ -1,0 +1,18 @@
+{
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "nodenext",
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "types": ["node"]
+  },
+  "contentMappers": [
+    {
+      "package": "sql-content-mapper",
+      "extensions": [".sql"],
+      "options": { "schema": "db/schema.sql" }
+    }
+  ],
+  "include": ["src"]
+}
