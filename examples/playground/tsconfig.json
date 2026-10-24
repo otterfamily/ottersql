@@ -6,13 +6,17 @@
     "strict": true,
     "noEmit": true,
     "types": [],
-    "allowImportingTsExtensions": true
+    "allowImportingTsExtensions": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true
   },
   "contentMappers": [
     {
       "package": "@ottersql/content-mapper",
       "extensions": [".sql"],
-      "options": { "schema": "schema.sql" }
+      "options": {
+        "schema": "schema.sql"
+      }
     }
   ],
   "include": ["."]
