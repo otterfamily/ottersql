@@ -173,6 +173,9 @@ catalogs:
     '@ottersql/content-mapper':
       specifier: workspace:*
       version: workspace:*
+    '@ottersql/migrate':
+      specifier: workspace:*
+      version: workspace:*
     '@ottersql/sql':
       specifier: workspace:*
       version: workspace:*
@@ -247,6 +250,28 @@ importers:
       simple-git-hooks:
         specifier: 'catalog:'
         version: 2.14.0
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+
+  examples/migrations:
+    dependencies:
+      '@ottersql/migrate':
+        specifier: 'catalog:'
+        version: link:../../packages/migrate
+      '@ottersql/sql':
+        specifier: 'catalog:'
+        version: link:../../packages/sql
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.1
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.23.1
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta

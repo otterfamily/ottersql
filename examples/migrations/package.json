@@ -1,0 +1,25 @@
+{
+  "name": "@ottersql/example-migrations",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Migrations generated from schema.sql and applied to Postgres in Docker, failures included",
+  "type": "module",
+  "scripts": {
+    "db:up": "docker compose up --detach --wait",
+    "db:down": "docker compose down --volumes",
+    "scenario": "node scenario.ts",
+    "generate": "node generate.ts",
+    "apply": "node apply.ts",
+    "typecheck": "tsc -p ."
+  },
+  "dependencies": {
+    "@ottersql/migrate": "catalog:",
+    "@ottersql/sql": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:"
+  }
+}

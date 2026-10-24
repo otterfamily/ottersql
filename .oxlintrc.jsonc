@@ -256,6 +256,8 @@
         "typescript/no-unsafe-return": "off",
         // Examples print what they do for the reader to see.
         "eslint/no-console": "off",
+        // Examples read their database URL from the environment, as applications do.
+        "node/no-process-env": "off",
       },
     },
     {
