@@ -1,32 +1,28 @@
 import { PGlite } from "@electric-sql/pglite";
 
+import { cachedEmptySnapshot } from "./snapshot-cache.ts";
+
 let emptyDataDir: Promise<Blob> | null = null;
 
+// Schemas and query descriptions keep almost no rows, so Postgres's default 128 MB of shared
+// buffers would only cost memory.
+const startParams = [...PGlite.defaultStartParams, "-c", "shared_buffers=16MB"];
+
 /**
- * An empty in-process Postgres. Each one is restored from a snapshot of a freshly initialised
- * database, taken once per process, because initialising a database takes most of PGlite's startup
- * time and every catalog load needs a clean one.
+ * An empty in-process Postgres, restored from a snapshot of a freshly initialised database, because
+ * initialising a database takes most of PGlite's startup time and memory.
  */
 export async function freshDatabase(): Promise<PGlite> {
-  return PGlite.create({ loadDataDir: await emptySnapshot() });
+  return PGlite.create({ loadDataDir: await emptySnapshot(), startParams });
 }
 
 /** A failed snapshot is forgotten, so the next load tries again instead of failing for good. */
 async function emptySnapshot(): Promise<Blob> {
-  emptyDataDir ??= snapshotEmptyDatabase();
+  emptyDataDir ??= cachedEmptySnapshot();
   try {
     return await emptyDataDir;
   } catch (error) {
     emptyDataDir = null;
     throw error;
-  }
-}
-
-async function snapshotEmptyDatabase(): Promise<Blob> {
-  const db = await PGlite.create();
-  try {
-    return await db.dumpDataDir("none");
-  } finally {
-    await db.close();
   }
 }

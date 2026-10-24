@@ -59,6 +59,11 @@ interface Context {
   readonly db: PGlite;
   readonly catalog: Catalog;
   readonly builtIns: BuiltInFacts;
+  /**
+   * Postgres's answer per SQL text: an editor asks for the whole file on every keystroke, and
+   * usually only one query in it has changed.
+   */
+  readonly statements: Map<string, StatementDescription | PostgresError>;
   /** Oids do not change while a session's schema is loaded, so lookups are kept. */
   readonly types: Map<number, TypeRef>;
   readonly relations: Map<number, Relation>;
@@ -79,6 +84,7 @@ export async function openQuerySession(schemaSql: string): Promise<QuerySession>
     db,
     catalog: schema.catalog,
     builtIns: await readBuiltInFacts(db),
+    statements: new Map(),
     types: new Map(),
     relations: new Map(),
   };
@@ -95,7 +101,7 @@ async function describeFile(context: Context, content: string): Promise<Describe
   const problems: Problem[] = file.problems.map((problem) => ({ source: "queryFile", ...problem }));
   const queries: DescribedQuery[] = [];
   for (const query of file.queries) {
-    const result = await describeStatement(context.db, query.sql);
+    const result = await describeCached(context, query.sql);
     if (result.kind === "error") {
       problems.push({
         source: "postgres",
@@ -162,6 +168,26 @@ async function cached<Value>(
     }
   }
   return cache;
+}
+
+// Bounds the per-session cache; old entries are mostly SQL from earlier edits.
+const MAX_CACHED_STATEMENTS = 2000;
+
+async function describeCached(
+  context: Context,
+  sql: string,
+): Promise<StatementDescription | PostgresError> {
+  const known = context.statements.get(sql);
+  if (known !== undefined) {
+    return known;
+  }
+  const described = await describeStatement(context.db, sql);
+  context.statements.set(sql, described);
+  const [oldest] = context.statements.keys();
+  if (context.statements.size > MAX_CACHED_STATEMENTS && oldest !== undefined) {
+    context.statements.delete(oldest);
+  }
+  return described;
 }
 
 /** Every table, view and other relation the analyzed tree reads from, however deeply nested. */

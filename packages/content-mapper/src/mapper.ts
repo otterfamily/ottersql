@@ -59,6 +59,8 @@ async function openProject(state: State, params: unknown): Promise<object> {
     .update(schemaText ?? `unreadable ${schemaPath}`)
     .digest("hex");
   state.projects.set(projectHandle, { schemaPath, schemaHash });
+  // Closing the replaced schema's session first keeps one PGlite in memory instead of two.
+  await closeUnused(state);
   if (!state.sessions.has(schemaHash)) {
     state.sessions.set(
       schemaHash,
@@ -68,7 +70,6 @@ async function openProject(state: State, params: unknown): Promise<object> {
     );
   }
   await state.sessions.get(schemaHash);
-  await closeUnused(state);
   return { configIdentity: schemaHash, watchedFiles: [schemaPath] };
 }
 
