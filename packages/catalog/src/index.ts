@@ -21,4 +21,6 @@ export type {
   Table,
   TypeRef,
   UniqueConstraint,
+  View,
+  ViewColumn,
 } from "./model.ts";
