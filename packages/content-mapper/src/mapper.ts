@@ -15,6 +15,9 @@ interface Project {
   readonly schemaHash: string;
 }
 
+/** Where a project keeps its schema when its tsconfig gives no `schema` option, relative to the tsconfig. */
+export const defaultSchemaPath = "db/schema.sql";
+
 /** Answers one request of TypeScript's content mapper protocol. */
 export type Handler = (method: string, params: unknown) => Promise<unknown>;
 
@@ -22,7 +25,7 @@ type Loaded = { readonly session: QuerySession } | { readonly error: string };
 
 /**
  * TypeScript's content mapper protocol for `.sql` files. A project names its schema with the
- * `schema` option (default `schema.sql`, relative to the tsconfig); that file maps to an empty
+ * `schema` option (default `defaultSchemaPath`, relative to the tsconfig); that file maps to an empty
  * module, and every other `.sql` file is typed against it. Sessions are shared by every project
  * with the same schema text and replaced when it changes.
  */
@@ -146,7 +149,7 @@ function openProjectParams(params: unknown): {
 } {
   const options = objectField(params, "options");
   const schema =
-    options === undefined ? "schema.sql" : (optionalString(options, "schema") ?? "schema.sql");
+    (options === undefined ? undefined : optionalString(options, "schema")) ?? defaultSchemaPath;
   return {
     projectHandle: stringField(params, "projectHandle"),
     configFileName: stringField(params, "configFileName"),

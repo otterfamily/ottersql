@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -27,10 +27,16 @@ async function transform(
   return result;
 }
 
+/** Where a project with no `schema` option keeps its schema, after creating its directory. */
+async function defaultSchemaFile(root: string): Promise<string> {
+  await mkdir(join(root, "db"));
+  return join(root, "db", "schema.sql");
+}
+
 /** Writes `schema` as the project's schema.sql, or leaves the file out when it is `null`. */
 async function writeSchema(root: string, schema: string | null): Promise<void> {
   if (schema !== null) {
-    await writeFile(join(root, "schema.sql"), schema);
+    await writeFile(await defaultSchemaFile(root), schema);
   }
 }
 
@@ -39,7 +45,7 @@ describe("content mapper protocol", () => {
     const root = await mkdtemp(join(tmpdir(), "ottersql-mapper-"));
     const mapper = createMapper();
     try {
-      const schemaPath = join(root, "schema.sql");
+      const schemaPath = await defaultSchemaFile(root);
       const project = {
         projectHandle: "p",
         configFileName: join(root, "tsconfig.json"),
@@ -74,7 +80,7 @@ describe("content mapper protocol", () => {
     const root = await mkdtemp(join(tmpdir(), "ottersql-mapper-"));
     const mapper = createMapper();
     try {
-      const schemaPath = join(root, "schema.sql");
+      const schemaPath = await defaultSchemaFile(root);
       await writeFile(schemaPath, "create table t (id int);");
       await mapper("openProject", {
         projectHandle: "p",
