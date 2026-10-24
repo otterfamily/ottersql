@@ -8,6 +8,8 @@ Rules for anyone changing ottersql, human or AI. Read `docs/adr` first; it holds
 - Do not act on guesses. Check the code, logs or primary sources (official docs, specs, source code) first, and write "unverified" next to anything you could not check.
 - Types say only what the database guarantees. Never add a type the database cannot enforce.
 - Keep one way to do each thing. Prefer the simpler design over compatibility layers.
+- Refactor as you go. When a change shows a better structure, reshape the code to it instead of working around the old one; before 1.0 there are no users to stay compatible with.
+- Choose tools and patterns by current best practice: primary sources and what well-maintained TypeScript projects do today, not habit or what another project used.
 - Fix security bugs first, in small changes.
 
 ## Where things go
@@ -50,6 +52,7 @@ Install pnpm 11 or later; it fetches the pinned pnpm and Node.js versions from `
 ## Changes
 
 - Commits follow Conventional Commits. The first line summarises; the body says why, briefly. Do not list what changed; the diff shows that.
+- Pull requests are squash-merged, and the squash commit takes the pull request's title and body. Write them as that commit: a Conventional Commits title and a body that says why.
 - For now changes go straight to `main`. Every push must pass CI. Never rewrite pushed history.
 - This repository is public. Never commit secrets, `.env` files, keys, personal data, or paths and names from other private projects.
 - Code, commit messages, the README, ADRs and other docs in this repository are in English. GitHub issues, milestones and the roadmap project are in Japanese, the maintainer's working language.
