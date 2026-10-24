@@ -7,7 +7,11 @@ import type { PendingStep } from "./ledger.ts";
 import type { Lock, Step } from "./plan.ts";
 
 export interface RunOptions {
-  /** How long a step waits for a lock before giving up and retrying, in milliseconds. */
+  /**
+   * How long a step in a transaction waits for a lock before giving up and retrying, in
+   * milliseconds. Steps outside a transaction wait as long as they need, since their waits hold up
+   * no other query.
+   */
   readonly lockTimeout?: number;
   /** How many times a step that gave up a lock is retried. */
   readonly retries?: number;
@@ -63,7 +67,11 @@ interface Timeouts {
 
 function timeouts(step: Step, settings: Settings): Timeouts {
   const statement = writeBlocking.has(step.lock) ? settings.statementTimeout : 0;
-  return { lock: `${String(settings.lockTimeout)}ms`, statement: `${String(statement)}ms` };
+  // A step outside a transaction, such as CREATE INDEX CONCURRENTLY, waits at its end for every
+  // older transaction in the database; that wait holds up no other query, and giving it up throws
+  // away the index built so far.
+  const lock = step.transaction === "outside" ? 0 : settings.lockTimeout;
+  return { lock: `${String(lock)}ms`, statement: `${String(statement)}ms` };
 }
 
 async function runOnce(
