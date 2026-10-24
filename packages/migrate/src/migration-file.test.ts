@@ -5,6 +5,21 @@ import { pendingChanges, planMigration, readMigrationFile, renderMigration } fro
 import type { Step } from "./index.ts";
 import { users } from "./test-migrate.ts";
 
+const inside =
+  '-- ottersql:step kind=comment object="public.t" phase=expand reversal=reversible transaction=inside lock="none"';
+const outside =
+  '-- ottersql:step kind=createIndex object="public.t.i" phase=expand reversal=reversible transaction=outside lock="share update exclusive"';
+
+/** The name and message of what `run` throws. */
+function failure(run: () => unknown): { readonly name: string; readonly message: string } | null {
+  try {
+    run();
+    return null;
+  } catch (error) {
+    return error instanceof Error ? { name: error.name, message: error.message } : null;
+  }
+}
+
 /** Reasons are comments in the file, for reviewers; reading it back leaves them out. */
 function withoutReason(step: Step): Step {
   return { ...step, reason: null };
@@ -57,8 +72,93 @@ describe("migration files", () => {
       text: '-- ottersql:step kind=addColumn object=t phase=expand reversal=lossy transaction=inside lock="none"\n',
       message: "line 1: the step has no SQL",
     },
+    {
+      problem: "an unknown directive",
+      text: '-- ottersql:stpe kind=comment object=t phase=expand reversal=reversible transaction=inside lock="none"\nselect 1;',
+      message:
+        "line 1: unknown directive ottersql:stpe; the directives are step, cleanup and manual",
+    },
+    {
+      problem: "a directive after SQL on its line",
+      text: `${inside}\nselect 1; -- ottersql:step kind=comment object=t phase=expand reversal=reversible transaction=inside lock="none"\nselect 2;`,
+      message: "line 2: a -- ottersql: directive must be on a line of its own",
+    },
+    {
+      problem: "an attribute given twice",
+      text: '-- ottersql:step kind=comment object=t phase=expand phase=contract reversal=reversible transaction=inside lock="none"\nselect 1;',
+      message: "line 1: phase is given twice",
+    },
+    {
+      problem: "an unknown attribute",
+      text: '-- ottersql:step kind=comment object=t phase=expand reversal=reversible transaction=inside lock="none" bogus=1\nselect 1;',
+      message: "line 1: unknown attribute bogus",
+    },
+    {
+      problem: "text that is not an attribute",
+      text: '-- ottersql:step kind=comment object=t phase=expand reversal=reversible transaction=inside lock="none" oops\nselect 1;',
+      message: 'line 1: expected attributes such as key=value, not "oops"',
+    },
+    {
+      problem: "a cleanup on a step inside a transaction",
+      text: `${inside}\n-- ottersql:cleanup schema="public" index="i"\nselect 1;`,
+      message: "line 2: only a step outside a transaction has a cleanup",
+    },
+    {
+      problem: "two cleanups",
+      text: `${outside}\n-- ottersql:cleanup schema="public" index="i"\n-- ottersql:cleanup schema="public" index="j"\ncreate index concurrently i on t (id);`,
+      message: "line 3: a step has one cleanup at most",
+    },
   ])("reject $problem, naming the line", ({ text, message }) => {
-    expect(() => readMigrationFile(text)).toThrow(message);
+    expect(failure(() => readMigrationFile(text))).toStrictEqual({
+      name: "MigrationFileError",
+      message,
+    });
+  });
+
+  test("read a directive written without the space or indented as one", () => {
+    const text = [
+      inside,
+      "create table t (id int8);",
+      outside.replace("-- ottersql:", "--ottersql:"),
+      `  -- ottersql:cleanup schema="public" index="i"`,
+      "create index concurrently i on t (id);",
+    ].join("\n");
+    expect(
+      readMigrationFile(text).map(({ transaction, statements }) => ({ transaction, statements })),
+    ).toStrictEqual([
+      { transaction: "inside", statements: ["create table t (id int8)"] },
+      { transaction: "outside", statements: ["create index concurrently i on t (id)"] },
+    ]);
+  });
+
+  test("take -- ottersql: inside a string for text, not a directive", async () => {
+    const plan = planMigration(
+      await loadCatalog(users),
+      await loadCatalog(
+        `${users}; comment on table users is 'x\n-- ottersql:cleanup schema="public" index="users_pkey"\ny'`,
+      ),
+    );
+    expect(readMigrationFile(renderMigration(plan))).toStrictEqual(plan.steps.map(withoutReason));
+  });
+
+  test("read the same with Windows line endings", async () => {
+    const plan = planMigration(
+      await loadCatalog(users),
+      await loadCatalog(`${users}; create index users_email on users (email)`),
+    );
+    const text = renderMigration(plan);
+    expect(readMigrationFile(text.replaceAll("\n", "\r\n"))).toStrictEqual(readMigrationFile(text));
+  });
+
+  test("must be named by the time they were made, in UTC, and a lowercase name", async () => {
+    const file = { name: "add-users.sql", text: `${inside}\nselect 1;` };
+    await expect(pendingChanges([file], "")).rejects.toMatchObject({
+      name: "MigrationFileError",
+      message:
+        "add-users.sql: the name must be YYYYMMDDHHMMSS_<name>.sql, the time in UTC and the name in lowercase letters, digits and underscores",
+      file: "add-users.sql",
+      line: null,
+    });
   });
 
   test("that cannot be read are named, with the line, by what reads them", async () => {

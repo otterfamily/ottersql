@@ -161,7 +161,7 @@ try {
   if (last !== undefined) {
     await refuse("6a. A migration edited after it was applied", [
       ...files.slice(0, -1),
-      { name: last.name, text: `${last.text}\n-- edited\n` },
+      { name: last.name, text: last.text.replace("'archived'", "'hidden'") },
     ]);
   }
   await refuse("6b. A new migration older than ones already applied", [

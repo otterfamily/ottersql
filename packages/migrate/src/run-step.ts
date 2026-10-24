@@ -1,11 +1,13 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
+import type { QualifiedName } from "@ottersql/catalog";
 import type { Connection } from "@ottersql/sql";
 
 import { record } from "./ledger.ts";
 import type { PendingStep } from "./ledger.ts";
 import { writeBlockingLocks } from "./plan.ts";
-import type { Step } from "./plan.ts";
+import type { OutsideStep, Step } from "./plan.ts";
+import { qualified } from "./sql-text.ts";
 
 export interface RunOptions {
   /**
@@ -79,8 +81,9 @@ async function runOnce(
   pending: PendingStep,
   timeout: Timeouts,
 ): Promise<void> {
-  await (pending.step.transaction === "outside"
-    ? runOutside(connection, pending, timeout)
+  const { step } = pending;
+  await (step.transaction === "outside"
+    ? runOutside(connection, { pending, step }, timeout)
     : runInside(connection, pending, timeout));
 }
 /** The step and its record commit together, so a step is never applied without being recorded. */
@@ -108,10 +111,13 @@ async function runInside(
   }
 }
 
-/** Statements that cannot run in a transaction run one by one, after clearing a failed earlier run. */
+/**
+ * Statements that cannot run in a transaction run one by one. An index an earlier run left invalid
+ * is dropped first; one it finished but did not record is kept, and the step recorded.
+ */
 async function runOutside(
   connection: Connection,
-  pending: PendingStep,
+  { pending, step }: { readonly pending: PendingStep; readonly step: OutsideStep },
   timeout: Timeouts,
 ): Promise<void> {
   await connection.query(
@@ -119,14 +125,52 @@ async function runOutside(
     [timeout.lock, timeout.statement],
   );
   try {
-    for (const sql of [...pending.step.cleanup, ...pending.step.statements]) {
-      await connection.query(sql, []);
+    if (await needsBuilding(connection, step)) {
+      for (const sql of step.statements) {
+        await connection.query(sql, []);
+      }
     }
     await record(connection, pending);
   } finally {
     await connection.query("reset lock_timeout", []);
     await connection.query("reset statement_timeout", []);
   }
+}
+
+/**
+ * Whether the step must run: not when the index it builds is already valid, and only after
+ * dropping the index when a failed build left it invalid.
+ */
+async function needsBuilding(connection: Connection, step: OutsideStep): Promise<boolean> {
+  if (step.cleanup === null) {
+    return true;
+  }
+  const left = await leftIndex(connection, step.cleanup);
+  if (left === "invalid") {
+    await connection.query(
+      `DROP INDEX CONCURRENTLY ${qualified(step.cleanup.schema, step.cleanup.name)}`,
+      [],
+    );
+  }
+  return left !== "valid";
+}
+
+/** Whether `index` is missing, left invalid by a build that failed, or valid. */
+async function leftIndex(
+  connection: Connection,
+  index: QualifiedName,
+): Promise<"none" | "invalid" | "valid"> {
+  const { rows } = await connection.query(
+    `select i.indisvalid from pg_index i
+      join pg_class c on c.oid = i.indexrelid join pg_namespace n on n.oid = c.relnamespace
+    where n.nspname = $1 and c.relname = $2`,
+    [index.schema, index.name],
+  );
+  const [row] = rows;
+  if (row === undefined) {
+    return "none";
+  }
+  return row[0] === "t" ? "valid" : "invalid";
 }
 
 /** Retries a step that gave up waiting for a lock; any other error ends the run. */

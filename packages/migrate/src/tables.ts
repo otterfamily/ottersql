@@ -11,7 +11,7 @@ import {
   newTableConstraints,
 } from "./constraints.ts";
 import { columnDefinition, createIndex, literal, qualified } from "./sql-text.ts";
-import { combine, matchByName, only, step } from "./steps.ts";
+import { combine, matchByName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 import { columnSqlName, dropIndexStatement, objectName } from "./table-sql.ts";
 
@@ -129,29 +129,28 @@ function indexChanges(before: Table, after: Table): Changes {
 
 function buildIndex(table: Table, index: Index, phase: "expand" | "contract"): Changes {
   return only(
-    step({
+    outsideStep({
       kind: "createIndex",
       object: objectName(table, index.name),
       statements: [createIndex(table, index, true)],
-      cleanup: [dropIndexStatement(table, index.name)],
+      cleanup: { schema: table.schema, name: index.name },
       phase,
       reversal: "reversible",
       lock: "share update exclusive",
-      transaction: "outside",
     }),
   );
 }
 
 function dropIndex(table: Table, index: Index): Changes {
   return only(
-    step({
+    outsideStep({
       kind: "dropIndex",
       object: objectName(table, index.name),
       statements: [dropIndexStatement(table, index.name)],
+      cleanup: null,
       phase: "contract",
       reversal: "reversible",
       lock: "share update exclusive",
-      transaction: "outside",
     }),
   );
 }

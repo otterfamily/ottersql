@@ -4,24 +4,21 @@ import { loadCatalog, openSchema } from "@ottersql/catalog";
 import { pgConnection } from "@ottersql/sql/pg";
 import { pgliteConnection } from "@ottersql/sql/pglite";
 import { postgresDatabase } from "@ottersql/testing";
-import { Client } from "pg";
 import { describe, expect, test } from "vitest";
 
 import { applyMigrations } from "./index.ts";
 import type { MigrationFile } from "./index.ts";
-import { migrationFrom, step, users, withSortedColumns } from "./test-migrate.ts";
+import { connect, migrationFrom, step, users, withSortedColumns } from "./test-migrate.ts";
 
 const target = `create table users (id int8 primary key, email text not null unique);
   create index users_email_lower on users (lower(email));`;
 
-async function connect(url: string): Promise<Client> {
-  const client = new Client({ connectionString: url });
-  await client.connect();
-  return client;
-}
-
 function newer(file: MigrationFile): MigrationFile {
   return { name: "20261026000000_change.sql", text: file.text };
+}
+
+function header(kind: string, object: string): string {
+  return `-- ottersql:step kind=${kind} object="${object}" phase=expand reversal=lossy transaction=inside lock="none"`;
 }
 
 describe("applyMigrations on PGlite", () => {
@@ -115,15 +112,43 @@ describe("applyMigrations on PGlite", () => {
     }
   });
 
+  test("lets a step that has not run be fixed in a migration that partly ran", async () => {
+    const schema = await openSchema("");
+    try {
+      const connection = pgliteConnection(schema.database);
+      const broken = {
+        name: "20261025000000_logs.sql",
+        text: [
+          header("createTable", "public.logs"),
+          "create table logs (id int8);",
+          header("custom", "public.logs"),
+          "insert into log values (1);",
+        ].join("\n"),
+      };
+      const fixed = {
+        ...broken,
+        text: `-- Comments may change too.\n${broken.text.replace("into log ", "into logs ")}`,
+      };
+      const failed = await applyMigrations(connection, [broken]);
+      const resumed = await applyMigrations(connection, [fixed]);
+      expect({ failed: failed.failed?.code, resumed }).toStrictEqual({
+        failed: "42P01",
+        resumed: { applied: [step(broken.name, 1)], failed: null, waiting: null },
+      });
+    } finally {
+      await schema.close();
+    }
+  });
+
   test.for([
     {
       problem: "a migration edited after it was applied",
       first: (file: MigrationFile): MigrationFile[] => [file],
       later: (file: MigrationFile): MigrationFile[] => [
-        { ...file, text: `${file.text}\n-- edited\n` },
+        { ...file, text: file.text.replace('("email")', '("email", "id")') },
       ],
       message:
-        "20261025000000_change.sql was edited after it was applied; add a new migration instead",
+        "20261025000000_change.sql step 0 was edited after it was applied; add a new migration instead",
     },
     {
       problem: "a new migration older than one already applied",
@@ -202,95 +227,6 @@ describe("applyMigrations on Postgres", () => {
           waiting: null,
         },
         resumed: { applied: [step(file.name, 1), step(file.name, 2)], failed: null, waiting: null },
-      });
-    } finally {
-      await client.end();
-    }
-  }, 30_000);
-
-  test("lets one of two runs started together apply a migration, and the other find it done", async () => {
-    const url = await postgresDatabase(
-      `${users}; insert into users select i, 'u' || i from generate_series(1, 20000) i`,
-    );
-    const [first, second] = await Promise.all([connect(url), connect(url)]);
-    try {
-      const file = await migrationFrom(
-        users,
-        `${users}; create index users_email on users (email)`,
-      );
-      const results = await Promise.all([
-        applyMigrations(pgConnection(first), [file]),
-        applyMigrations(pgConnection(second), [file]),
-      ]);
-      const { rows } = await first.query<{ valid: boolean }>(
-        "select indisvalid as valid from pg_index where indexrelid = 'users_email'::regclass",
-      );
-      expect({
-        applied: results
-          .map(({ applied }) => applied.length)
-          .toSorted((left, right) => left - right),
-        failed: results.map(({ failed }) => failed),
-        rows,
-      }).toStrictEqual({ applied: [0, 1], failed: [null, null], rows: [{ valid: true }] });
-    } finally {
-      await Promise.all([first.end(), second.end()]);
-    }
-  }, 30_000);
-
-  test("waits as long as it takes for a concurrent index build, which blocks no one meanwhile", async () => {
-    const url = await postgresDatabase(`${users}; create table logs (id int8)`);
-    const [migrator, holder, writer] = await Promise.all([
-      connect(url),
-      connect(url),
-      connect(url),
-    ]);
-    try {
-      await holder.query("begin isolation level repeatable read; select count(*) from logs");
-      const file = await migrationFrom(
-        users,
-        `${users}; create index users_email on users (email)`,
-      );
-      const applying = applyMigrations(pgConnection(migrator), [file], {
-        lockTimeout: 100,
-        retries: 1,
-        retryDelay: () => 0,
-      });
-      await sleep(500);
-      const started = performance.now();
-      await writer.query("insert into users values (1, 'otter@example.com')");
-      const writerWaited = performance.now() - started;
-      await holder.query("commit");
-      expect({
-        result: await applying,
-        writerWaitedUnderASecond: writerWaited < 1000,
-      }).toStrictEqual({
-        result: { applied: [step(file.name, 0)], failed: null, waiting: null },
-        writerWaitedUnderASecond: true,
-      });
-    } finally {
-      await Promise.all([migrator.end(), holder.end(), writer.end()]);
-    }
-  }, 30_000);
-
-  test("rebuilds an index a failed concurrent build left invalid", async () => {
-    const url = await postgresDatabase(`${users}; insert into users values (1, 'a'), (2, 'a')`);
-    const client = await connect(url);
-    try {
-      const connection = pgConnection(client);
-      const file = await migrationFrom(
-        users,
-        "create table users (id int8 primary key, email text unique)",
-      );
-      const failed = await applyMigrations(connection, [file]);
-      await client.query("delete from users where id = 2");
-      const resumed = await applyMigrations(connection, [file]);
-      const { rows } = await client.query<{ valid: boolean }>(
-        "select indisvalid as valid from pg_index where indexrelid = 'users_email_key'::regclass",
-      );
-      expect({ failed: failed.failed?.code, resumed, rows }).toStrictEqual({
-        failed: "23505",
-        resumed: { applied: [step(file.name, 0), step(file.name, 1)], failed: null, waiting: null },
-        rows: [{ valid: true }],
       });
     } finally {
       await client.end();

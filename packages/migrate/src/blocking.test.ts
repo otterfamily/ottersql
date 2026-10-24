@@ -129,7 +129,6 @@ describe("steps that block writes", () => {
       phase: "contract",
       reversal: "reversible",
       transaction: "inside",
-      cleanup: [],
       lock: "access exclusive",
       reason: null,
     };

@@ -7,7 +7,7 @@ import type { Step } from "./plan.ts";
 // The catalog leaves the ottersql schema out, so migrations never plan changes to this table.
 const ledger = "ottersql.applied_steps";
 
-/** A step that ran, with the hash of its file at the time. */
+/** A step that ran, with the hash of what it did. */
 export interface AppliedStep {
   readonly migration: string;
   readonly step: number;

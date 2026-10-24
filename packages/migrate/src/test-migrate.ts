@@ -1,5 +1,6 @@
 import { loadCatalog, openSchema } from "@ottersql/catalog";
 import type { Catalog } from "@ottersql/catalog";
+import { Client } from "pg";
 
 import { planMigration, renderMigration } from "./index.ts";
 import type { MigrationFile, Plan, Step, StepRef } from "./index.ts";
@@ -56,4 +57,11 @@ export async function migrationFrom(
 /** Step `index` of the migration file `migration`. */
 export function step(migration: string, index: number): StepRef {
   return { migration, step: index };
+}
+
+/** A connected client of the database at `url`. */
+export async function connect(url: string): Promise<Client> {
+  const client = new Client({ connectionString: url });
+  await client.connect();
+  return client;
 }

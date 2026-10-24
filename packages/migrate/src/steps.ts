@@ -1,11 +1,17 @@
-import type { ManualChange, Step } from "./plan.ts";
+import type { InsideStep, ManualChange, OutsideStep, Step } from "./plan.ts";
 
 /** A step that runs in a transaction and needs no explanation unless told otherwise. */
 export function step(
-  spec: Omit<Step, "transaction" | "reason" | "cleanup"> &
-    Partial<Pick<Step, "transaction" | "reason" | "cleanup">>,
-): Step {
-  return { transaction: "inside", reason: null, cleanup: [], ...spec };
+  spec: Omit<InsideStep, "transaction" | "reason"> & Partial<Pick<InsideStep, "reason">>,
+): InsideStep {
+  return { transaction: "inside", reason: null, ...spec };
+}
+
+/** A step that cannot run in a transaction, building or dropping an index concurrently. */
+export function outsideStep(
+  spec: Omit<OutsideStep, "transaction" | "reason"> & Partial<Pick<OutsideStep, "reason">>,
+): OutsideStep {
+  return { transaction: "outside", reason: null, ...spec };
 }
 
 /** What one part of the planner found: steps in any order, and changes left to a person. */

@@ -1,11 +1,10 @@
-import { renderMigration } from "@ottersql/migrate";
+import { nextMigrationName, renderMigration } from "@ottersql/migrate";
 
 import { changesToSchema, isEmpty, planLines, planResult } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import type { Outcome } from "./outcome.ts";
 import { locate, readMigrations, shown, writeMigration } from "./project.ts";
-import { nextStamp } from "./stamp.ts";
 
 /** Writes what schema.sql adds to the migrations as the next migration file. */
 export async function generate(
@@ -22,10 +21,11 @@ export async function generate(
       lines: [`The migrations already build ${shown(layout, layout.schemaFile)}`],
     };
   }
-  const name = `${nextStamp(
+  const name = nextMigrationName(
     files.map((file) => file.name),
+    command.migration,
     context.now,
-  )}_${command.migration}.sql`;
+  );
   const file = await writeMigration(layout, name, renderMigration(plan));
   return {
     ok: true,

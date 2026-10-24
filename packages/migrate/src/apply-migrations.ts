@@ -50,9 +50,10 @@ export class MigrationHistoryError extends Error {
  * Applies the steps of `files` that have not run on `connection`, which must be one session (a
  * `pg` Client or PoolClient, or PGlite) so that a transaction's statements share it. Steps run in
  * deploy order: file by file, a file's expand steps and then its contract steps. Each step is
- * recorded with its file's hash, so running again resumes after the last step that succeeded, and
+ * recorded with a hash of what it does, so running again resumes after the last step that
+ * succeeded, and
  * a run started while another is applying waits for it to finish. Throws a
- * `MigrationHistoryError` before running anything when a file changed after it was applied, or
+ * `MigrationHistoryError` before running anything when a step changed after it was applied, or
  * when a step that has not run comes before one that has, as a new file older than applied ones
  * does; and an `ApprovalRequiredError` when a pending step cannot be undone and `options.approve`
  * does not cover the pending steps.
@@ -83,14 +84,25 @@ export async function applyMigrations(
 
 /** Every step of `files`: file by file, each file's expand steps before its contract steps. */
 function deployOrder(files: readonly MigrationFile[]): PendingStep[] {
-  return inOrder(files).flatMap((file) => {
-    const hash = createHash("sha256").update(file.text).digest("hex");
-    return readMigration(file)
-      .map((step, index) => ({ migration: file.name, hash, index, step }))
+  return inOrder(files).flatMap((file) =>
+    readMigration(file)
+      .map((step, index) => ({ migration: file.name, hash: stepHash(step), index, step }))
       .toSorted(
         (left, right) => phases.indexOf(left.step.phase) - phases.indexOf(right.step.phase),
-      );
-  });
+      ),
+  );
+}
+
+/**
+ * What identifies a step once it ran: everything that decides what it does, so comments and line
+ * endings may change, and a step that has not run may be fixed.
+ */
+function stepHash(step: Step): string {
+  const { kind, object, phase, reversal, transaction, lock, statements } = step;
+  const cleanup = step.transaction === "outside" ? step.cleanup : null;
+  return createHash("sha256")
+    .update(JSON.stringify([kind, object, phase, reversal, transaction, lock, statements, cleanup]))
+    .digest("hex");
 }
 
 /**
@@ -108,7 +120,7 @@ function notYetApplied(
     const recorded = applied.get(`${migration}#${String(index)}`);
     if (recorded !== undefined && recorded !== hash) {
       throw new MigrationHistoryError(
-        `${migration} was edited after it was applied; add a new migration instead`,
+        `${migration} step ${String(index)} was edited after it was applied; add a new migration instead`,
       );
     }
     return recorded !== undefined;

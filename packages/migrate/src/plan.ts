@@ -1,3 +1,5 @@
+import type { QualifiedName } from "@ottersql/catalog";
+
 /** The strongest lock a step takes on a table that already exists. */
 export type Lock = (typeof locks)[number];
 
@@ -7,7 +9,24 @@ export interface Plan {
   readonly manual: readonly ManualChange[];
 }
 
-export interface Step {
+/** A step that runs in a transaction, with its record, so a failure leaves nothing behind. */
+export interface InsideStep extends StepCommon {
+  readonly transaction: "inside";
+}
+
+/** A step that cannot run in a transaction block, such as `CREATE INDEX CONCURRENTLY`. */
+export interface OutsideStep extends StepCommon {
+  readonly transaction: "outside";
+  /**
+   * The index the step builds, which a run that failed halfway leaves invalid: dropped before the
+   * step runs again, or, when it is valid, left in place and the step recorded as done.
+   */
+  readonly cleanup: QualifiedName | null;
+}
+
+export type Step = InsideStep | OutsideStep;
+
+interface StepCommon {
   readonly kind: StepKind;
   /** What the step changes, such as `public.users.email`. */
   readonly object: string;
@@ -17,13 +36,6 @@ export interface Step {
   readonly phase: (typeof phases)[number];
   /** `lossy`: undoing the step loses data written since; `irreversible`: it cannot be undone. */
   readonly reversal: (typeof reversals)[number];
-  /** `outside` steps, such as `CREATE INDEX CONCURRENTLY`, cannot run in a transaction block. */
-  readonly transaction: (typeof transactions)[number];
-  /**
-   * Run before an `outside` step, to remove what an earlier run that failed halfway left behind,
-   * such as an invalid index; an `inside` step leaves nothing, since its transaction rolls back.
-   */
-  readonly cleanup: readonly string[];
   readonly lock: Lock;
   /** Why the step takes the form it does, when that is not the obvious statement. */
   readonly reason: string | null;
@@ -43,7 +55,6 @@ export const stepKinds = [
   "setNotNull",
   "addCheck",
   "validateCheck",
-  "dropCheck",
   "addForeignKey",
   "validateForeignKey",
   "dropForeignKey",
@@ -53,6 +64,7 @@ export const stepKinds = [
   "createIndex",
   "dropIndex",
   "comment",
+  "custom",
 ] as const;
 
 export type StepKind = (typeof stepKinds)[number];

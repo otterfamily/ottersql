@@ -118,7 +118,7 @@ export function unreadableMigration(
     fix: "Fix the migration file; each step's SQL follows a `-- ottersql:step` line",
     where: {
       file: shown(layout, join(layout.migrationsDirectory, error.file ?? "")),
-      line: error.line,
+      ...(error.line === null ? {} : { line: error.line }),
     },
   });
 }

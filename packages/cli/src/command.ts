@@ -1,5 +1,7 @@
 import { parseArgs } from "node:util";
 
+import { isMigrationLabel } from "@ottersql/migrate";
+
 /** What the command line asks for, parsed once where it enters. */
 export type Command =
   | { readonly name: "help" }
@@ -55,8 +57,6 @@ const options = {
   approve: { type: "string" },
   help: { type: "boolean", short: "h" },
 } as const;
-
-const migrationName = /^[0-9a-z]+(?:_[0-9a-z]+)*$/v;
 
 /** Whether the output is to be JSON; read apart from parsing, so that usage errors honour it. */
 export function wantsJson(args: readonly string[]): boolean {
@@ -128,7 +128,7 @@ function parseMigrationName(rest: readonly string[]): string {
     throw new UsageError("Name the migration, such as `add_users`");
   }
   noMore(more);
-  if (!migrationName.test(name)) {
+  if (!isMigrationLabel(name)) {
     throw new UsageError(
       `A migration name is lowercase letters, digits and underscores, not ${JSON.stringify(name)}`,
     );

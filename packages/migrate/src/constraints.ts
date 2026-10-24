@@ -21,9 +21,9 @@ import {
   foreignKeyDefinition,
   identifier,
 } from "./sql-text.ts";
-import { combine, matchByName, only, step } from "./steps.ts";
+import { combine, matchByName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
-import { alterTable, dropIndexStatement, objectName } from "./table-sql.ts";
+import { alterTable, objectName } from "./table-sql.ts";
 
 /**
  * Constraints added to a table that has rows hold for new rows first and are validated in a step of
@@ -181,15 +181,14 @@ function indexBackedKey(
     `ADD CONSTRAINT ${name} ${constraint} USING INDEX ${name}${deferral(key.deferral)}`,
   );
   return only(
-    step({
+    outsideStep({
       kind: "createIndex",
       object,
       statements: [build],
-      cleanup: [dropIndexStatement(table, key.name)],
+      cleanup: { schema: table.schema, name: key.name },
       phase: "contract",
       reversal: "reversible",
       lock: "share update exclusive",
-      transaction: "outside",
     }),
     step({
       kind,

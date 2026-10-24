@@ -13,7 +13,7 @@ export interface MigrationFile {
 
 /** The files in the order they apply. */
 export function inOrder(files: readonly MigrationFile[]): MigrationFile[] {
-  return files.toSorted((left, right) => left.name.localeCompare(right.name));
+  return files.toSorted((left, right) => (left.name < right.name ? -1 : 1));
 }
 
 /** The schema `files` build when run in order on an empty database, replayed in PGlite. */
