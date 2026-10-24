@@ -273,13 +273,18 @@
       "rules": { "vitest/require-hook": "error" },
     },
     {
+      "files": ["**/*.test.ts", "**/test-*.ts"],
+      // Vitest reads which fixtures a fixture depends on from its first parameter's pattern, so a
+      // fixture with none is written `({}, use)`.
+      "rules": {
+        "eslint/no-empty-pattern": ["error", { "allowObjectPatternsAsParameters": true }],
+      },
+    },
+    {
       "files": ["**/*.test.ts"],
       "rules": {
         // Expected values are literals by design: they come from the spec, not the code.
         "eslint/no-magic-numbers": "off",
-        // Vitest reads which fixtures a fixture depends on from its first parameter's pattern, so
-        // a fixture with none is written `({}, use)`.
-        "eslint/no-empty-pattern": ["error", { "allowObjectPatternsAsParameters": true }],
         // Tests extended with fixtures (`test.extend`) are still test blocks.
         "vitest/no-standalone-expect": [
           "error",

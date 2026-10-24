@@ -1,27 +1,11 @@
-import { PGlite } from "@electric-sql/pglite";
-import { createPostgresDatabase } from "@ottersql/testing";
-import { Pool } from "pg";
 import { describe, expect, test as base } from "vitest";
 
 import { defineQuery, json } from "./index.ts";
 import type { Connection } from "./index.ts";
-import { pgConnection } from "./pg.ts";
-import { pgliteConnection } from "./pglite.ts";
+import { openDrivers } from "./test-drivers.ts";
 
-/** One connection per driver for the whole file: PGlite in process, and node-postgres to a container. */
 const test = base.extend<{ drivers: readonly Connection[] }>({
-  drivers: [
-    async ({}, use) => {
-      const db = await PGlite.create();
-      const database = await createPostgresDatabase();
-      const pool = new Pool({ connectionString: database.url });
-      await use([pgliteConnection(db), pgConnection(pool)]);
-      await pool.end();
-      await database.drop();
-      await db.close();
-    },
-    { scope: "file" },
-  ],
+  drivers: [openDrivers, { scope: "file" }],
 });
 
 async function selectOne(connection: Connection, expression: string): Promise<unknown> {

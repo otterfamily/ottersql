@@ -1,9 +1,13 @@
-import { PGlite } from "@electric-sql/pglite";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test as base } from "vitest";
 
-import { pgliteConnection } from "./pglite.ts";
+import { openDrivers } from "./test-drivers.ts";
 import { builtInOids, typeInfos } from "./type-info.ts";
 import type { TypeInfo } from "./type-info.ts";
+import type { Connection } from "./values.ts";
+
+const test = base.extend<{ drivers: readonly Connection[] }>({
+  drivers: [openDrivers, { scope: "file" }],
+});
 
 function expectedTypeInfo([typtype, name, element, subtype]: readonly (
   | string
@@ -21,10 +25,8 @@ function expectedTypeInfo([typtype, name, element, subtype]: readonly (
 }
 
 describe("built-in types", () => {
-  test("match what pg_type says about their oids", async () => {
-    const db = await PGlite.create();
-    try {
-      const connection = pgliteConnection(db);
+  test("match what pg_type says about their oids", async ({ drivers }) => {
+    for (const connection of drivers) {
       const { rows } = await connection.query(
         `select t.oid, t.typtype, t.typname, element.typname, subtype.typname
          from pg_type t
@@ -36,8 +38,6 @@ describe("built-in types", () => {
       );
       const expected = new Map(rows.map(([oid, ...type]) => [Number(oid), expectedTypeInfo(type)]));
       await expect(typeInfos(connection, builtInOids)).resolves.toStrictEqual(expected);
-    } finally {
-      await db.close();
     }
   });
 });
