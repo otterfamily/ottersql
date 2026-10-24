@@ -3,6 +3,19 @@ import { describe, expect, test } from "vitest";
 import { loadCatalog } from "./index.ts";
 import { table } from "./test-helpers.ts";
 
+describe("ottersql's own schema", () => {
+  test("is left out, so a migration never plans to drop the record of applied steps", async () => {
+    const catalog = await loadCatalog(`
+      create schema ottersql;
+      create table ottersql.applied_steps (plan text);
+      create table users (id int8);
+    `);
+    expect(catalog.tables.map(({ schema, name }) => `${schema}.${name}`)).toStrictEqual([
+      "public.users",
+    ]);
+  });
+});
+
 describe("tables", () => {
   test("starts every load from an empty database", async () => {
     await loadCatalog(`create table left_behind (a int);`);

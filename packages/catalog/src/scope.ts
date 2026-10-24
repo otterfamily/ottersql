@@ -1,6 +1,7 @@
 /**
  * SQL condition that keeps a row of `catalogTable` only if the user's schema defines it: system
- * schemas and objects that belong to an extension are left out.
+ * schemas, ottersql's own schema (the record of applied migration steps) and objects that belong
+ * to an extension are left out.
  */
 export function userObject(
   catalogTable: "pg_class" | "pg_proc" | "pg_type",
@@ -9,7 +10,7 @@ export function userObject(
 ): string {
   return `${namespaceOid} not in (
       select oid from pg_namespace
-      where nspname in ('pg_catalog', 'information_schema', 'pg_toast')
+      where nspname in ('pg_catalog', 'information_schema', 'pg_toast', 'ottersql')
         or nspname like 'pg\\_temp\\_%' or nspname like 'pg\\_toast\\_temp\\_%'
     )
     and not exists (
