@@ -1,9 +1,13 @@
 import type { PGlite } from "@electric-sql/pglite";
-import { checksJson, parseCheck, type CheckRow } from "./checks.ts";
-import { constraintsJson, parseConstraints, type ConstraintRows } from "./constraints.ts";
+
+import { checksJson, parseCheck } from "./checks.ts";
+import type { CheckRow } from "./checks.ts";
+import { constraintsJson, parseConstraints } from "./constraints.ts";
+import type { ConstraintRows } from "./constraints.ts";
 import type { Column, ColumnValue, Table } from "./model.ts";
 import { userRelation } from "./scope.ts";
-import { parseTypeRef, typeRefJson, type TypeRow } from "./type-ref.ts";
+import { parseTypeRef, typeRefJson } from "./type-ref.ts";
+import type { TypeRow } from "./type-ref.ts";
 
 interface TableRow extends ConstraintRows {
   readonly checks: readonly CheckRow[];
@@ -45,16 +49,16 @@ export async function readTables(db: PGlite): Promise<Table[]> {
     where c.relkind in ('r', 'p') and ${userRelation("c")}
     order by n.nspname, c.relname
   `);
-  return rows.map(parseTable);
+  return rows.map((row) => parseTable(row));
 }
 
 function parseTable(row: TableRow): Table {
   return {
     schema: row.schema,
     name: row.name,
-    columns: row.columns.map(parseColumn),
+    columns: row.columns.map((column) => parseColumn(column)),
     ...parseConstraints(row),
-    checks: row.checks.map(parseCheck),
+    checks: row.checks.map((check) => parseCheck(check)),
   };
 }
 
@@ -69,12 +73,15 @@ function parseColumn(row: ColumnRow): Column {
 }
 
 function parseColumnValue(row: ColumnRow): ColumnValue {
-  if (row.identity === "a") return { kind: "identity", generation: "always" };
-  if (row.identity === "d") return { kind: "identity", generation: "by default" };
-  if (row.expression === null) return { kind: "none" };
-  if (row.generated === "s")
-    return { kind: "generated", storage: "stored", expression: row.expression };
-  if (row.generated === "v")
-    return { kind: "generated", storage: "virtual", expression: row.expression };
+  if (row.identity !== "") {
+    return { kind: "identity", generation: row.identity === "a" ? "always" : "by default" };
+  }
+  if (row.expression === null) {
+    return { kind: "none" };
+  }
+  if (row.generated !== "") {
+    const storage = row.generated === "s" ? "stored" : "virtual";
+    return { kind: "generated", storage, expression: row.expression };
+  }
   return { kind: "default", expression: row.expression };
 }

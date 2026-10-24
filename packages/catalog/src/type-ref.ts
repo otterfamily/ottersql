@@ -24,7 +24,9 @@ export interface TypeRow {
 }
 
 export function parseTypeRef(row: TypeRow): TypeRef {
-  if (row.element !== null) return { kind: "array", element: parseNamedTypeRef(row.element) };
+  if (row.element !== null) {
+    return { kind: "array", element: parseNamedTypeRef(row.element) };
+  }
   return parseNamedTypeRef(row);
 }
 
@@ -34,21 +36,29 @@ function parseNamedTypeRef(row: Omit<TypeRow, "element">): NamedTypeRef {
 
 function typeKind(typtype: string): NamedTypeRef["kind"] {
   switch (typtype) {
-    case "b":
+    case "b": {
       return "base";
-    case "c":
+    }
+    case "c": {
       return "composite";
-    case "d":
+    }
+    case "d": {
       return "domain";
-    case "e":
+    }
+    case "e": {
       return "enum";
-    case "m":
+    }
+    case "m": {
       return "multirange";
-    case "p":
+    }
+    case "p": {
       return "pseudo";
-    case "r":
+    }
+    case "r": {
       return "range";
-    default:
+    }
+    default: {
       throw new Error(`unknown pg_type.typtype ${JSON.stringify(typtype)}`);
+    }
   }
 }

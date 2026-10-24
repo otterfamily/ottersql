@@ -1,5 +1,7 @@
-import { Client, type QueryResultRow } from "pg";
+import { Client } from "pg";
+import type { QueryResultRow } from "pg";
 import { describe, expect, test } from "vitest";
+
 import { pglite, postgresDatabase } from "./index.ts";
 
 const schema = `
@@ -7,11 +9,12 @@ const schema = `
   insert into users values (1, 'alice');
 `;
 
-async function queryOnce<T extends QueryResultRow>(url: string, sql: string): Promise<T[]> {
+async function queryOnce<Row extends QueryResultRow>(url: string, sql: string): Promise<Row[]> {
   const client = new Client({ connectionString: url });
   await client.connect();
   try {
-    return (await client.query<T>(sql)).rows;
+    const result = await client.query<Row>(sql);
+    return result.rows;
   } finally {
     await client.end();
   }
@@ -21,7 +24,7 @@ describe("pglite", () => {
   test("applies the schema and answers queries", async () => {
     const db = await pglite(schema);
     const { rows } = await db.query<{ name: string }>("select name from users where id = 1");
-    expect(rows).toEqual([{ name: "alice" }]);
+    expect(rows).toStrictEqual([{ name: "alice" }]);
   });
 });
 
@@ -32,7 +35,7 @@ describe("postgresDatabase", () => {
       url,
       "select name, current_setting('server_version_num')::int / 10000 as major from users",
     );
-    expect(rows).toEqual([{ name: "alice", major: 18 }]);
+    expect(rows).toStrictEqual([{ name: "alice", major: 18 }]);
   });
 
   test("gives each test its own database", async () => {
@@ -43,6 +46,6 @@ describe("postgresDatabase", () => {
       empty,
       "select count(*) from information_schema.tables where table_schema = 'public'",
     );
-    expect(tables).toEqual([{ count: "0" }]);
+    expect(tables).toStrictEqual([{ count: "0" }]);
   });
 });

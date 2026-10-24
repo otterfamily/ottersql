@@ -1,4 +1,5 @@
 import { PGlite } from "@electric-sql/pglite";
+
 import type { Catalog } from "./model.ts";
 import { readTables } from "./tables.ts";
 

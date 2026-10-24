@@ -17,7 +17,7 @@ Rules for anyone changing ottersql, human or AI. Read `docs/adr` first; it holds
 
 Each kind of information has one home.
 
-- Code says how (through names and structure). Comments say only why not (why another way was not chosen); no comments that restate the code, history or TODOs.
+- Code says how (through names and structure). A doc comment on an exported declaration states what its types cannot: invariants, units, error cases. Every other comment says only why not (why another way was not chosen); no comments that restate the code, history or TODOs.
 - Tests say what is guaranteed (in their names).
 - Commit messages say why.
 - GitHub issues hold designs, open questions and units of work. A spec is a parent issue; its work items are sub-issues.
@@ -40,6 +40,7 @@ Install pnpm 11 or later; it fetches the pinned pnpm and Node.js versions from `
 - `pnpm install`: install dependencies.
 - `pnpm format`: format every file.
 - `pnpm lint`: lint with type information.
+- `pnpm knip`: find unused files, exports and dependencies.
 - `pnpm typecheck`: type-check every package.
 - `pnpm test`: run every package's tests against PGlite and a Postgres container.
 - `pnpm verify`: everything CI checks. Run it before every push.
@@ -48,6 +49,7 @@ Install pnpm 11 or later; it fetches the pinned pnpm and Node.js versions from `
 
 - pnpm and Node.js versions are pinned in `devEngines` in `package.json`. Add dependencies with `pnpm add` (latest unless there is a reason), never by editing `package.json` by hand. Use `pnpm dlx`, not `npx`.
 - Keep dependency versions in the `catalog:` of `pnpm-workspace.yaml`. Read the release notes of every major upgrade.
+- Lint, format and type checks are as strict as the tools allow; the code is mostly written by agents. A rule is turned off in the config only with a comment saying why, and only when it contradicts another rule or a deliberate convention.
 - Do not suppress lint, format or type errors (ignore comments, baselines) without the maintainer's approval and a stated reason.
 
 ## Changes

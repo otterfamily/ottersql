@@ -1,7 +1,10 @@
 import { defineConfig } from "vitest/config";
+import type { ViteUserConfig } from "vitest/config";
 
-export default defineConfig({
+const config: ViteUserConfig = defineConfig({
   test: {
     globalSetup: ["./src/global-setup.ts"],
   },
 });
+
+export default config;

@@ -10,7 +10,7 @@ declare module "vitest" {
   }
 }
 
-export default async function setup(project: TestProject): Promise<() => Promise<void>> {
+export async function setup(project: TestProject): Promise<() => Promise<void>> {
   const container = await new PostgreSqlContainer(POSTGRES_IMAGE).start();
   project.provide("postgresAdminUrl", container.getConnectionUri());
   return async () => {

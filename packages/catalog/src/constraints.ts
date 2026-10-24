@@ -1,3 +1,4 @@
+import { columnNames } from "./columns.ts";
 import type {
   Deferral,
   Enforcement,
@@ -6,7 +7,6 @@ import type {
   PrimaryKey,
   UniqueConstraint,
 } from "./model.ts";
-import { columnNames } from "./columns.ts";
 
 /** Selects the constraints of the table whose `pg_class` row is aliased `alias`, as `parseConstraints` reads them. */
 export function constraintsJson(alias: string): string {
@@ -107,41 +107,58 @@ export function parseConstraints(rows: ConstraintRows): {
 }
 
 function parseDeferral(row: DeferralRow): Deferral {
-  if (!row.deferrable) return "not deferrable";
+  if (!row.deferrable) {
+    return "not deferrable";
+  }
   return row.deferred ? "initially deferred" : "initially immediate";
 }
 
-export function parseEnforcement(row: { validated: boolean; enforced: boolean }): Enforcement {
-  if (!row.enforced) return "not enforced";
+export function parseEnforcement(row: {
+  readonly validated: boolean;
+  readonly enforced: boolean;
+}): Enforcement {
+  if (!row.enforced) {
+    return "not enforced";
+  }
   return row.validated ? "validated" : "not valid";
 }
 
 function parseMatch(code: string): ForeignKey["match"] {
   switch (code) {
-    case "s":
+    case "s": {
       return "simple";
-    case "f":
+    }
+    case "f": {
       return "full";
-    case "p":
+    }
+    case "p": {
       return "partial";
-    default:
+    }
+    default: {
       throw new Error(`unknown pg_constraint.confmatchtype ${JSON.stringify(code)}`);
+    }
   }
 }
 
 function parseAction(code: string): ForeignKeyAction {
   switch (code) {
-    case "a":
+    case "a": {
       return "no action";
-    case "r":
+    }
+    case "r": {
       return "restrict";
-    case "c":
+    }
+    case "c": {
       return "cascade";
-    case "n":
+    }
+    case "n": {
       return "set null";
-    case "d":
+    }
+    case "d": {
       return "set default";
-    default:
+    }
+    default: {
       throw new Error(`unknown foreign key action ${JSON.stringify(code)}`);
+    }
   }
 }

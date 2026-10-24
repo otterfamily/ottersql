@@ -43,36 +43,42 @@ export function parseCheck(row: CheckRow): Check {
   };
 }
 
-const textCast = String.raw`::(?:text|character varying)`;
-const literal = String.raw`'((?:[^']|'')*)'${textCast}`;
+const textCast = String.raw`::(?:character varying|text)`;
+const literal = String.raw`'(?<body>(?:''|[^'])*)'${textCast}`;
 
 /**
  * The string values a check allows for `subject`, when the check is exactly `subject IN (...)` as
  * Postgres prints it back. Any other shape, including numbers until their codec is settled (#2),
  * gives `null`: reading SQL beyond these printed forms would mean parsing it (ADR 0001).
  */
-export function allowedValues(expression: string, subject: string): string[] | null {
-  const lhs = String.raw`(?:${escape(subject)}|\(${escape(subject)}\)::text)`;
-  const single = new RegExp(String.raw`^\(${lhs} = ${literal}\)$`).exec(expression);
-  if (single?.[1] !== undefined) return [unquote(single[1])];
-
-  const list = new RegExp(
-    String.raw`^\(${lhs} = ANY \(\(?ARRAY\[(.*?)\](?:\)::text\[\])?\)\)$`,
-  ).exec(expression);
-  if (list?.[1] === undefined) return null;
-  const items = new RegExp(String.raw`${literal}(?:, |$)`, "gy");
-  const values: string[] = [];
-  let end = 0;
-  for (const match of list[1].matchAll(items)) {
-    if (match[1] === undefined) return null;
-    values.push(unquote(match[1]));
-    end = match.index + match[0].length;
+function allowedValues(expression: string, subject: string): string[] | null {
+  const name = RegExp.escape(subject);
+  const lhs = String.raw`(?:${name}|\(${name}\)::text)`;
+  const single = new RegExp(String.raw`^\(${lhs} = ${literal}\)$`, "v").exec(expression);
+  if (single?.groups?.["body"] !== undefined) {
+    return [unquote(single.groups["body"])];
   }
-  return end === list[1].length ? values : null;
+  const list = new RegExp(
+    String.raw`^\(${lhs} = ANY \(\(?ARRAY\[(?<items>.*?)\](?:\)::text\[\])?\)\)$`,
+    "v",
+  ).exec(expression);
+  const items = list?.groups?.["items"];
+  return items === undefined ? null : literals(items);
 }
 
-function escape(text: string): string {
-  return text.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+/** The values of a comma-separated list of string literals, or `null` if anything else is in it. */
+function literals(list: string): string[] | null {
+  const values: string[] = [];
+  let end = 0;
+  for (const match of list.matchAll(new RegExp(String.raw`${literal}(?:$|, )`, "gvy"))) {
+    const body = match.groups?.["body"];
+    if (body === undefined) {
+      return null;
+    }
+    values.push(unquote(body));
+    end = match.index + match[0].length;
+  }
+  return end === list.length ? values : null;
 }
 
 function unquote(body: string): string {

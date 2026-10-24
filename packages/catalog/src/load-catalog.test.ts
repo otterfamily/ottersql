@@ -1,9 +1,15 @@
 import { describe, expect, test } from "vitest";
-import { loadCatalog, type Catalog, type Table } from "./index.ts";
+
+import { loadCatalog } from "./index.ts";
+import type { Catalog, Table } from "./index.ts";
 
 function table(catalog: Catalog, name: string, schema = "public"): Table {
-  const found = catalog.tables.find((t) => t.schema === schema && t.name === name);
-  if (found === undefined) throw new Error(`table ${schema}.${name} not in catalog`);
+  const found = catalog.tables.find(
+    (candidate) => candidate.schema === schema && candidate.name === name,
+  );
+  if (found === undefined) {
+    throw new Error(`table ${schema}.${name} not in catalog`);
+  }
   return found;
 }
 
@@ -15,7 +21,7 @@ describe("tables", () => {
       create table app.z (id int);
       create table public.a (id int);
     `);
-    expect(catalog.tables.map((t) => `${t.schema}.${t.name}`)).toEqual([
+    expect(catalog.tables.map((entry) => `${entry.schema}.${entry.name}`)).toStrictEqual([
       "app.z",
       "public.a",
       "public.b",
@@ -31,7 +37,7 @@ describe("tables", () => {
         balance numeric(10, 2)
       );
     `);
-    expect(table(catalog, "users").columns).toEqual([
+    expect(table(catalog, "users").columns).toStrictEqual([
       expect.objectContaining({
         name: "id",
         type: { kind: "base", schema: "pg_catalog", name: "int8" },
@@ -81,15 +87,15 @@ describe("tables", () => {
     },
   ])("reads how $definition gets its value", async ({ definition, value }) => {
     const catalog = await loadCatalog(`create table t (b int, ${definition});`);
-    const column = table(catalog, "t").columns.find((c) => c.name === "a");
-    expect(column?.value).toEqual(value);
+    const column = table(catalog, "t").columns.find((candidate) => candidate.name === "a");
+    expect(column?.value).toStrictEqual(value);
   });
 });
 
 describe("keys", () => {
   test("reads a composite primary key in key order", async () => {
     const catalog = await loadCatalog(`create table t (a int, b int, primary key (b, a));`);
-    expect(table(catalog, "t").primaryKey).toEqual({ name: "t_pkey", columns: ["b", "a"] });
+    expect(table(catalog, "t").primaryKey).toStrictEqual({ name: "t_pkey", columns: ["b", "a"] });
   });
 
   test("has no primary key when the table declares none", async () => {
@@ -105,7 +111,7 @@ describe("keys", () => {
         constraint t_c_key unique nulls not distinct (c) deferrable initially deferred
       );
     `);
-    expect(table(catalog, "t").uniqueConstraints).toEqual([
+    expect(table(catalog, "t").uniqueConstraints).toStrictEqual([
       {
         name: "t_b_a_key",
         columns: ["b", "a"],
@@ -129,7 +135,7 @@ describe("keys", () => {
       alter table child add constraint child_lazy_fkey
         foreign key (px, py) references app.parent (x, y) not valid;
     `);
-    expect(table(catalog, "child").foreignKeys).toEqual([
+    expect(table(catalog, "child").foreignKeys).toStrictEqual([
       {
         name: "child_lazy_fkey",
         columns: ["px", "py"],
@@ -170,7 +176,7 @@ describe("check constraints", () => {
       create table t (a int, b int, constraint t_order check (a < b));
       alter table t add constraint t_positive check (a > 0) not valid;
     `);
-    expect(table(catalog, "t").checks).toEqual([
+    expect(table(catalog, "t").checks).toStrictEqual([
       {
         name: "t_order",
         expression: "(a < b)",
@@ -189,19 +195,24 @@ describe("check constraints", () => {
   });
 
   test.each([
-    { column: "a text check (a in ('x', 'it''s'))", allowed: ["x", "it's"] },
-    { column: "a varchar(10) check (a in ('x', 'y'))", allowed: ["x", "y"] },
-    { column: "a text check (a in ('only'))", allowed: ["only"] },
-    { column: "a text check (a in ('x, ''y', 'z'))", allowed: ["x, 'y", "z"] },
-    { column: `"A b" text check ("A b" in ('x'))`, allowed: ["x"] },
-    { column: "a int check (a in (1, 2))", allowed: null },
-    { column: "a text check (a is not null and a in ('x'))", allowed: null },
-    { column: "a text check (length(a) < 5)", allowed: null },
-  ])("reads $allowed as the values allowed by $column", async ({ column, allowed }) => {
+    { column: "a text check (a in ('x', 'it''s'))", values: ["x", "it's"] },
+    { column: "a varchar(10) check (a in ('x', 'y'))", values: ["x", "y"] },
+    { column: "a text check (a in ('only'))", values: ["only"] },
+    { column: "a text check (a in ('x, ''y', 'z'))", values: ["x, 'y", "z"] },
+    { column: `"A b" text check ("A b" in ('x'))`, values: ["x"] },
+  ])("reads $values as the values allowed by $column", async ({ column, values }) => {
     const catalog = await loadCatalog(`create table t (${column});`);
     const [check] = table(catalog, "t").checks;
-    expect(check?.allowedValues).toEqual(
-      allowed === null ? null : { column: check?.columns[0], values: allowed },
-    );
+    expect(check?.allowedValues).toStrictEqual({ column: check?.columns[0], values });
+  });
+
+  test.each([
+    "a int check (a in (1, 2))",
+    "a text check (a is not null and a in ('x'))",
+    "a text check (length(a) < 5)",
+  ])("recognises no allowed values in %s", async (column) => {
+    const catalog = await loadCatalog(`create table t (${column});`);
+    const [check] = table(catalog, "t").checks;
+    expect(check?.allowedValues).toBeNull();
   });
 });
