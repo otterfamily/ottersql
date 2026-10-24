@@ -6,14 +6,7 @@ import type {
   PrimaryKey,
   UniqueConstraint,
 } from "./model.ts";
-
-function columnNames(relationOid: string, attnums: string): string {
-  return `array(
-    select a.attname from unnest(${attnums}) with ordinality as k(attnum, ord)
-    join pg_attribute a on a.attrelid = ${relationOid} and a.attnum = k.attnum
-    order by k.ord
-  )`;
-}
+import { columnNames } from "./columns.ts";
 
 /** Selects the constraints of the table whose `pg_class` row is aliased `alias`, as `parseConstraints` reads them. */
 export function constraintsJson(alias: string): string {
@@ -118,7 +111,7 @@ function parseDeferral(row: DeferralRow): Deferral {
   return row.deferred ? "initially deferred" : "initially immediate";
 }
 
-function parseEnforcement(row: { validated: boolean; enforced: boolean }): Enforcement {
+export function parseEnforcement(row: { validated: boolean; enforced: boolean }): Enforcement {
   if (!row.enforced) return "not enforced";
   return row.validated ? "validated" : "not valid";
 }

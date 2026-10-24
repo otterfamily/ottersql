@@ -163,3 +163,45 @@ describe("keys", () => {
     ]);
   });
 });
+
+describe("check constraints", () => {
+  test("reads the expression, columns and enforcement of a check", async () => {
+    const catalog = await loadCatalog(`
+      create table t (a int, b int, constraint t_order check (a < b));
+      alter table t add constraint t_positive check (a > 0) not valid;
+    `);
+    expect(table(catalog, "t").checks).toEqual([
+      {
+        name: "t_order",
+        expression: "(a < b)",
+        columns: ["a", "b"],
+        allowedValues: null,
+        enforcement: "validated",
+      },
+      {
+        name: "t_positive",
+        expression: "(a > 0)",
+        columns: ["a"],
+        allowedValues: null,
+        enforcement: "not valid",
+      },
+    ]);
+  });
+
+  test.each([
+    { column: "a text check (a in ('x', 'it''s'))", allowed: ["x", "it's"] },
+    { column: "a varchar(10) check (a in ('x', 'y'))", allowed: ["x", "y"] },
+    { column: "a text check (a in ('only'))", allowed: ["only"] },
+    { column: "a text check (a in ('x, ''y', 'z'))", allowed: ["x, 'y", "z"] },
+    { column: `"A b" text check ("A b" in ('x'))`, allowed: ["x"] },
+    { column: "a int check (a in (1, 2))", allowed: null },
+    { column: "a text check (a is not null and a in ('x'))", allowed: null },
+    { column: "a text check (length(a) < 5)", allowed: null },
+  ])("reads $allowed as the values allowed by $column", async ({ column, allowed }) => {
+    const catalog = await loadCatalog(`create table t (${column});`);
+    const [check] = table(catalog, "t").checks;
+    expect(check?.allowedValues).toEqual(
+      allowed === null ? null : { column: check?.columns[0], values: allowed },
+    );
+  });
+});

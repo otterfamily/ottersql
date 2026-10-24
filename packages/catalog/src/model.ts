@@ -9,6 +9,7 @@ export interface Table {
   readonly primaryKey: PrimaryKey | null;
   readonly uniqueConstraints: readonly UniqueConstraint[];
   readonly foreignKeys: readonly ForeignKey[];
+  readonly checks: readonly Check[];
 }
 
 export interface Column {
@@ -72,3 +73,12 @@ export type Deferral = "not deferrable" | "initially immediate" | "initially def
 
 /** `not valid` constraints hold for new rows only; `not enforced` ones are never checked. */
 export type Enforcement = "validated" | "not valid" | "not enforced";
+
+export interface Check {
+  readonly name: string;
+  readonly expression: string;
+  readonly columns: readonly string[];
+  /** Set when the check limits one column to a list of strings; types narrow it to a union. */
+  readonly allowedValues: { readonly column: string; readonly values: readonly string[] } | null;
+  readonly enforcement: Enforcement;
+}

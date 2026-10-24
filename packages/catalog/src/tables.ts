@@ -1,10 +1,12 @@
 import type { PGlite } from "@electric-sql/pglite";
+import { checksJson, parseCheck, type CheckRow } from "./checks.ts";
 import { constraintsJson, parseConstraints, type ConstraintRows } from "./constraints.ts";
 import type { Column, ColumnValue, Table } from "./model.ts";
 import { userRelation } from "./scope.ts";
 import { parseTypeRef, typeRefJson, type TypeRow } from "./type-ref.ts";
 
 interface TableRow extends ConstraintRows {
+  readonly checks: readonly CheckRow[];
   readonly schema: string;
   readonly name: string;
   readonly columns: readonly ColumnRow[];
@@ -37,7 +39,8 @@ export async function readTables(db: PGlite): Promise<Table[]> {
         left join pg_attrdef d on d.adrelid = a.attrelid and d.adnum = a.attnum
         where a.attrelid = c.oid and a.attnum > 0 and not a.attisdropped
       ), '[]') as columns,
-      ${constraintsJson("c")}
+      ${constraintsJson("c")},
+      ${checksJson("c")}
     from pg_class c join pg_namespace n on n.oid = c.relnamespace
     where c.relkind in ('r', 'p') and ${userRelation("c")}
     order by n.nspname, c.relname
@@ -51,6 +54,7 @@ function parseTable(row: TableRow): Table {
     name: row.name,
     columns: row.columns.map(parseColumn),
     ...parseConstraints(row),
+    checks: row.checks.map(parseCheck),
   };
 }
 
