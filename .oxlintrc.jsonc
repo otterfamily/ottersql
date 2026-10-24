@@ -184,7 +184,8 @@
     "eslint/capitalized-comments": ["error", "always", { "ignoreConsecutiveComments": true }],
     // Type-only imports stay separate so they are erased (typescript/no-import-type-side-effects).
     "eslint/no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
-    // Connections, test hooks and regular expressions (lastIndex) are stateful objects that cannot be readonly.
+    // Connections, test hooks, regular expressions (lastIndex) and byte buffers are stateful
+    // objects that cannot be readonly.
     "typescript/prefer-readonly-parameter-types": [
       "error",
       {
@@ -195,6 +196,7 @@
           { "from": "package", "name": "Client", "package": "pg" },
           { "from": "package", "name": "TestProject", "package": "vitest" },
           { "from": "lib", "name": "RegExp" },
+          { "from": "package", "name": "Buffer", "package": "buffer" },
         ],
       },
     ],
@@ -244,6 +246,11 @@
       "files": ["**/vitest.config.ts"],
       // Vitest reads its config from the default export.
       "rules": { "import/no-default-export": "off" },
+    },
+    {
+      // Vitest's rules describe test files; elsewhere a function named `describe` is not a suite.
+      "files": ["**/*.test.ts", "**/*.bench.ts"],
+      "plugins": ["vitest"],
     },
     {
       "files": ["**/*.test.ts"],
