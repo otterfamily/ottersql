@@ -4,6 +4,12 @@ import { loadCatalog } from "./index.ts";
 import { table } from "./test-helpers.ts";
 
 describe("tables", () => {
+  test("starts every load from an empty database", async () => {
+    await loadCatalog(`create table left_behind (a int);`);
+    const catalog = await loadCatalog(`create table fresh (a int);`);
+    expect(catalog.tables.map((entry) => entry.name)).toStrictEqual(["fresh"]);
+  });
+
   test("lists user tables in schema then name order, without system tables", async () => {
     const catalog = await loadCatalog(`
       create schema app;

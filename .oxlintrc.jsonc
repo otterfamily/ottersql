@@ -178,6 +178,10 @@
 
     "eslint/func-style": ["error", "declaration", { "allowArrowFunctions": true }],
     "eslint/one-var": ["error", "never"],
+    // Property names may mirror external codes, such as Postgres's one-letter catalog values.
+    "eslint/id-length": ["error", { "properties": "never" }],
+    // A sentence that wraps onto the next comment line continues in lowercase.
+    "eslint/capitalized-comments": ["error", "always", { "ignoreConsecutiveComments": true }],
     // Type-only imports stay separate so they are erased (typescript/no-import-type-side-effects).
     "eslint/no-duplicate-imports": ["error", { "allowSeparateTypeImports": true }],
     // Connections and test hooks from libraries are stateful objects that cannot be readonly.
