@@ -9,7 +9,8 @@
   },
   "scripts": {
     "typecheck": "tsc -p .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench": "vitest bench"
   },
   "dependencies": {
     "@electric-sql/pglite": "catalog:"

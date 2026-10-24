@@ -232,6 +232,11 @@
   },
   "overrides": [
     {
+      "files": ["**/*.bench.ts"],
+      // A benchmark measures; it has nothing to assert.
+      "rules": { "vitest/expect-expect": "off" },
+    },
+    {
       "files": ["**/vitest.config.ts"],
       // Vitest reads its config from the default export.
       "rules": { "import/no-default-export": "off" },
