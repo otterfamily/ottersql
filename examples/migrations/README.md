@@ -27,8 +27,17 @@ The scenario:
 
 ## Try a change
 
+The `ottersql` command does the same with your own changes. It reads the database to migrate from `DATABASE_URL`:
+
+```sh
+export DATABASE_URL=postgres://ottersql:ottersql@localhost:54329/example
+```
+
 1. Edit `db/schema.sql`, for example add `bio text` to `users`.
 2. `pnpm generate add_bio` writes the next migration to `db/migrations/`.
-3. `pnpm apply expand` and `pnpm apply contract` apply the steps before and after a deploy; `pnpm apply` applies both.
+3. `pnpm apply --phase expand` and `pnpm apply --phase contract` apply the steps before and after a deploy; `pnpm apply` applies both.
+4. `pnpm check` checks that the migrations build `db/schema.sql`, as CI would.
+
+Add `--json` to any of them to see what an agent reads. A step that cannot be undone, such as dropping a column, stops `apply` with exit code 3 and an approval to pass back with `--approve`; an AI agent cannot pass it, so it has to ask you.
 
 A change that would rewrite a table under an exclusive lock, such as changing a column's type, is not planned: `generate` says why and how to do it by hand.

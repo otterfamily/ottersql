@@ -170,6 +170,9 @@ catalogs:
     '@ottersql/catalog':
       specifier: workspace:*
       version: workspace:*
+    '@ottersql/cli':
+      specifier: workspace:*
+      version: workspace:*
     '@ottersql/content-mapper':
       specifier: workspace:*
       version: workspace:*
@@ -262,6 +265,9 @@ importers:
 
   examples/migrations:
     dependencies:
+      '@ottersql/cli':
+        specifier: 'catalog:'
+        version: link:../../packages/cli
       '@ottersql/migrate':
         specifier: 'catalog:'
         version: link:../../packages/migrate

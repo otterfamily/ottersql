@@ -5,6 +5,7 @@ packages:
 catalog:
   "@electric-sql/pglite": ^0.5.11
   "@ottersql/catalog": workspace:*
+  "@ottersql/cli": workspace:*
   "@ottersql/content-mapper": workspace:*
   "@ottersql/migrate": workspace:*
   "@ottersql/sql": workspace:*

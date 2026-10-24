@@ -8,11 +8,13 @@
     "db:up": "docker compose up --detach --wait",
     "db:down": "docker compose down --volumes",
     "scenario": "node scenario.ts",
-    "generate": "node generate.ts",
-    "apply": "node apply.ts",
-    "typecheck": "tsc -p ."
+    "generate": "ottersql migrate generate",
+    "apply": "ottersql migrate apply",
+    "typecheck": "tsc -p .",
+    "check": "ottersql migrate check"
   },
   "dependencies": {
+    "@ottersql/cli": "catalog:",
     "@ottersql/migrate": "catalog:",
     "@ottersql/sql": "catalog:",
     "pg": "catalog:"
