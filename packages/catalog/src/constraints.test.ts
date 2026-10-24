@@ -1,0 +1,82 @@
+import { describe, expect, test } from "vitest";
+
+import { loadCatalog } from "./index.ts";
+import { table } from "./test-helpers.ts";
+
+describe("keys", () => {
+  test("reads a composite primary key in key order", async () => {
+    const catalog = await loadCatalog(`create table t (a int, b int, primary key (b, a));`);
+    expect(table(catalog, "t").primaryKey).toStrictEqual({ name: "t_pkey", columns: ["b", "a"] });
+  });
+
+  test("has no primary key when the table declares none", async () => {
+    const catalog = await loadCatalog(`create table t (a int);`);
+    expect(table(catalog, "t").primaryKey).toBeNull();
+  });
+
+  test("reads unique constraints with their columns, null handling and deferral", async () => {
+    const catalog = await loadCatalog(`
+      create table t (
+        a int, b int, c int,
+        constraint t_b_a_key unique (b, a),
+        constraint t_c_key unique nulls not distinct (c) deferrable initially deferred
+      );
+    `);
+    expect(table(catalog, "t").uniqueConstraints).toStrictEqual([
+      {
+        name: "t_b_a_key",
+        columns: ["b", "a"],
+        nullsNotDistinct: false,
+        deferral: "not deferrable",
+      },
+      { name: "t_c_key", columns: ["c"], nullsNotDistinct: true, deferral: "initially deferred" },
+    ]);
+  });
+
+  test("reads composite foreign keys with their actions, match type and state", async () => {
+    const catalog = await loadCatalog(`
+      create schema app;
+      create table app.parent (x int, y int, primary key (x, y));
+      create table child (
+        px int, py int,
+        constraint child_parent_fkey foreign key (px, py) references app.parent (x, y)
+          match full on update cascade on delete set null deferrable,
+        constraint child_loose_fkey foreign key (px, py) references app.parent (x, y) not enforced
+      );
+      alter table child add constraint child_lazy_fkey
+        foreign key (px, py) references app.parent (x, y) not valid;
+    `);
+    expect(table(catalog, "child").foreignKeys).toStrictEqual([
+      {
+        name: "child_lazy_fkey",
+        columns: ["px", "py"],
+        references: { schema: "app", table: "parent", columns: ["x", "y"] },
+        match: "simple",
+        onUpdate: "no action",
+        onDelete: "no action",
+        deferral: "not deferrable",
+        enforcement: "not valid",
+      },
+      {
+        name: "child_loose_fkey",
+        columns: ["px", "py"],
+        references: { schema: "app", table: "parent", columns: ["x", "y"] },
+        match: "simple",
+        onUpdate: "no action",
+        onDelete: "no action",
+        deferral: "not deferrable",
+        enforcement: "not enforced",
+      },
+      {
+        name: "child_parent_fkey",
+        columns: ["px", "py"],
+        references: { schema: "app", table: "parent", columns: ["x", "y"] },
+        match: "full",
+        onUpdate: "cascade",
+        onDelete: "set null",
+        deferral: "initially immediate",
+        enforcement: "validated",
+      },
+    ]);
+  });
+});
