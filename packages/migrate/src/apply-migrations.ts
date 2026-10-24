@@ -5,7 +5,7 @@ import type { Connection } from "@ottersql/sql";
 import { checkApproval } from "./approval.ts";
 import { readLedger } from "./ledger.ts";
 import type { AppliedStep, PendingStep } from "./ledger.ts";
-import { readMigrationFile } from "./migration-file.ts";
+import { readMigration } from "./migration-file.ts";
 import { inOrder } from "./migrations.ts";
 import type { MigrationFile } from "./migrations.ts";
 import type { Step } from "./plan.ts";
@@ -96,7 +96,7 @@ function pendingSteps(
 ): PendingStep[] {
   const done = new Set(history.map(({ migration, step }) => `${migration}#${String(step)}`));
   return files.flatMap((file) =>
-    readMigrationFile(file.text).flatMap((step, index) =>
+    readMigration(file).flatMap((step, index) =>
       done.has(`${file.name}#${String(index)}`) || (phase !== undefined && step.phase !== phase)
         ? []
         : [{ migration: file.name, hash: file.hash, index, step }],

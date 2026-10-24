@@ -1,7 +1,7 @@
 import { loadCatalog } from "@ottersql/catalog";
 import { describe, expect, test } from "vitest";
 
-import { MigrationFileError, planMigration, readMigrationFile, renderMigration } from "./index.ts";
+import { pendingChanges, planMigration, readMigrationFile, renderMigration } from "./index.ts";
 import type { Step } from "./index.ts";
 import { users } from "./test-migrate.ts";
 
@@ -58,6 +58,16 @@ describe("migration files", () => {
       message: "line 1: the step has no SQL",
     },
   ])("reject $problem, naming the line", ({ text, message }) => {
-    expect(() => readMigrationFile(text)).toThrow(new MigrationFileError(message));
+    expect(() => readMigrationFile(text)).toThrow(message);
+  });
+
+  test("that cannot be read are named, with the line, by what reads them", async () => {
+    const file = { name: "20261025000000_hand.sql", text: "\ncreate table t (id int8);\n" };
+    await expect(pendingChanges([file], "")).rejects.toMatchObject({
+      name: "MigrationFileError",
+      message: "20261025000000_hand.sql line 2: SQL must follow a -- ottersql:step line",
+      file: "20261025000000_hand.sql",
+      line: 2,
+    });
   });
 });

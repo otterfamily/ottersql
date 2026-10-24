@@ -1,11 +1,28 @@
 import { splitStatements } from "@ottersql/sql";
 
+import type { MigrationFile } from "./migrations.ts";
 import { locks, phases, reversals, stepKinds, transactions } from "./plan.ts";
 import type { Plan, Step } from "./plan.ts";
 
-/** A migration file that cannot be read; the message names the line. */
+/** Where in a migration file a problem is: in a named file, or in text read on its own. */
+interface Where {
+  readonly file: string | null;
+  readonly line: number;
+}
+
+/** A migration file that cannot be read; the message says where, as `file` and `line` do. */
 export class MigrationFileError extends Error {
   override readonly name = "MigrationFileError";
+  /** The name of the file, when the text came from a `MigrationFile`. */
+  readonly file: string | null;
+  /** The line the problem is on, counted from 1. */
+  readonly line: number;
+
+  constructor(where: Where, problem: string) {
+    super(`${where.file === null ? "" : `${where.file} `}line ${String(where.line)}: ${problem}`);
+    this.file = where.file;
+    this.line = where.line;
+  }
 }
 
 const STEP = "-- ottersql:step ";
@@ -44,8 +61,17 @@ function attributes(step: Step): string {
 
 const attribute = /\b(?<key>\w+)=(?<value>"(?:[^"\\]|\\.)*"|\S+)/gv;
 
+/** The steps of `file`; a `MigrationFileError` names it. */
+export function readMigration(file: MigrationFile): Step[] {
+  return readSteps(file.text, file.name);
+}
+
 /** The steps of a migration file, as written: a person may have edited the generated file. */
 export function readMigrationFile(text: string): Step[] {
+  return readSteps(text, null);
+}
+
+function readSteps(text: string, file: string | null): Step[] {
   const lines = text.split("\n");
   const starts = lines.flatMap((line, index) => (line.startsWith(STEP) ? [index] : []));
   const stray = lines
@@ -53,27 +79,28 @@ export function readMigrationFile(text: string): Step[] {
     .findIndex((line) => splitStatements(line).length > 0);
   if (stray !== -1) {
     throw new MigrationFileError(
-      `line ${String(stray + 1)}: SQL must follow a -- ottersql:step line`,
+      { file, line: stray + 1 },
+      "SQL must follow a -- ottersql:step line",
     );
   }
   return starts.map((start, position) =>
-    readStep(lines.slice(start, starts[position + 1] ?? lines.length), start + 1),
+    readStep(lines.slice(start, starts[position + 1] ?? lines.length), { file, line: start + 1 }),
   );
 }
 
-function readStep(lines: readonly string[], line: number): Step {
+function readStep(lines: readonly string[], where: Where): Step {
   const [header = "", ...body] = lines;
   const cleanup = body
     .filter((text) => text.startsWith(CLEANUP))
     .flatMap((text) => splitStatements(text.slice(CLEANUP.length)));
   const statements = splitStatements(body.filter((text) => !text.startsWith(CLEANUP)).join("\n"));
   if (statements.length === 0) {
-    throw new MigrationFileError(`line ${String(line)}: the step has no SQL`);
+    throw new MigrationFileError(where, "the step has no SQL");
   }
-  return { ...parseHeader(header.slice(STEP.length), line), statements, cleanup, reason: null };
+  return { ...parseHeader(header.slice(STEP.length), where), statements, cleanup, reason: null };
 }
 
-function parseHeader(text: string, line: number): Omit<Step, "statements" | "cleanup" | "reason"> {
+function parseHeader(text: string, where: Where): Omit<Step, "statements" | "cleanup" | "reason"> {
   const values = new Map(
     [...text.matchAll(attribute)].map((match) => {
       const value = match.groups?.["value"] ?? "";
@@ -86,7 +113,7 @@ function parseHeader(text: string, line: number): Omit<Step, "statements" | "cle
   const read = (key: string): string => {
     const value = values.get(key);
     if (value === undefined) {
-      throw new MigrationFileError(`line ${String(line)}: ${key} is missing`);
+      throw new MigrationFileError(where, `${key} is missing`);
     }
     return value;
   };
@@ -95,7 +122,8 @@ function parseHeader(text: string, line: number): Omit<Step, "statements" | "cle
     const found = allowed.find((item) => item === value);
     if (found === undefined) {
       throw new MigrationFileError(
-        `line ${String(line)}: ${key} must be one of ${allowed.join(", ")}, not "${value}"`,
+        where,
+        `${key} must be one of ${allowed.join(", ")}, not "${value}"`,
       );
     }
     return found;

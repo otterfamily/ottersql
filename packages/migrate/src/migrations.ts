@@ -1,7 +1,7 @@
 import { loadCatalog, openSchema } from "@ottersql/catalog";
 import type { Catalog } from "@ottersql/catalog";
 
-import { readMigrationFile } from "./migration-file.ts";
+import { readMigration } from "./migration-file.ts";
 import { planMigration } from "./plan-migration.ts";
 import type { Plan } from "./plan.ts";
 
@@ -21,7 +21,7 @@ async function replayedCatalog(files: readonly MigrationFile[]): Promise<Catalog
   const schema = await openSchema("");
   try {
     for (const file of inOrder(files)) {
-      for (const step of readMigrationFile(file.text)) {
+      for (const step of readMigration(file)) {
         for (const sql of step.statements) {
           await schema.database.exec(sql);
         }
