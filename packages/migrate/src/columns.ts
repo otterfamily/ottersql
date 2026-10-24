@@ -1,0 +1,212 @@
+import { isDeepStrictEqual } from "node:util";
+
+import type { Column, Table } from "@ottersql/catalog";
+
+import { commentChange } from "./comments.ts";
+import { columnDefinition, identifier } from "./sql-text.ts";
+import { combine, manual, matchByName, noChanges, only, step } from "./steps.ts";
+import type { Changes } from "./steps.ts";
+import { alterTable, columnSqlName, objectName } from "./table-sql.ts";
+
+// Postgres truncates longer names, so a longer helper constraint name would not be the one dropped.
+const MAX_NAME_BYTES = 63;
+
+export function columnChanges(before: Table, after: Table): Changes {
+  const { added, removed, kept } = matchByName(before.columns, after.columns);
+  return combine([
+    ...added.map((column) => addColumn(after, column)),
+    ...removed.map((column) => dropColumn(after, column)),
+    ...kept.map(([old, current]) => changeColumn(after, old, current)),
+  ]);
+}
+
+/** Why adding `column` to a table with rows would rewrite every row, or `null` when it would not. */
+function rewriteReason(column: Column): string | null {
+  const { value } = column;
+  if (value.kind === "generated" && value.storage === "stored") {
+    return "Adding a stored generated column rewrites the table under an exclusive lock; add a virtual one, or add a plain column, backfill it in batches and fill it with a trigger";
+  }
+  if (value.kind === "identity") {
+    return "Adding an identity column rewrites the table under an exclusive lock to number every row; add a nullable column, backfill it in batches, then make it an identity";
+  }
+  if (value.kind === "default" && value.volatile) {
+    return "A volatile default is computed for every existing row, which rewrites the table under an exclusive lock; add the column without a default, set the default, and backfill in batches";
+  }
+  return null;
+}
+
+/**
+ * A column is added in one step when that rewrites no rows. A NOT NULL column without a default
+ * is added as nullable and made NOT NULL after the deploy, once the app fills it; existing rows
+ * must be filled before then.
+ */
+function addColumn(table: Table, column: Column): Changes {
+  const object = objectName(table, column.name);
+  const reason = rewriteReason(column);
+  if (reason !== null) {
+    return manual(object, reason);
+  }
+  const deferNotNull = column.notNull && column.value.kind === "none";
+  const definition = columnDefinition(deferNotNull ? { ...column, notNull: false } : column);
+  const add = step({
+    kind: "addColumn",
+    object,
+    statements: [alterTable(table, `ADD COLUMN ${definition}`)],
+    phase: "expand",
+    reversal: "lossy",
+    lock: "access exclusive",
+  });
+  return combine([
+    only(add),
+    deferNotNull ? setNotNull(table, column) : noChanges,
+    commentChange({
+      on: "COLUMN",
+      object,
+      name: columnSqlName(table, column.name),
+      before: null,
+      after: column.comment,
+    }),
+  ]);
+}
+
+function dropColumn(table: Table, column: Column): Changes {
+  const statement = alterTable(table, `DROP COLUMN ${identifier(column.name)}`);
+  return only(
+    step({
+      kind: "dropColumn",
+      object: objectName(table, column.name),
+      statements: [statement],
+      phase: "contract",
+      reversal: "irreversible",
+      lock: "access exclusive",
+    }),
+  );
+}
+
+function changeColumn(table: Table, before: Column, after: Column): Changes {
+  if (before.typeSql !== after.typeSql) {
+    return manual(
+      objectName(table, after.name),
+      "Changing a column's type can rewrite the table under an exclusive lock; add a new column, backfill it and switch to it instead",
+    );
+  }
+  return combine([
+    valueChange(table, before, after),
+    notNullChange(table, before, after),
+    commentChange({
+      on: "COLUMN",
+      object: objectName(table, after.name),
+      name: columnSqlName(table, after.name),
+      before: before.comment,
+      after: after.comment,
+    }),
+  ]);
+}
+
+/** A new default helps the new app, so it is set before the deploy; one the old app relies on is dropped after. */
+function valueChange(table: Table, before: Column, after: Column): Changes {
+  const old = before.value;
+  const current = after.value;
+  if (isDeepStrictEqual(old, current)) {
+    return noChanges;
+  }
+  if (current.kind === "default" && old.kind !== "identity" && old.kind !== "generated") {
+    return defaultChange(table, after.name, `SET DEFAULT ${current.expression}`);
+  }
+  if (current.kind === "none" && old.kind === "default") {
+    return defaultChange(table, after.name, "DROP DEFAULT");
+  }
+  return manual(
+    objectName(table, after.name),
+    "ottersql does not plan changes to identity or generated columns yet",
+  );
+}
+
+function defaultChange(
+  table: Table,
+  column: string,
+  action: `SET DEFAULT ${string}` | "DROP DEFAULT",
+): Changes {
+  const set = action !== "DROP DEFAULT";
+  const statement = alterTable(table, `ALTER COLUMN ${identifier(column)} ${action}`);
+  return only(
+    step({
+      kind: set ? "setDefault" : "dropDefault",
+      object: objectName(table, column),
+      statements: [statement],
+      phase: set ? "expand" : "contract",
+      reversal: "reversible",
+      lock: "access exclusive",
+    }),
+  );
+}
+
+function notNullChange(table: Table, before: Column, after: Column): Changes {
+  if (before.notNull === after.notNull) {
+    return noChanges;
+  }
+  if (after.notNull) {
+    return setNotNull(table, after);
+  }
+  const statement = alterTable(table, `ALTER COLUMN ${identifier(after.name)} DROP NOT NULL`);
+  return only(
+    step({
+      kind: "dropNotNull",
+      object: objectName(table, after.name),
+      statements: [statement],
+      phase: "expand",
+      reversal: "reversible",
+      lock: "access exclusive",
+    }),
+  );
+}
+
+/**
+ * `SET NOT NULL` alone scans the table under an exclusive lock. A validated `IS NOT NULL` check
+ * proves the same without blocking writes, and Postgres then sets NOT NULL without scanning.
+ */
+function setNotNull(table: Table, column: Column): Changes {
+  const check = `ottersql_not_null_${column.name}`;
+  if (new TextEncoder().encode(check).length > MAX_NAME_BYTES) {
+    return manual(
+      objectName(table, column.name),
+      `The helper check "${check}" would be longer than Postgres's 63-byte names; make the column NOT NULL by hand`,
+    );
+  }
+  const name = identifier(check);
+  const columnName = identifier(column.name);
+  const checkObject = objectName(table, check);
+  const contract = { phase: "contract", reversal: "reversible" } as const;
+  return only(
+    step({
+      ...contract,
+      kind: "addCheck",
+      object: checkObject,
+      statements: [
+        alterTable(table, `ADD CONSTRAINT ${name} CHECK (${columnName} IS NOT NULL) NOT VALID`),
+      ],
+      lock: "access exclusive",
+      reason: "Holds for new rows at once, without scanning the table",
+    }),
+    step({
+      ...contract,
+      kind: "validateCheck",
+      object: checkObject,
+      statements: [alterTable(table, `VALIDATE CONSTRAINT ${name}`)],
+      lock: "share update exclusive",
+      reason:
+        "Checking existing rows takes a lock that lets reads and writes go on; existing nulls must be filled first",
+    }),
+    step({
+      ...contract,
+      kind: "setNotNull",
+      object: objectName(table, column.name),
+      statements: [
+        alterTable(table, `ALTER COLUMN ${columnName} SET NOT NULL`),
+        alterTable(table, `DROP CONSTRAINT ${name}`),
+      ],
+      lock: "access exclusive",
+      reason: "The validated check spares Postgres the scan",
+    }),
+  );
+}

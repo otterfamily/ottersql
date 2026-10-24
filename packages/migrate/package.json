@@ -1,0 +1,22 @@
+{
+  "name": "@ottersql/migrate",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Plans forward-only Postgres migrations between two catalogs, with safe procedures",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ottersql/catalog": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
