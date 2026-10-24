@@ -1,5 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
-import { openSchema, readRelations, readTypeRefs } from "@ottersql/catalog";
+import { findTable, openSchema, readRelations, readTypeRefs } from "@ottersql/catalog";
 import type { Catalog, Relation, TypeRef } from "@ottersql/catalog";
 import { fileOffset, readQueryFile } from "@ottersql/sql";
 import type { Query, Span } from "@ottersql/sql";
@@ -181,9 +181,7 @@ function isNotNullColumn(
     return false;
   }
   const name = relation.columns.get(attnum);
-  const table = catalog.tables.find(
-    (candidate) => candidate.schema === relation.schema && candidate.name === relation.name,
-  );
+  const table = findTable(catalog, relation.schema, relation.name);
   return table?.columns.find((column) => column.name === name)?.notNull ?? false;
 }
 

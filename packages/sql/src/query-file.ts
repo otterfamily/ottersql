@@ -49,7 +49,12 @@ interface Section {
 }
 
 const header = /^--[\t ]*@name[\t ]+(?<name>\S+)[\t ]*$/v;
-const queryName = /^[\p{L}$_][\p{L}\p{N}$_]*$/v;
+const identifier = /^[\p{L}$_][\p{L}\p{N}$_]*$/v;
+
+/** Whether `name` can be written as a JavaScript identifier (reserved words aside). */
+export function isIdentifier(name: string): boolean {
+  return identifier.test(name);
+}
 
 // Each query becomes an exported function of that name, so it cannot be a reserved word
 // (ECMAScript 2025, 13.1 and strict mode).
@@ -191,7 +196,7 @@ function sectionProblem(
   queries: readonly Query[],
 ): QueryFileProblem | null {
   const span = section.nameSpan;
-  if (!queryName.test(section.name)) {
+  if (!isIdentifier(section.name)) {
     return { message: `"${section.name}" is not a valid query name`, span };
   }
   if (reservedWords.has(section.name)) {

@@ -32,5 +32,6 @@ export type {
   View,
   ViewColumn,
 } from "./model.ts";
-export { readRelations, readTypeRefs } from "./lookup.ts";
-export type { Relation } from "./lookup.ts";
+export { readRelations, readTypeRefs } from "./by-oid.ts";
+export type { Relation } from "./by-oid.ts";
+export { findDomain, findEnum, findTable, sameType } from "./find.ts";

@@ -1,4 +1,6 @@
+import { findDomain, findTable, sameType } from "@ottersql/catalog";
 import type { Catalog, Column, Table, TypeRef } from "@ottersql/catalog";
+import { isIdentifier } from "@ottersql/sql";
 import type { Span } from "@ottersql/sql";
 
 import type { DescribedColumn, DescribedFile, DescribedQuery, Problem } from "./session.ts";
@@ -182,12 +184,8 @@ function declaredType(
   if (declared?.kind !== "domain") {
     return column.type;
   }
-  const domain = catalog.domains.find(
-    (candidate) => candidate.schema === declared.schema && candidate.name === declared.name,
-  );
-  return domain !== undefined && JSON.stringify(domain.baseType) === JSON.stringify(column.type)
-    ? declared
-    : column.type;
+  const domain = findDomain(catalog, declared.schema, declared.name);
+  return domain !== undefined && sameType(domain.baseType, column.type) ? declared : column.type;
 }
 
 function originColumn(
@@ -195,12 +193,7 @@ function originColumn(
   catalog: Catalog,
 ): { readonly table: Table; readonly column: Column } | undefined {
   const { origin } = column;
-  const table =
-    origin === null
-      ? undefined
-      : catalog.tables.find(
-          (candidate) => candidate.schema === origin.schema && candidate.name === origin.table,
-        );
+  const table = origin === null ? undefined : findTable(catalog, origin.schema, origin.table);
   const found = table?.columns.find((candidate) => candidate.name === origin?.column);
   return table === undefined || found === undefined ? undefined : { table, column: found };
 }
@@ -211,7 +204,7 @@ function duplicateColumn(query: DescribedQuery): string | null {
 }
 
 function propertyName(name: string): string {
-  return /^[\p{L}$_][\p{L}\p{N}$_]*$/v.test(name) ? name : JSON.stringify(name);
+  return isIdentifier(name) ? name : JSON.stringify(name);
 }
 
 function pascalCase(name: string): string {

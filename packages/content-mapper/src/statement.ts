@@ -26,7 +26,7 @@ export interface PostgresError {
 
 const { messages: backend, serialize } = protocol;
 
-/** Parses and describes `sql` without running it, in one round trip. */
+/** Parses and describes `sql` without running it, through one Parse, Describe and Sync. */
 export async function describeStatement(
   db: PGlite,
   sql: string,
@@ -53,18 +53,32 @@ export async function describeStatement(
     fields:
       replies.find((message) => message instanceof backend.RowDescriptionMessage)?.fields ?? [],
     tree: analyzedQuery(
-      replies.find((message) => message instanceof backend.NoticeMessage)?.detail,
+      replies
+        .filter((message) => message instanceof backend.NoticeMessage)
+        .find((notice) => notice.message === "rewritten parse tree:")?.detail,
     ),
   };
 }
 
-/** The statement's own Query node in a rewritten parse tree, which is a list of Query nodes. */
+/**
+ * The statement's own Query node in a rewritten parse tree, which is a list of Query nodes. A tree
+ * that cannot be read gives `null`, which leaves every column nullable rather than failing the file.
+ */
 function analyzedQuery(detail: string | undefined): NodeObject | null {
-  const query =
-    detail === undefined
-      ? undefined
-      : list(readNodeTree(detail)).find(
-          (node) => isNode(node, "QUERY") && field(node, "canSetTag") === "true",
-        );
+  const tree = readable(detail);
+  const query = list(tree).find(
+    (node) => isNode(node, "QUERY") && field(node, "canSetTag") === "true",
+  );
   return isNode(query, "QUERY") ? query : null;
+}
+
+function readable(detail: string | undefined): ReturnType<typeof readNodeTree> | undefined {
+  if (detail === undefined) {
+    return undefined;
+  }
+  try {
+    return readNodeTree(detail);
+  } catch {
+    return undefined;
+  }
 }

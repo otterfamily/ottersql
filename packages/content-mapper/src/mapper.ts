@@ -172,13 +172,15 @@ function stringField(value: unknown, name: string): string {
 }
 
 function optionalString(value: unknown, name: string): string | undefined {
-  const field: unknown =
-    typeof value === "object" && value !== null ? Reflect.get(value, name) : undefined;
+  const field = property(value, name);
   return typeof field === "string" ? field : undefined;
 }
 
 function objectField(value: unknown, name: string): object | undefined {
-  const field: unknown =
-    typeof value === "object" && value !== null ? Reflect.get(value, name) : undefined;
+  const field = property(value, name);
   return typeof field === "object" && field !== null ? field : undefined;
+}
+
+function property(value: unknown, name: string): unknown {
+  return typeof value === "object" && value !== null ? Reflect.get(value, name) : undefined;
 }

@@ -1,3 +1,4 @@
+import { findDomain, findEnum } from "@ottersql/catalog";
 import type { Catalog, NamedTypeRef, TypeRef } from "@ottersql/catalog";
 
 /** Types the rendered module imports from `@ottersql/sql` when it uses them. */
@@ -64,7 +65,8 @@ const namedTypes: Readonly<
   Record<NamedTypeRef["kind"], (type: NamedTypeRef, context: TypeContext) => string>
 > = {
   base: (type, context) => baseType(type, context),
-  enum: (type, context) => literalUnion(findEnum(type, context.catalog)?.values ?? []),
+  enum: (type, context) =>
+    literalUnion(findEnum(context.catalog, type.schema, type.name)?.values ?? []),
   domain: (type, context) => domainType(type, context),
   range: (type, context) => rangeType(type, context),
   multirange: (type, context) => rangeType(type, context),
@@ -86,9 +88,7 @@ function baseType(type: NamedTypeRef, context: TypeContext): string {
 }
 
 function domainType(type: NamedTypeRef, context: TypeContext): string {
-  const domain = context.catalog.domains.find(
-    (candidate) => candidate.schema === type.schema && candidate.name === type.name,
-  );
+  const domain = findDomain(context.catalog, type.schema, type.name);
   if (domain === undefined) {
     return "string";
   }
@@ -106,13 +106,4 @@ function rangeType(type: NamedTypeRef, context: TypeContext): string {
       ? "string"
       : namedType({ kind: "base", schema: "pg_catalog", name: bound }, context);
   return type.kind === "range" ? `Range<${boundType}>` : `Range<${boundType}>[]`;
-}
-
-function findEnum(
-  type: NamedTypeRef,
-  catalog: Catalog,
-): { readonly values: readonly string[] } | undefined {
-  return catalog.enums.find(
-    (candidate) => candidate.schema === type.schema && candidate.name === type.name,
-  );
 }

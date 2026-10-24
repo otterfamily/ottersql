@@ -1,4 +1,4 @@
-export { fileOffset, readQueryFile } from "./query-file.ts";
+export { fileOffset, isIdentifier, readQueryFile } from "./query-file.ts";
 export type {
   Parameter,
   Query,
