@@ -5,7 +5,7 @@
 
 ## Context
 
-Down migrations give a false sense of safety: if an up migration fails halfway, its down often fails too, and a dropped column's data does not come back when the column is re-added. Prisma 8 and graphile-migrate are forward-only; GitLab and Google SRE practice is to keep the database compatible with every running version of the app and roll back only the app ([research 04](https://github.com/otterfamily/ottersql-research/blob/main/04-rollback-in-cicd.md)). On Aurora PostgreSQL, restoring the database is slow and loses later writes.
+Down migrations give a false sense of safety: if an up migration fails halfway, its down often fails too, and a dropped column's data does not come back when the column is re-added. Prisma 8 and graphile-migrate are forward-only; GitLab and Google SRE practice is to keep the database compatible with every running version of the app and roll back only the app (research note 04). On Aurora PostgreSQL, restoring the database is slow and loses later writes.
 
 ## Decision
 

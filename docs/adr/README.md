@@ -1,6 +1,6 @@
 # Architecture decision records
 
-Each record states one decision, why it was made, and what follows from it. Records are never rewritten; a changed decision gets a new record, and the old one is marked superseded. The research behind them is in [ottersql-research](https://github.com/otterfamily/ottersql-research).
+Each record states one decision, why it was made, and what follows from it. Records are never rewritten; a changed decision gets a new record, and the old one is marked superseded. The research behind them is kept in a private notes repository and summarised in each record.
 
 | ADR | Decision | Status |
 |---|---|---|

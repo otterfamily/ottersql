@@ -23,7 +23,6 @@ ottersql is an AI-first TypeScript ORM and migration tool for Postgres, in the d
 Not usable yet.
 
 - [`docs/adr`](docs/adr): decisions so far and why
-- [ottersql-research](https://github.com/otterfamily/ottersql-research): the primary-source research behind them (in Japanese)
 - branch `prototype/content-mapper`: a throwaway prototype showing `.sql` files typed through content mappers
 
 ## License

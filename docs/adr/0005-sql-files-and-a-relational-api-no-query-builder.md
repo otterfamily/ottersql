@@ -5,7 +5,7 @@
 
 ## Context
 
-Query builders (Kysely, Drizzle's core API) make TypeScript compute result types, which is what makes them heavy, and they always trail Postgres features. Typed SQL (sqlc, PgTyped) covers all of Postgres but is awkward for everyday CRUD, nested results and filters that come and go. Relational APIs (Prisma, Drizzle's relational queries) are pleasant for those but cannot express aggregates, window functions or complex joins ([research 01](https://github.com/otterfamily/ottersql-research/blob/main/01-ts-orm-landscape.md), [08](https://github.com/otterfamily/ottersql-research/blob/main/08-active-record-in-ts.md)).
+Query builders (Kysely, Drizzle's core API) make TypeScript compute result types, which is what makes them heavy, and they always trail Postgres features. Typed SQL (sqlc, PgTyped) covers all of Postgres but is awkward for everyday CRUD, nested results and filters that come and go. Relational APIs (Prisma, Drizzle's relational queries) are pleasant for those but cannot express aggregates, window functions or complex joins (research notes 01, 08).
 
 ## Decision
 

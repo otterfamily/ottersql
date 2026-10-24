@@ -5,7 +5,7 @@
 
 ## Context
 
-ORMs keep the schema in a DSL (Prisma) or in TypeScript (Drizzle) and generate SQL from it. Each DSL covers only part of Postgres: none of the tools we compared covers all 32 basic Postgres 18 schema features, and views, functions and triggers are mostly missing or paid ([research 07](https://github.com/otterfamily/ottersql-research/blob/main/07-db-objects-and-temporal.md), [09](https://github.com/otterfamily/ottersql-research/blob/main/09-postgres-schema-coverage.md)). Drizzle also never checks that the database matches its TypeScript schema. SQL is the language coding agents know best.
+ORMs keep the schema in a DSL (Prisma) or in TypeScript (Drizzle) and generate SQL from it. Each DSL covers only part of Postgres: none of the tools we compared covers all 32 basic Postgres 18 schema features, and views, functions and triggers are mostly missing or paid (research notes 07, 09). Drizzle also never checks that the database matches its TypeScript schema. SQL is the language coding agents know best.
 
 ## Decision
 

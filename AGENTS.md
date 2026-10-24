@@ -19,7 +19,7 @@ Each kind of information has one home.
 - Commit messages say why.
 - GitHub issues hold designs, open questions and units of work.
 - Docs hold only rules and procedures that are still in force. Decisions and their reasons go in `docs/adr` (never rewritten; a changed decision gets a new ADR that supersedes the old one).
-- Research notes go in [ottersql-research](https://github.com/otterfamily/ottersql-research), not here.
+- Research notes go in the private `otterfamily/ottersql-research` repository, not here. Records that cite it must summarise what they rely on, since outside readers cannot open it.
 
 ## Tests
 
