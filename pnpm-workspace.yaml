@@ -1,0 +1,25 @@
+packages:
+  - packages/*
+  - examples/*
+
+catalog:
+  "@electric-sql/pglite": ^0.5.11
+  "@testcontainers/postgresql": ^12.2.1
+  "@types/node": ^26.6.5
+  "@types/pg": ^8.23.1
+  oxfmt: ^0.74.0
+  oxlint: ^1.89.0
+  oxlint-tsgolint: ^7.0.2005
+  pg: ^8.23.1
+  typescript: 7.1.0-beta
+  vitest: ^5.0.5
+
+catalogMode: strict
+
+trustPolicy: no-downgrade
+
+# Optional native speed-ups and version checks pulled in by testcontainers; nothing needs them.
+allowBuilds:
+  cpu-features: false
+  protobufjs: false
+  ssh2: false

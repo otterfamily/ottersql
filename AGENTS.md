@@ -30,9 +30,20 @@ Each kind of information has one home.
 - Tests must be deterministic. Fix or delete flaky tests; never hide them with retries.
 - Coverage is not a goal. Check that the changed branches are exercised.
 
+## Commands
+
+Install pnpm 11 or later; it fetches the pinned pnpm and Node.js versions from `devEngines` in `package.json`. The tests start a Postgres container, so Docker must be running.
+
+- `pnpm install`: install dependencies.
+- `pnpm format`: format every file.
+- `pnpm lint`: lint with type information.
+- `pnpm typecheck`: type-check every package.
+- `pnpm test`: run every package's tests against PGlite and a Postgres container.
+- `pnpm verify`: everything CI checks. Run it before every push.
+
 ## Dependencies and tools
 
-- Tool versions are pinned with mise. Add dependencies with `pnpm add` (latest unless there is a reason), never by editing `package.json` by hand. Use `pnpm dlx`, not `npx`.
+- pnpm and Node.js versions are pinned in `devEngines` in `package.json`. Add dependencies with `pnpm add` (latest unless there is a reason), never by editing `package.json` by hand. Use `pnpm dlx`, not `npx`.
 - Keep dependency versions in the `catalog:` of `pnpm-workspace.yaml`. Read the release notes of every major upgrade.
 - Do not suppress lint, format or type errors (ignore comments, baselines) without the maintainer's approval and a stated reason.
 

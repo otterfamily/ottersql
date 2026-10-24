@@ -1,0 +1,26 @@
+{
+  "name": "@ottersql/testing",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Real Postgres databases for ottersql's tests: PGlite in-process and a shared Postgres container",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./global-setup": "./src/global-setup.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "catalog:",
+    "@testcontainers/postgresql": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
