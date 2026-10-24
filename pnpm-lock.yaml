@@ -194,6 +194,9 @@ catalogs:
     eslint-plugin-regexp:
       specifier: ^3.3.1
       version: 3.3.1
+    jsonc-parser:
+      specifier: ^3.3.1
+      version: 3.3.1
     knip:
       specifier: ^6.42.1
       version: 6.42.1
@@ -212,6 +215,9 @@ catalogs:
     simple-git-hooks:
       specifier: ^2.14.0
       version: 2.14.0
+    std-env:
+      specifier: ^4.3.0
+      version: 4.3.0
     typescript:
       specifier: 7.1.0-beta
       version: 7.1.0-beta
@@ -310,6 +316,46 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(jiti@2.7.0)(yaml@2.9.1))
+
+  packages/cli:
+    dependencies:
+      '@ottersql/catalog':
+        specifier: 'catalog:'
+        version: link:../catalog
+      '@ottersql/content-mapper':
+        specifier: 'catalog:'
+        version: link:../content-mapper
+      '@ottersql/migrate':
+        specifier: 'catalog:'
+        version: link:../migrate
+      '@ottersql/sql':
+        specifier: 'catalog:'
+        version: link:../sql
+      jsonc-parser:
+        specifier: 'catalog:'
+        version: 3.3.1
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.1
+      std-env:
+        specifier: 'catalog:'
+        version: 4.3.0
+    devDependencies:
+      '@ottersql/testing':
+        specifier: 'catalog:'
+        version: link:../testing
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.23.1
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta
@@ -1810,6 +1856,9 @@ packages:
 
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
+
+  jsonc-parser@3.3.1:
+    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
 
   keyv@5.6.0:
     resolution: {integrity: sha512-CYDD3SOtsHtyXeEORYRx2qBtpDJFjRTGXUtmNEMGyzYOKj1TE3tycdlho7kA1Ufx9OYWZzg52QFBGALTirzDSw==}
@@ -3664,6 +3713,8 @@ snapshots:
   json-schema-traverse@0.4.1: {}
 
   json-stable-stringify-without-jsonify@1.0.1: {}
+
+  jsonc-parser@3.3.1: {}
 
   keyv@5.6.0:
     dependencies:

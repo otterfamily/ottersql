@@ -1,0 +1,30 @@
+{
+  "name": "@ottersql/cli",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The ottersql command: generates, checks and applies migrations, with JSON output for agents",
+  "bin": {
+    "ottersql": "./src/bin.ts"
+  },
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@ottersql/catalog": "catalog:",
+    "@ottersql/content-mapper": "catalog:",
+    "@ottersql/migrate": "catalog:",
+    "@ottersql/sql": "catalog:",
+    "jsonc-parser": "catalog:",
+    "pg": "catalog:",
+    "std-env": "catalog:"
+  },
+  "devDependencies": {
+    "@ottersql/testing": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

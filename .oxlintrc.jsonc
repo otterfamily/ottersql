@@ -261,6 +261,12 @@
       },
     },
     {
+      "files": ["packages/cli/src/bin.ts"],
+      // The command's entry reads the environment once and passes it in, so that everything else
+      // takes it as an argument and tests can give their own.
+      "rules": { "node/no-process-env": "off" },
+    },
+    {
       "files": ["**/*.bench.ts"],
       // A benchmark measures; it has nothing to assert.
       "rules": { "vitest/expect-expect": "off" },
