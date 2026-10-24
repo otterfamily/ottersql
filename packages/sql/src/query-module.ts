@@ -14,9 +14,11 @@ export function queryModule(content: string, path: string, runtime: string): str
     });
     throw new SyntaxError(`${path} has problems:\n${problems.join("\n")}`);
   }
-  const exports = file.queries.map(
-    (query) =>
-      `export const ${query.name} = defineQuery(${JSON.stringify(query.sql)}, ${JSON.stringify(query.parameters.map(({ name }) => name))});`,
-  );
+  // Bindings are numbered and exported under the query names, so no query name can collide with
+  // `defineQuery` or another binding of the module.
+  const exports = file.queries.flatMap((query, index) => [
+    `const query${String(index)} = defineQuery(${JSON.stringify(query.sql)}, ${JSON.stringify(query.parameters.map(({ name }) => name))});`,
+    `export { query${String(index)} as ${query.name} };`,
+  ]);
   return [`import { defineQuery } from ${JSON.stringify(runtime)};`, ...exports, ""].join("\n");
 }

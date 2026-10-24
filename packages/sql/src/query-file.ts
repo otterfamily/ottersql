@@ -116,6 +116,9 @@ const reservedWords: ReadonlySet<string> = new Set([
   "yield",
 ]);
 
+// Not reserved, but strict mode code cannot declare them (ECMAScript 2025, 13.1.1).
+const strictModeRestricted: ReadonlySet<string> = new Set(["arguments", "eval"]);
+
 /** Splits a `.sql` file into its `-- @name` queries and turns their `:name` parameters into `$n`. */
 export function readQueryFile(content: string): QueryFile {
   const all = [...tokens(content)];
@@ -204,20 +207,26 @@ function sectionProblem(
   section: Section,
   queries: readonly Query[],
 ): QueryFileProblem | null {
-  const span = section.nameSpan;
-  if (!isIdentifier(section.name)) {
-    return { message: `"${section.name}" is not a valid query name`, span };
+  const message =
+    nameProblem(section.name) ??
+    (queries.some((query) => query.name === section.name)
+      ? `Query "${section.name}" is already defined`
+      : null) ??
+    (statementTokens(content, section).length === 0 ? `Query "${section.name}" has no SQL` : null);
+  return message === null ? null : { message, span: section.nameSpan };
+}
+
+/** Why `name` cannot be exported from a JavaScript module, or `null` when it can. */
+function nameProblem(name: string): string | null {
+  if (!isIdentifier(name)) {
+    return `"${name}" is not a valid query name`;
   }
-  if (reservedWords.has(section.name)) {
-    return { message: `"${section.name}" is a reserved word in JavaScript`, span };
+  if (reservedWords.has(name)) {
+    return `"${name}" is a reserved word in JavaScript`;
   }
-  if (queries.some((query) => query.name === section.name)) {
-    return { message: `Query "${section.name}" is already defined`, span };
-  }
-  if (statementTokens(content, section).length === 0) {
-    return { message: `Query "${section.name}" has no SQL`, span };
-  }
-  return null;
+  return strictModeRestricted.has(name)
+    ? `"${name}" cannot name a binding in strict mode JavaScript`
+    : null;
 }
 
 /** The tokens from the first to the last significant one, without a final semicolon. */

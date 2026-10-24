@@ -49,6 +49,14 @@ describe("named queries", () => {
     { content: "-- @name a\nselect $tag$ open", message: "Unterminated dollar-quoted string" },
     { content: "-- @name a\nselect $1", message: "Use :name parameters instead of $1" },
     { content: "-- @name delete\nselect 1", message: '"delete" is a reserved word in JavaScript' },
+    {
+      content: "-- @name eval\nselect 1",
+      message: '"eval" cannot name a binding in strict mode JavaScript',
+    },
+    {
+      content: "-- @name arguments\nselect 1",
+      message: '"arguments" cannot name a binding in strict mode JavaScript',
+    },
   ])("reports $message", ({ content, message }) => {
     expect(readQueryFile(content).problems.map((problem) => problem.message)).toStrictEqual([
       message,
