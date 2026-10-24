@@ -7,9 +7,9 @@ import { postgresDatabase } from "@ottersql/testing";
 import { Client } from "pg";
 import { describe, expect, test } from "vitest";
 
-import { applyMigrations, ApprovalRequiredError, planMigration, renderMigration } from "./index.ts";
+import { applyMigrations } from "./index.ts";
 import type { MigrationFile } from "./index.ts";
-import { users, withSortedColumns } from "./test-migrate.ts";
+import { migrationFrom, step, users, withSortedColumns } from "./test-migrate.ts";
 
 const target = `create table users (id int8 primary key, email text not null unique);
   create index users_email_lower on users (lower(email));`;
@@ -20,24 +20,9 @@ async function connect(url: string): Promise<Client> {
   return client;
 }
 
-/** A migration file from the users table to `toSql`. */
-async function migrationFrom(
-  fromSql: string,
-  toSql: string,
-  name = "20261025000000_change.sql",
-): Promise<MigrationFile> {
-  const plan = planMigration(await loadCatalog(fromSql), await loadCatalog(toSql));
-  return { name, text: renderMigration(plan) };
-}
-
 function newer(file: MigrationFile): MigrationFile {
   return { name: "20261026000000_change.sql", text: file.text };
 }
-
-const step = (migration: string, index: number): { migration: string; step: number } => ({
-  migration,
-  step: index,
-});
 
 describe("applyMigrations on PGlite", () => {
   test("brings the database to the target schema, and skips what it already applied", async () => {
@@ -53,7 +38,7 @@ describe("applyMigrations on PGlite", () => {
         after: withSortedColumns(await schema.readCatalog()),
       }).toStrictEqual({
         applied: 6,
-        second: { applied: [], failed: null },
+        second: { applied: [], failed: null, waiting: null },
         after: withSortedColumns(await loadCatalog(target)),
       });
     } finally {
@@ -72,11 +57,58 @@ describe("applyMigrations on PGlite", () => {
       const expand = await applyMigrations(connection, [file], { phase: "expand" });
       const contract = await applyMigrations(connection, [file], { phase: "contract" });
       expect({ expand, contract }).toStrictEqual({
-        expand: { applied: [step(file.name, 0)], failed: null },
+        expand: {
+          applied: [step(file.name, 0)],
+          failed: null,
+          waiting: { ...step(file.name, 1), phase: "contract" },
+        },
         contract: {
           applied: [step(file.name, 1), step(file.name, 2), step(file.name, 3)],
           failed: null,
+          waiting: null,
         },
+      });
+    } finally {
+      await schema.close();
+    }
+  });
+
+  test("runs one migration's contract steps before the next migration's expand steps", async () => {
+    const nullable = "create table users (id int8 primary key, email text)";
+    const required = "create table users (id int8 primary key, email text not null)";
+    const schema = await openSchema(nullable);
+    try {
+      const connection = pgliteConnection(schema.database);
+      const files = [
+        await migrationFrom(nullable, required, "20261025000000_require.sql"),
+        await migrationFrom(required, nullable, "20261026000000_relax.sql"),
+      ];
+      const firstExpand = await applyMigrations(connection, files, { phase: "expand" });
+      const contract = await applyMigrations(connection, files, { phase: "contract" });
+      const secondExpand = await applyMigrations(connection, files, { phase: "expand" });
+      const after = await schema.readCatalog();
+      expect({
+        firstExpand,
+        contract,
+        secondExpand,
+        emailNotNull: after.tables[0]?.columns.find(({ name }) => name === "email")?.notNull,
+      }).toStrictEqual({
+        firstExpand: {
+          applied: [],
+          failed: null,
+          waiting: { ...step("20261025000000_require.sql", 0), phase: "contract" },
+        },
+        contract: {
+          applied: [0, 1, 2].map((index) => step("20261025000000_require.sql", index)),
+          failed: null,
+          waiting: { ...step("20261026000000_relax.sql", 0), phase: "expand" },
+        },
+        secondExpand: {
+          applied: [step("20261026000000_relax.sql", 0)],
+          failed: null,
+          waiting: null,
+        },
+        emailNotNull: false,
       });
     } finally {
       await schema.close();
@@ -113,75 +145,6 @@ describe("applyMigrations on PGlite", () => {
   });
 });
 
-/** The error `run` rejects with, so a test can read what it carries. */
-async function approvalRequired(run: Promise<unknown>): Promise<ApprovalRequiredError> {
-  try {
-    await run;
-  } catch (error) {
-    if (error instanceof ApprovalRequiredError) {
-      return error;
-    }
-    throw error;
-  }
-  throw new TypeError("expected an ApprovalRequiredError");
-}
-
-describe("applyMigrations approval", () => {
-  test("runs nothing while a pending step cannot be undone, until those pending steps are approved", async () => {
-    const schema = await openSchema(users);
-    try {
-      const connection = pgliteConnection(schema.database);
-      const file = await migrationFrom(users, "create table users (id int8 primary key)");
-      const refused = await approvalRequired(applyMigrations(connection, [file]));
-      const approved = await applyMigrations(connection, [file], { approve: refused.approval });
-      expect({ steps: refused.steps, approved }).toStrictEqual({
-        steps: [{ ...step(file.name, 0), kind: "dropColumn", object: "public.users.email" }],
-        approved: { applied: [step(file.name, 0)], failed: null },
-      });
-    } finally {
-      await schema.close();
-    }
-  });
-
-  test("refuses an approval given for other pending steps", async () => {
-    const schema = await openSchema(users);
-    try {
-      const connection = pgliteConnection(schema.database);
-      const file = await migrationFrom(users, "create table users (id int8 primary key)");
-      const seen = await approvalRequired(applyMigrations(connection, [file]));
-      const another = await migrationFrom(
-        "create table users (id int8 primary key)",
-        "create table users (id int8 primary key); create table logs (id int8)",
-        "20261026000000_logs.sql",
-      );
-      const refused = await approvalRequired(
-        applyMigrations(connection, [file, another], { approve: seen.approval }),
-      );
-      const after = await schema.readCatalog();
-      expect({
-        changed: refused.approval !== seen.approval,
-        columns: after.tables.flatMap(({ columns }) => columns.map(({ name }) => name)),
-      }).toStrictEqual({ changed: true, columns: ["id", "email"] });
-    } finally {
-      await schema.close();
-    }
-  });
-
-  test("needs no approval for steps that can be undone", async () => {
-    const schema = await openSchema(users);
-    try {
-      const connection = pgliteConnection(schema.database);
-      const file = await migrationFrom(users, `${users}; create index on users (email)`);
-      await expect(applyMigrations(connection, [file])).resolves.toStrictEqual({
-        applied: [step(file.name, 0)],
-        failed: null,
-      });
-    } finally {
-      await schema.close();
-    }
-  });
-});
-
 describe("applyMigrations on Postgres", () => {
   test("gives up a lock it waits for, so queries queued behind it go on, and retries until it gets it", async () => {
     const url = await postgresDatabase(users);
@@ -207,7 +170,7 @@ describe("applyMigrations on Postgres", () => {
         result: await applying,
         readerWaitedUnderASecond: readerWaited < 1000,
       }).toStrictEqual({
-        result: { applied: [step(file.name, 0)], failed: null },
+        result: { applied: [step(file.name, 0)], failed: null, waiting: null },
         readerWaitedUnderASecond: true,
       });
     } finally {
@@ -236,11 +199,41 @@ describe("applyMigrations on Postgres", () => {
             message:
               'check constraint "ottersql_not_null_email" of relation "users" is violated by some row',
           },
+          waiting: null,
         },
-        resumed: { applied: [step(file.name, 1), step(file.name, 2)], failed: null },
+        resumed: { applied: [step(file.name, 1), step(file.name, 2)], failed: null, waiting: null },
       });
     } finally {
       await client.end();
+    }
+  }, 30_000);
+
+  test("lets one of two runs started together apply a migration, and the other find it done", async () => {
+    const url = await postgresDatabase(
+      `${users}; insert into users select i, 'u' || i from generate_series(1, 20000) i`,
+    );
+    const [first, second] = await Promise.all([connect(url), connect(url)]);
+    try {
+      const file = await migrationFrom(
+        users,
+        `${users}; create index users_email on users (email)`,
+      );
+      const results = await Promise.all([
+        applyMigrations(pgConnection(first), [file]),
+        applyMigrations(pgConnection(second), [file]),
+      ]);
+      const { rows } = await first.query<{ valid: boolean }>(
+        "select indisvalid as valid from pg_index where indexrelid = 'users_email'::regclass",
+      );
+      expect({
+        applied: results
+          .map(({ applied }) => applied.length)
+          .toSorted((left, right) => left - right),
+        failed: results.map(({ failed }) => failed),
+        rows,
+      }).toStrictEqual({ applied: [0, 1], failed: [null, null], rows: [{ valid: true }] });
+    } finally {
+      await Promise.all([first.end(), second.end()]);
     }
   }, 30_000);
 
@@ -261,7 +254,7 @@ describe("applyMigrations on Postgres", () => {
       );
       expect({ failed: failed.failed?.code, resumed, rows }).toStrictEqual({
         failed: "23505",
-        resumed: { applied: [step(file.name, 0), step(file.name, 1)], failed: null },
+        resumed: { applied: [step(file.name, 0), step(file.name, 1)], failed: null, waiting: null },
         rows: [{ valid: true }],
       });
     } finally {

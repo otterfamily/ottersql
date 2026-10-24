@@ -44,12 +44,15 @@ describe("ottersql migrate apply", () => {
         json: {
           ok: true,
           command: "migrate apply",
-          result: { applied: [{ migration: "20261025123456_add_users.sql", step: 0 }] },
+          result: {
+            applied: [{ migration: "20261025123456_add_users.sql", step: 0 }],
+            waiting: null,
+          },
         },
       },
       second: {
         exitCode: 0,
-        json: { ok: true, command: "migrate apply", result: { applied: [] } },
+        json: { ok: true, command: "migrate apply", result: { applied: [], waiting: null } },
       },
       columns: ["id", "email"],
     });
@@ -129,18 +132,29 @@ describe("ottersql migrate apply", () => {
     });
   });
 
-  test("runs one phase with --phase", async () => {
+  test("runs one phase with --phase, and names the step that waits for the other", async () => {
     const url = await postgresDatabase();
     const root = await droppingEmail();
     const env = { DATABASE_URL: url };
-    await expect(
-      ottersqlJson(root, ["migrate", "apply", "--phase", "expand"], { env }),
-    ).resolves.toStrictEqual({
-      exitCode: 0,
+    const json = await ottersqlJson(root, ["migrate", "apply", "--phase", "expand"], { env });
+    const text = await ottersql(root, ["migrate", "apply", "--phase", "expand"], { env });
+    expect({ json, text }).toStrictEqual({
       json: {
-        ok: true,
-        command: "migrate apply",
-        result: { applied: [{ migration: "20261025123456_add_users.sql", step: 0 }] },
+        exitCode: 0,
+        json: {
+          ok: true,
+          command: "migrate apply",
+          result: {
+            applied: [{ migration: "20261025123456_add_users.sql", step: 0 }],
+            waiting: { migration: "20261025123457_drop_email.sql", step: 0, phase: "contract" },
+          },
+        },
+      },
+      text: {
+        exitCode: 0,
+        stdout:
+          "Applied 0 steps\nNext: 20261025123457_drop_email.sql step 0 runs with --phase contract\n",
+        stderr: "",
       },
     });
   });

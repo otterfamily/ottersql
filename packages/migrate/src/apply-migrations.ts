@@ -3,17 +3,22 @@ import { createHash } from "node:crypto";
 import type { Connection } from "@ottersql/sql";
 
 import { checkApproval } from "./approval.ts";
-import { readLedger } from "./ledger.ts";
+import { exclusively, readLedger } from "./ledger.ts";
 import type { AppliedStep, PendingStep } from "./ledger.ts";
 import { readMigration } from "./migration-file.ts";
 import { inOrder } from "./migrations.ts";
 import type { MigrationFile } from "./migrations.ts";
+import { phases } from "./plan.ts";
 import type { Step } from "./plan.ts";
 import { runStep } from "./run-step.ts";
 import type { RunOptions, StepFailure } from "./run-step.ts";
 
 export interface ApplyOptions extends RunOptions {
-  /** Only steps of this phase run: `expand` before the app deploys, `contract` after it. */
+  /**
+   * Only steps of this phase run: `expand` before the app deploys, `contract` after it. Steps run
+   * in deploy order, each migration's contract before the next one's expand, so a run stops at
+   * the first pending step of the other phase.
+   */
   readonly phase?: Step["phase"];
   /**
    * The `approval` of an `ApprovalRequiredError`, given after a person reviewed the steps it lists;
@@ -32,6 +37,8 @@ export interface ApplyResult {
   readonly applied: readonly StepRef[];
   /** The step that failed, with Postgres's SQLSTATE; the steps after it did not run. */
   readonly failed: (StepRef & StepFailure) | null;
+  /** The next pending step, when it belongs to the other phase and so waits for that run. */
+  readonly waiting: (StepRef & Pick<Step, "phase">) | null;
 }
 
 /** The migration history and the files disagree, so applying them could leave an unknown schema. */
@@ -39,69 +46,84 @@ export class MigrationHistoryError extends Error {
   override readonly name = "MigrationHistoryError";
 }
 
-interface HashedFile extends MigrationFile {
-  readonly hash: string;
-}
-
 /**
- * Applies the steps of `files` that have not run, in file order, on `connection`, which must be
- * one session (a `pg` Client or PoolClient, or PGlite) so that a transaction's statements share
- * it. Each step is recorded with its file's hash, so running again resumes after the last step that
- * succeeded. Throws a `MigrationHistoryError` before running anything when a file changed after it
- * was applied, or when a file not yet applied is older than one that was, and an
- * `ApprovalRequiredError` when a pending step cannot be undone and `options.approve` does not cover
- * the pending steps.
+ * Applies the steps of `files` that have not run on `connection`, which must be one session (a
+ * `pg` Client or PoolClient, or PGlite) so that a transaction's statements share it. Steps run in
+ * deploy order: file by file, a file's expand steps and then its contract steps. Each step is
+ * recorded with its file's hash, so running again resumes after the last step that succeeded, and
+ * a run started while another is applying waits for it to finish. Throws a
+ * `MigrationHistoryError` before running anything when a file changed after it was applied, or
+ * when a step that has not run comes before one that has, as a new file older than applied ones
+ * does; and an `ApprovalRequiredError` when a pending step cannot be undone and `options.approve`
+ * does not cover the pending steps.
  */
 export async function applyMigrations(
   connection: Connection,
   files: readonly MigrationFile[],
   options: ApplyOptions = {},
 ): Promise<ApplyResult> {
-  const history = await readLedger(connection);
-  const hashed = inOrder(files).map((file) => ({
-    name: file.name,
-    text: file.text,
-    hash: createHash("sha256").update(file.text).digest("hex"),
-  }));
-  checkHistory(hashed, history);
-  const pending = pendingSteps(hashed, history, options.phase);
-  checkApproval(pending, options.approve);
-  return runInOrder(connection, pending, options);
+  return exclusively(connection, async () => {
+    const history = await readLedger(connection);
+    const unapplied = notYetApplied(deployOrder(files), history);
+    const phase = options.phase ?? null;
+    const end = unapplied.findIndex(({ step }) => phase !== null && step.phase !== phase);
+    const pending = end === -1 ? unapplied : unapplied.slice(0, end);
+    checkApproval(pending, options.approve);
+    const result = await runInOrder(connection, pending, options);
+    const next = end === -1 || result.failed !== null ? undefined : unapplied[end];
+    return {
+      ...result,
+      waiting:
+        next === undefined
+          ? null
+          : { migration: next.migration, step: next.index, phase: next.step.phase },
+    };
+  });
 }
 
-function checkHistory(files: readonly HashedFile[], history: readonly AppliedStep[]): void {
-  const newest = history
-    .map(({ migration }) => migration)
-    .toSorted()
-    .at(-1);
-  for (const file of files) {
-    const applied = history.filter(({ migration }) => migration === file.name);
-    if (applied.some(({ hash }) => hash !== file.hash)) {
-      throw new MigrationHistoryError(
-        `${file.name} was edited after it was applied; add a new migration instead`,
+/** Every step of `files`: file by file, each file's expand steps before its contract steps. */
+function deployOrder(files: readonly MigrationFile[]): PendingStep[] {
+  return inOrder(files).flatMap((file) => {
+    const hash = createHash("sha256").update(file.text).digest("hex");
+    return readMigration(file)
+      .map((step, index) => ({ migration: file.name, hash, index, step }))
+      .toSorted(
+        (left, right) => phases.indexOf(left.step.phase) - phases.indexOf(right.step.phase),
       );
-    }
-    if (applied.length === 0 && newest !== undefined && file.name < newest) {
-      throw new MigrationHistoryError(
-        `${file.name} is older than ${newest}, which was applied; regenerate it on top of the applied migrations`,
-      );
-    }
-  }
+  });
 }
 
-function pendingSteps(
-  files: readonly HashedFile[],
+/**
+ * The steps of `steps` that have not run, after checking that the history is a prefix of them:
+ * every step that ran comes before every step that has not, and its file is unchanged.
+ */
+function notYetApplied(
+  steps: readonly PendingStep[],
   history: readonly AppliedStep[],
-  phase: Step["phase"] | undefined,
 ): PendingStep[] {
-  const done = new Set(history.map(({ migration, step }) => `${migration}#${String(step)}`));
-  return files.flatMap((file) =>
-    readMigration(file).flatMap((step, index) =>
-      done.has(`${file.name}#${String(index)}`) || (phase !== undefined && step.phase !== phase)
-        ? []
-        : [{ migration: file.name, hash: file.hash, index, step }],
-    ),
+  const applied = new Map(
+    history.map(({ migration, step, hash }) => [`${migration}#${String(step)}`, hash]),
   );
+  const ran = steps.map(({ migration, index, hash }) => {
+    const recorded = applied.get(`${migration}#${String(index)}`);
+    if (recorded !== undefined && recorded !== hash) {
+      throw new MigrationHistoryError(
+        `${migration} was edited after it was applied; add a new migration instead`,
+      );
+    }
+    return recorded !== undefined;
+  });
+  const first = ran.indexOf(false);
+  const later = first === -1 ? -1 : ran.indexOf(true, first);
+  const [notRun, run] = [steps[first], steps[later]];
+  if (notRun !== undefined && run !== undefined) {
+    throw new MigrationHistoryError(
+      notRun.migration === run.migration
+        ? `${notRun.migration} step ${String(notRun.index)} has not run, but step ${String(run.index)} after it has; add a new migration instead`
+        : `${notRun.migration} is older than ${run.migration}, which was applied; regenerate it on top of the applied migrations`,
+    );
+  }
+  return first === -1 ? [] : steps.slice(first);
 }
 
 /** Runs steps until one fails. */
@@ -109,7 +131,7 @@ async function runInOrder(
   connection: Connection,
   pending: readonly PendingStep[],
   options: RunOptions,
-): Promise<ApplyResult> {
+): Promise<Omit<ApplyResult, "waiting">> {
   const applied: StepRef[] = [];
   for (const step of pending) {
     const failure = await runStep(connection, step, options);

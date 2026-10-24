@@ -1,3 +1,5 @@
+import { setTimeout as sleep } from "node:timers/promises";
+
 import type { Connection } from "@ottersql/sql";
 
 import type { Step } from "./plan.ts";
@@ -18,6 +20,37 @@ export interface PendingStep {
   readonly hash: string;
   readonly index: number;
   readonly step: Step;
+}
+
+// One name for every run on a database, hashed to the bigint key advisory locks take.
+const LOCK_NAME = "ottersql.applied_steps";
+const LOCK_POLL_INTERVAL = 200;
+
+/**
+ * Runs `use` while holding the session's advisory lock on the ledger, so that runs started
+ * together apply each step once: the second waits, then reads what the first recorded.
+ */
+export async function exclusively<Result>(
+  connection: Connection,
+  use: () => Promise<Result>,
+): Promise<Result> {
+  // Not pg_advisory_lock: waiting in it keeps a statement open, and CREATE INDEX CONCURRENTLY in
+  // the run that holds the lock waits for every open statement to end, so the two would deadlock.
+  while (!(await tryLock(connection))) {
+    await sleep(LOCK_POLL_INTERVAL);
+  }
+  try {
+    return await use();
+  } finally {
+    await connection.query("select pg_advisory_unlock(hashtextextended($1, 0))", [LOCK_NAME]);
+  }
+}
+
+async function tryLock(connection: Connection): Promise<boolean> {
+  const { rows } = await connection.query("select pg_try_advisory_lock(hashtextextended($1, 0))", [
+    LOCK_NAME,
+  ]);
+  return rows[0]?.[0] === "t";
 }
 
 export async function readLedger(connection: Connection): Promise<AppliedStep[]> {

@@ -87,13 +87,21 @@ function approvalRequired(
   });
 }
 
-function reported(layout: Layout, { applied, failed }: ApplyResult): Outcome {
+function reported(layout: Layout, { applied, failed, waiting }: ApplyResult): Outcome {
   const lines = applied.map(({ migration, step }) => `  applied ${migration} step ${String(step)}`);
   if (failed === null) {
     return {
       ok: true,
-      result: { applied },
-      lines: [`Applied ${String(applied.length)} steps`, ...lines],
+      result: { applied, waiting },
+      lines: [
+        `Applied ${String(applied.length)} steps`,
+        ...lines,
+        ...(waiting === null
+          ? []
+          : [
+              `Next: ${waiting.migration} step ${String(waiting.step)} runs with --phase ${waiting.phase}`,
+            ]),
+      ],
     };
   }
   return {

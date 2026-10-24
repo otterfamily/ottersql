@@ -1,8 +1,8 @@
 import { loadCatalog, openSchema } from "@ottersql/catalog";
 import type { Catalog } from "@ottersql/catalog";
 
-import { planMigration } from "./index.ts";
-import type { Plan, Step } from "./index.ts";
+import { planMigration, renderMigration } from "./index.ts";
+import type { MigrationFile, Plan, Step, StepRef } from "./index.ts";
 
 /** Columns cannot be reordered in Postgres, so a migrated table keeps its columns in another order. */
 export function withSortedColumns(catalog: Catalog): Catalog {
@@ -24,7 +24,7 @@ export async function migrate(
   const schema = await openSchema(fromSql);
   try {
     const plan = planMigration(schema.catalog, target);
-    for (const statement of plan.steps.flatMap((step) => step.statements)) {
+    for (const statement of plan.steps.flatMap(({ statements }) => statements)) {
       await schema.database.exec(statement);
     }
     const after = await schema.readCatalog();
@@ -42,3 +42,18 @@ export function summary({ kind, object, phase, reversal, transaction, lock }: St
 export const users = "create table users (id int8 primary key, email text)";
 export const uuid7 =
   "create function my_uuid7() returns uuid language sql volatile as 'select gen_random_uuid()'";
+
+/** A migration file from the users table to `toSql`. */
+export async function migrationFrom(
+  fromSql: string,
+  toSql: string,
+  name = "20261025000000_change.sql",
+): Promise<MigrationFile> {
+  const plan = planMigration(await loadCatalog(fromSql), await loadCatalog(toSql));
+  return { name, text: renderMigration(plan) };
+}
+
+/** Step `index` of the migration file `migration`. */
+export function step(migration: string, index: number): StepRef {
+  return { migration, step: index };
+}
