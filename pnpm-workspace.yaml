@@ -19,6 +19,7 @@ catalog:
   simple-git-hooks: ^2.14.0
   typescript: 7.1.0-beta
   vitest: ^5.0.5
+  vscode-jsonrpc: ^10.0.0
 
 catalogMode: strict
 

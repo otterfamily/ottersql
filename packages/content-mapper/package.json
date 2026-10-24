@@ -15,7 +15,8 @@
   "dependencies": {
     "@electric-sql/pglite": "catalog:",
     "@ottersql/catalog": "catalog:",
-    "@ottersql/sql": "catalog:"
+    "@ottersql/sql": "catalog:",
+    "vscode-jsonrpc": "catalog:"
   },
   "devDependencies": {
     "@ottersql/testing": "catalog:",

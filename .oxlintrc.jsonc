@@ -227,6 +227,9 @@
     "vitest/no-importing-vitest-globals": "off",
     // Vitest 5 already fails tests with unawaited assertions.
     "vitest/prefer-expect-assertions": "off",
+    // Module-level setup is how a program starts; the rule is meant for test files (see overrides),
+    // and oxlint applies an override's plugins to every file.
+    "vitest/require-hook": "off",
     // Round trips on one database connection must run in order; awaiting them in parallel would
     // interleave their protocol messages.
     "eslint/no-await-in-loop": "off",
@@ -251,6 +254,7 @@
       // Vitest's rules describe test files; elsewhere a function named `describe` is not a suite.
       "files": ["**/*.test.ts", "**/*.bench.ts"],
       "plugins": ["vitest"],
+      "rules": { "vitest/require-hook": "error" },
     },
     {
       "files": ["**/*.test.ts"],

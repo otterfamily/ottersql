@@ -3,9 +3,8 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { SchemaError } from "@ottersql/catalog";
+import { ErrorCodes, ResponseError } from "vscode-jsonrpc/node";
 
-import { METHOD_NOT_FOUND, RpcError } from "./json-rpc.ts";
-import type { Handler } from "./json-rpc.ts";
 import { DiagnosticCode } from "./render.ts";
 import type { RenderedFile } from "./render.ts";
 import { openQuerySession } from "./session.ts";
@@ -15,6 +14,9 @@ interface Project {
   readonly schemaPath: string;
   readonly schemaHash: string;
 }
+
+/** Answers one request of TypeScript's content mapper protocol. */
+export type Handler = (method: string, params: unknown) => Promise<unknown>;
 
 type Loaded = { readonly session: QuerySession } | { readonly error: string };
 
@@ -39,7 +41,7 @@ export function createMapper(): Handler {
   return async (method, params) => {
     const run = methods[method];
     if (run === undefined) {
-      throw new RpcError(METHOD_NOT_FOUND, `unknown method ${method}`);
+      throw new ResponseError(ErrorCodes.MethodNotFound, `unknown method ${method}`);
     }
     return await run(params);
   };
