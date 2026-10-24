@@ -1,4 +1,4 @@
-import { decodeColumn } from "./decode.ts";
+import { columnDecoder } from "./decode.ts";
 import { encodeParameter } from "./encode.ts";
 import { typeInfos } from "./type-info.ts";
 import type { TypeInfo } from "./type-info.ts";
@@ -50,11 +50,17 @@ function parameterValue(params: QueryParams | undefined, name: string): unknown 
 /** Assigning properties in a loop is several times faster than `Object.fromEntries`; `columnNamesProblem` keeps it safe. */
 function decodeRow(
   row: readonly (string | null)[],
-  columns: readonly { readonly name: string; readonly type: TypeInfo }[],
+  columns: readonly {
+    readonly name: string;
+    readonly decode: (text: string | null) => unknown;
+  }[],
 ): QueryRow {
   const decoded: Record<string, unknown> = {};
-  for (const [index, { name, type }] of columns.entries()) {
-    decoded[name] = decodeColumn(name, row[index] ?? null, type);
+  for (let index = 0; index < columns.length; index += 1) {
+    const column = columns[index];
+    if (column !== undefined) {
+      decoded[column.name] = column.decode(row[index] ?? null);
+    }
   }
   return decoded;
 }
@@ -82,7 +88,7 @@ export function defineQuery(
     );
     const columns = result.fields.map((field) => ({
       name: field.name,
-      type: types.get(field.typeOid) ?? textType,
+      decode: columnDecoder(field.name, types.get(field.typeOid) ?? textType),
     }));
     return result.rows.map((row) => decodeRow(row, columns));
   };

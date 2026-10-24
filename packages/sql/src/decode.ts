@@ -14,19 +14,28 @@ export class DecodeError extends Error {
   override readonly name = "DecodeError";
 }
 
+type Decode = (text: string) => unknown;
+
 /**
- * Decodes one column's value of Postgres's text output into the JavaScript value ADR 0008 assigns
- * its type. Throws a `DecodeError` naming the column and the value when the value does not fit.
+ * The decoder of one column's values, from Postgres's text output into the JavaScript value ADR
+ * 0008 assigns its type. It throws a `DecodeError` naming the column and the value when the value
+ * does not fit. Choosing it once per result leaves only the conversion to do per value.
  */
-export function decodeColumn(column: string, text: string | null, type: TypeInfo): unknown {
-  try {
-    return decodeValue(text, type);
-  } catch (error) {
-    throw new DecodeError(
-      `Column "${column}": "${String(text)}" cannot be decoded as ${typeName(type)}`,
-      { cause: error },
-    );
-  }
+export function columnDecoder(column: string, type: TypeInfo): (text: string | null) => unknown {
+  const decode = valueDecoder(type);
+  return (text) => {
+    if (text === null) {
+      return null;
+    }
+    try {
+      return decode(text);
+    } catch (error) {
+      throw new DecodeError(
+        `Column "${column}": "${text}" cannot be decoded as ${typeName(type)}`,
+        { cause: error },
+      );
+    }
+  };
 }
 
 function typeName(type: TypeInfo): string {
@@ -39,33 +48,37 @@ function typeName(type: TypeInfo): string {
   return type.kind === "text" ? "text" : type.name;
 }
 
-function decodeValue(text: string | null, type: TypeInfo): unknown {
-  if (text === null) {
-    return null;
-  }
+const asText: Decode = (text) => text;
+
+function valueDecoder(type: TypeInfo): Decode {
   if (type.kind === "array") {
-    return decodeArray(parseArrayLiteral(text), type.element);
+    const element = valueDecoder(type.element);
+    return (text) => decodeArray(parseArrayLiteral(text), element);
   }
   if (type.kind === "range" || type.kind === "multirange") {
+    const bound = valueDecoder(type.subtype);
     return type.kind === "range"
-      ? decodeRange(parseRangeLiteral(text), type.subtype)
-      : parseMultirangeLiteral(text).map((range) => decodeRange(range, type.subtype));
+      ? (text) => decodeRange(parseRangeLiteral(text), bound)
+      : (text) => parseMultirangeLiteral(text).map((range) => decodeRange(range, bound));
   }
-  return type.kind === "text" ? text : decodeBase(text, type.name);
+  return type.kind === "text" ? asText : (baseCodecs[type.name]?.decode ?? asText);
 }
 
-function decodeArray(items: ArrayItems, element: TypeInfo): unknown[] {
-  return items.map((item) =>
-    isNested(item) ? decodeArray(item, element) : decodeValue(item, element),
-  );
+function decodeArray(items: ArrayItems, element: Decode): unknown[] {
+  return items.map((item) => {
+    if (item === null) {
+      return null;
+    }
+    return isNested(item) ? decodeArray(item, element) : element(item);
+  });
 }
 
-function decodeRange(range: RangeText, subtype: TypeInfo): unknown {
+function decodeRange(range: RangeText, bound: Decode): unknown {
   return range === "empty"
     ? "empty"
     : {
-        lower: decodeValue(range.lower, subtype),
-        upper: decodeValue(range.upper, subtype),
+        lower: range.lower === null ? null : bound(range.lower),
+        upper: range.upper === null ? null : bound(range.upper),
         lowerInclusive: range.lowerInclusive,
         upperInclusive: range.upperInclusive,
       };
@@ -110,11 +123,6 @@ export const baseCodecs: Readonly<Record<string, BaseCodec>> = {
   },
 };
 
-function decodeBase(text: string, name: string): unknown {
-  const decode = baseCodecs[name]?.decode;
-  return decode === undefined ? text : decode(text);
-}
-
 const yearDigits = /^\d+/v;
 const ISO_YEAR_DIGITS = 4;
 const EXPANDED_YEAR_DIGITS = 6;
@@ -125,9 +133,12 @@ const EXPANDED_YEAR_DIGITS = 6;
  * (1 BC is year 0). Other text, such as `infinity`, is left for Temporal to reject (ADR 0008).
  */
 function isoYear(text: string): string {
-  const digits = yearDigits.exec(text)?.[0];
   const bc = text.endsWith(" BC");
-  if (digits === undefined || (digits.length === ISO_YEAR_DIGITS && !bc)) {
+  if (text.charAt(ISO_YEAR_DIGITS) === "-" && !bc) {
+    return text;
+  }
+  const digits = yearDigits.exec(text)?.[0];
+  if (digits === undefined) {
     return text;
   }
   const year = bc ? 1 - Number(digits) : Number(digits);
