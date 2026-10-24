@@ -8,3 +8,6 @@ export type {
 } from "./session.ts";
 export { DiagnosticCode } from "./render.ts";
 export type { MapperDiagnostic, RenderedFile, SpanMapping } from "./render.ts";
+export { declarationFileName, writeDeclarationFiles } from "./declaration-files.ts";
+export type { DeclarationFileProblem } from "./declaration-files.ts";
+export { createMapper } from "./mapper.ts";
