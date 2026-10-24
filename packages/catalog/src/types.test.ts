@@ -12,8 +12,8 @@ describe("enums", () => {
       create type public.size as enum ();
     `);
     expect(catalog.enums).toStrictEqual([
-      { schema: "app", name: "mood", values: ["sad", "meh", "ok", "happy"] },
-      { schema: "public", name: "size", values: [] },
+      { schema: "app", name: "mood", values: ["sad", "meh", "ok", "happy"], comment: null },
+      { schema: "public", name: "size", values: [], comment: null },
     ]);
   });
 
@@ -52,6 +52,7 @@ describe("domains", () => {
             enforcement: "validated",
           },
         ],
+        comment: null,
       },
       {
         schema: "public",
@@ -68,6 +69,7 @@ describe("domains", () => {
             enforcement: "validated",
           },
         ],
+        comment: null,
       },
     ]);
   });

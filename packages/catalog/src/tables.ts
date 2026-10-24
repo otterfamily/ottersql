@@ -2,6 +2,7 @@ import type { PGlite } from "@electric-sql/pglite";
 
 import { checksJson, parseCheck } from "./checks.ts";
 import type { CheckRow } from "./checks.ts";
+import { parseComment } from "./comments.ts";
 import { constraintsJson, parseConstraints } from "./constraints.ts";
 import type { ConstraintRows } from "./constraints.ts";
 import { indexesJson, parseIndex } from "./indexes.ts";
@@ -12,6 +13,7 @@ import { parseTypeRef, typeRefJson } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 
 interface TableRow extends ConstraintRows {
+  readonly comment: string | null;
   readonly checks: readonly CheckRow[];
   readonly indexes: readonly IndexRow[];
   readonly schema: string;
@@ -27,17 +29,19 @@ interface ColumnRow {
   readonly identity: "" | "a" | "d";
   readonly generated: "" | "s" | "v";
   readonly expression: string | null;
+  readonly comment: string | null;
 }
 
 export async function readTables(db: PGlite): Promise<Table[]> {
   const { rows } = await db.query<TableRow>(`
-    select n.nspname as schema, c.relname as name,
+    select n.nspname as schema, c.relname as name, obj_description(c.oid, 'pg_class') as comment,
       coalesce((
         select json_agg(json_build_object(
           'name', a.attname,
           'type', ${typeRefJson("a.atttypid")},
           'typeSql', format_type(a.atttypid, a.atttypmod),
           'notNull', a.attnotnull,
+          'comment', col_description(a.attrelid, a.attnum),
           'identity', a.attidentity,
           'generated', a.attgenerated,
           'expression', pg_get_expr(d.adbin, d.adrelid)
@@ -64,6 +68,7 @@ function parseTable(row: TableRow): Table {
     ...parseConstraints(row),
     checks: row.checks.map((check) => parseCheck(check)),
     indexes: row.indexes.map((index) => parseIndex(index)),
+    comment: parseComment(row.comment),
   };
 }
 
@@ -74,6 +79,7 @@ function parseColumn(row: ColumnRow): Column {
     typeSql: row.typeSql,
     notNull: row.notNull,
     value: parseColumnValue(row),
+    comment: parseComment(row.comment),
   };
 }
 

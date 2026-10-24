@@ -13,6 +13,7 @@ export interface Table {
   readonly foreignKeys: readonly ForeignKey[];
   readonly checks: readonly Check[];
   readonly indexes: readonly Index[];
+  readonly comment: Comment | null;
 }
 
 export interface Column {
@@ -22,6 +23,7 @@ export interface Column {
   readonly typeSql: string;
   readonly notNull: boolean;
   readonly value: ColumnValue;
+  readonly comment: Comment | null;
 }
 
 /** How a column gets its value when an insert does not give one. Postgres allows only one of these. */
@@ -90,6 +92,7 @@ export interface Enum {
   readonly schema: string;
   readonly name: string;
   readonly values: readonly string[];
+  readonly comment: Comment | null;
 }
 
 export interface Domain {
@@ -100,6 +103,7 @@ export interface Domain {
   readonly notNull: boolean;
   readonly default: string | null;
   readonly checks: readonly DomainCheck[];
+  readonly comment: Comment | null;
 }
 
 export interface DomainCheck {
@@ -138,3 +142,18 @@ export type IndexKey = (
   /** Set only when the key uses a collation other than its column's or the database default. */
   readonly collation: QualifiedName | null;
 };
+
+export interface Comment {
+  readonly text: string;
+  readonly annotations: readonly Annotation[];
+}
+
+/**
+ * A line of a comment that starts with `@name`, optionally followed by an argument: the rest of the
+ * line, trimmed. Names are lowercase letters, digits and hyphens, starting with a letter. Which
+ * annotations mean something is up to the layer that reads them.
+ */
+export interface Annotation {
+  readonly name: string;
+  readonly argument: string | null;
+}

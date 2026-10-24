@@ -1,8 +1,10 @@
 export { loadCatalog } from "./load-catalog.ts";
 export type {
+  Annotation,
   Catalog,
   Check,
   Column,
+  Comment,
   ColumnValue,
   Deferral,
   Domain,

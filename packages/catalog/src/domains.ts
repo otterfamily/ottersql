@@ -1,6 +1,7 @@
 import type { PGlite } from "@electric-sql/pglite";
 
 import { allowedValues } from "./checks.ts";
+import { parseComment } from "./comments.ts";
 import { parseEnforcement } from "./constraints.ts";
 import type { Domain, DomainCheck } from "./model.ts";
 import { userObject } from "./scope.ts";
@@ -15,6 +16,7 @@ interface DomainRow {
   readonly notNull: boolean;
   readonly default: string | null;
   readonly checks: readonly DomainCheckRow[];
+  readonly comment: string | null;
 }
 
 interface DomainCheckRow {
@@ -31,6 +33,7 @@ export async function readDomains(db: PGlite): Promise<Domain[]> {
       format_type(t.typbasetype, t.typtypmod) as "baseTypeSql",
       t.typnotnull as "notNull",
       t.typdefault as default,
+      obj_description(t.oid, 'pg_type') as comment,
       coalesce((
         select json_agg(json_build_object(
           'name', con.conname,
@@ -53,6 +56,7 @@ export async function readDomains(db: PGlite): Promise<Domain[]> {
     notNull: row.notNull,
     default: row.default,
     checks: row.checks.map((check) => parseDomainCheck(check)),
+    comment: parseComment(row.comment),
   }));
 }
 
