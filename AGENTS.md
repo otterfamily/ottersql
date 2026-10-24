@@ -43,7 +43,7 @@ Install pnpm 11 or later; it fetches the pinned pnpm and Node.js versions from `
 - `pnpm knip`: find unused files, exports and dependencies.
 - `pnpm typecheck`: type-check every package.
 - `pnpm test`: run every package's tests against PGlite and a Postgres container.
-- `pnpm verify`: everything CI checks. Run it before every push.
+- `pnpm verify`: everything CI checks. `pnpm install` sets up a git pre-push hook that runs it, because changes go straight to `main`.
 
 ## Dependencies and tools
 

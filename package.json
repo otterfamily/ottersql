@@ -9,7 +9,8 @@
     "knip": "knip",
     "typecheck": "pnpm -r --no-bail typecheck",
     "test": "pnpm -r --no-bail test",
-    "verify": "pnpm format:check && pnpm lint && pnpm knip && pnpm typecheck && pnpm test"
+    "verify": "pnpm format:check && pnpm lint && pnpm knip && pnpm typecheck && pnpm test",
+    "postinstall": "simple-git-hooks"
   },
   "devDependencies": {
     "@types/node": "catalog:",
@@ -18,7 +19,11 @@
     "oxfmt": "catalog:",
     "oxlint": "catalog:",
     "oxlint-tsgolint": "catalog:",
+    "simple-git-hooks": "catalog:",
     "typescript": "catalog:"
+  },
+  "simple-git-hooks": {
+    "pre-push": "pnpm verify"
   },
   "devEngines": {
     "packageManager": {
