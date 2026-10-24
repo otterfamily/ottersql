@@ -1,7 +1,7 @@
 export { DecodeError } from "./decode.ts";
 export { defineQuery } from "./query.ts";
 export type { QueryArguments, TypedQuery } from "./query.ts";
-export { fileOffset, isIdentifier, readQueryFile } from "./query-file.ts";
+export { fileOffset, isIdentifier, lineAndColumn, readQueryFile } from "./query-file.ts";
 export type {
   Parameter,
   Query,

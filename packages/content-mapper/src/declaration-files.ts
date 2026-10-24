@@ -1,12 +1,14 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
+import { lineAndColumn } from "@ottersql/sql";
+
 import { openQuerySession } from "./session.ts";
 import type { QuerySession } from "./session.ts";
 
 export interface DeclarationFileProblem {
   readonly file: string;
-  /** Both start at 1; the column counts UTF-16 code units, as `tsc` does. */
+  /** Both start at 1, as `lineAndColumn` counts them. */
   readonly line: number;
   readonly column: number;
   readonly message: string;
@@ -51,12 +53,4 @@ async function writeDeclarationFile(
 /** `queries.sql` → `queries.d.sql.ts`, the name TypeScript looks for with `allowArbitraryExtensions`. */
 export function declarationFileName(queryFile: string): string {
   return join(dirname(queryFile), `${basename(queryFile, ".sql")}.d.sql.ts`);
-}
-
-function lineAndColumn(
-  content: string,
-  offset: number,
-): { readonly line: number; readonly column: number } {
-  const before = content.slice(0, offset);
-  return { line: before.split("\n").length, column: offset - before.lastIndexOf("\n") };
 }

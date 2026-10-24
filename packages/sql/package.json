@@ -7,7 +7,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./pg": "./src/pg.ts",
-    "./pglite": "./src/pglite.ts"
+    "./pglite": "./src/pglite.ts",
+    "./register": "./src/register.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",

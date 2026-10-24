@@ -48,6 +48,15 @@ interface Section {
   readonly tokens: readonly Token[];
 }
 
+/** Where `offset` is in `content`. Both start at 1; the column counts UTF-16 code units, as `tsc` does. */
+export function lineAndColumn(
+  content: string,
+  offset: number,
+): { readonly line: number; readonly column: number } {
+  const before = content.slice(0, offset);
+  return { line: before.split("\n").length, column: offset - before.lastIndexOf("\n") };
+}
+
 const header = /^--[\t ]*@name[\t ]+(?<name>\S+)[\t ]*$/v;
 const identifier = /^[\p{L}$_][\p{L}\p{N}$_]*$/v;
 
