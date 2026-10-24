@@ -30,15 +30,17 @@ export interface Column {
   readonly comment: Comment | null;
 }
 
+/** A default expression, of a column or a domain. */
+export interface DefaultValue {
+  readonly expression: string;
+  /** Whether the default calls a volatile function, so each row gets its own value. */
+  readonly volatile: boolean;
+}
+
 /** How a column gets its value when an insert does not give one. Postgres allows only one of these. */
 export type ColumnValue =
   | { readonly kind: "none" }
-  | {
-      readonly kind: "default";
-      readonly expression: string;
-      /** Whether the default calls a volatile function, so each row gets its own value. */
-      readonly volatile: boolean;
-    }
+  | ({ readonly kind: "default" } & DefaultValue)
   | { readonly kind: "identity"; readonly generation: "always" | "by default" }
   | {
       readonly kind: "generated";
@@ -125,7 +127,7 @@ export interface Domain {
   readonly baseType: TypeRef;
   readonly baseTypeSql: string;
   readonly notNull: boolean;
-  readonly default: string | null;
+  readonly default: DefaultValue | null;
   readonly checks: readonly DomainCheck[];
   readonly comment: Comment | null;
 }

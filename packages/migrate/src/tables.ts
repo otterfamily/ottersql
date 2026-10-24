@@ -20,7 +20,7 @@ export function tableChanges(from: Catalog, to: Catalog): Changes {
     ...added.map(({ table }) => createTable(table)),
     ...added.map(({ table }) => newTableConstraints(table)),
     ...removed.map(({ table }) => dropTable(table)),
-    ...kept.map(([before, after]) => changeTable(before.table, after.table)),
+    ...kept.map(([before, after]) => changeTable(before.table, after.table, to)),
   ]);
 }
 
@@ -75,9 +75,10 @@ function dropTable(table: Table): Changes {
   );
 }
 
-function changeTable(before: Table, after: Table): Changes {
+/** The changes from `before` to `after`, a table of the catalog `to`. */
+function changeTable(before: Table, after: Table, to: Catalog): Changes {
   return combine([
-    columnChanges(before, after),
+    columnChanges(before, after, to),
     constraintChanges(before, after),
     indexChanges(before, after),
     commentChange({

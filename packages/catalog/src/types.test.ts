@@ -57,6 +57,16 @@ describe("ranges", () => {
 });
 
 describe("domains", () => {
+  test("reads whether a domain's default calls a volatile function", async () => {
+    const catalog = await loadCatalog(`
+      create sequence tickets;
+      create domain ticket as int8 default nextval('tickets');
+    `);
+    expect(catalog.domains.map(({ default: value }) => value)).toStrictEqual([
+      { expression: "nextval('tickets'::regclass)", volatile: true },
+    ]);
+  });
+
   test("reads a domain's base type, nullability, default and checks", async () => {
     const catalog = await loadCatalog(`
       create domain email as varchar(320) not null default 'unknown@example.com'
@@ -70,7 +80,7 @@ describe("domains", () => {
         baseType: { kind: "base", schema: "pg_catalog", name: "varchar" },
         baseTypeSql: "character varying(320)",
         notNull: true,
-        default: "'unknown@example.com'::character varying",
+        default: { expression: "'unknown@example.com'::character varying", volatile: false },
         checks: [
           {
             name: "email_has_at",

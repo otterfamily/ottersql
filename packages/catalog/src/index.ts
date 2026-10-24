@@ -10,6 +10,7 @@ export type {
   Column,
   Comment,
   ColumnValue,
+  DefaultValue,
   Deferral,
   Domain,
   DomainCheck,

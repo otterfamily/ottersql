@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
-import type { Column, Table } from "@ottersql/catalog";
+import { findDomain } from "@ottersql/catalog";
+import type { Catalog, Column, Domain, Table, TypeRef } from "@ottersql/catalog";
 
 import { commentChange } from "./comments.ts";
 import { columnDefinition, identifier } from "./sql-text.ts";
@@ -11,18 +12,33 @@ import { alterTable, columnSqlName, objectName } from "./table-sql.ts";
 // Postgres truncates longer names, so a longer helper constraint name would not be the one dropped.
 const MAX_NAME_BYTES = 63;
 
-export function columnChanges(before: Table, after: Table): Changes {
+/** The changes from `before` to `after`, a table of the catalog `to`. */
+export function columnChanges(before: Table, after: Table, to: Catalog): Changes {
   const { added, removed, kept } = matchByName(before.columns, after.columns);
   return combine([
-    ...added.map((column) => addColumn(after, column)),
+    ...added.map((column) => addColumn(after, column, to)),
     ...removed.map((column) => dropColumn(after, column)),
     ...kept.map(([old, current]) => changeColumn(after, old, current)),
   ]);
 }
 
-/** Why adding `column` to a table with rows would rewrite every row, or `null` when it would not. */
-function rewriteReason(column: Column): string | null {
-  const { value } = column;
+/** The domains `type` is built on, nearest first: its domain, the domain that one is over, and so on. */
+function domainsOf(catalog: Catalog, type: TypeRef): Domain[] {
+  const domain = type.kind === "domain" ? findDomain(catalog, type.schema, type.name) : undefined;
+  return domain === undefined ? [] : [domain, ...domainsOf(catalog, domain.baseType)];
+}
+
+/**
+ * Why adding `column`, of the catalog `to`, to a table with rows would rewrite every row, or
+ * `null` when it would not.
+ */
+function rewriteReason(column: Column, to: Catalog): string | null {
+  return (
+    valueRewriteReason(column.value) ?? domainRewriteReason(column, domainsOf(to, column.type))
+  );
+}
+
+function valueRewriteReason(value: Column["value"]): string | null {
   if (value.kind === "generated" && value.storage === "stored") {
     return "Adding a stored generated column rewrites the table under an exclusive lock; add a virtual one, or add a plain column, backfill it in batches and fill it with a trigger";
   }
@@ -35,14 +51,26 @@ function rewriteReason(column: Column): string | null {
   return null;
 }
 
+/** Postgres checks a constrained domain on every existing row, and fills in a volatile domain default for each. */
+function domainRewriteReason(column: Column, domains: readonly Domain[]): string | null {
+  if (domains.some((domain) => domain.notNull || domain.checks.length > 0)) {
+    return "A column of a domain with a CHECK or NOT NULL is checked row by row, which rewrites the table under an exclusive lock; use the base type with a CHECK constraint instead, which is validated without blocking writes";
+  }
+  const domainDefault = domains.find((domain) => domain.default !== null)?.default;
+  if (column.value.kind === "none" && domainDefault?.volatile === true) {
+    return "The domain's default is volatile, so it is computed for every existing row, which rewrites the table under an exclusive lock; add the column with DEFAULT NULL, which overrides it, then drop that default and backfill in batches";
+  }
+  return null;
+}
+
 /**
  * A column is added in one step when that rewrites no rows. A NOT NULL column without a default
  * is added as nullable and made NOT NULL after the deploy, once the app fills it; existing rows
  * must be filled before then.
  */
-function addColumn(table: Table, column: Column): Changes {
+function addColumn(table: Table, column: Column, to: Catalog): Changes {
   const object = objectName(table, column.name);
-  const reason = rewriteReason(column);
+  const reason = rewriteReason(column, to);
   if (reason !== null) {
     return manual(object, reason);
   }

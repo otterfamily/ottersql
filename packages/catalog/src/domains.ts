@@ -7,6 +7,7 @@ import type { Domain } from "./model.ts";
 import { userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
+import { callsVolatile } from "./volatility.ts";
 
 interface DomainRow {
   readonly schema: string;
@@ -15,6 +16,7 @@ interface DomainRow {
   readonly baseTypeSql: string;
   readonly notNull: boolean;
   readonly default: string | null;
+  readonly defaultVolatile: boolean;
   readonly checks: readonly CheckBaseRow[];
   readonly comment: string | null;
 }
@@ -26,6 +28,7 @@ export async function readDomains(db: PGlite): Promise<Domain[]> {
       format_type(t.typbasetype, t.typtypmod) as "baseTypeSql",
       t.typnotnull as "notNull",
       t.typdefault as default,
+      ${callsVolatile("t.typdefaultbin", "domain_default")} as "defaultVolatile",
       obj_description(t.oid, 'pg_type') as comment,
       ${domainChecksJson("t.oid")} as checks
     from pg_type t join pg_namespace n on n.oid = t.typnamespace
@@ -38,7 +41,8 @@ export async function readDomains(db: PGlite): Promise<Domain[]> {
     baseType: parseTypeRef(row.baseType),
     baseTypeSql: row.baseTypeSql,
     notNull: row.notNull,
-    default: row.default,
+    default:
+      row.default === null ? null : { expression: row.default, volatile: row.defaultVolatile },
     checks: row.checks.map((check) => parseDomainCheck(check)),
     comment: parseComment(row.comment),
   }));
