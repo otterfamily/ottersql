@@ -41,4 +41,4 @@ Each kind of information has one home.
 - Commits follow Conventional Commits. The first line summarises; the body says why, briefly. Do not list what changed; the diff shows that.
 - For now changes go straight to `main`. Every push must pass CI. Never rewrite pushed history.
 - This repository is public. Never commit secrets, `.env` files, keys, personal data, or paths and names from other private projects.
-- Code, commit messages, issues and public docs are in English.
+- Code, commit messages, the README, ADRs and other docs in this repository are in English. GitHub issues, milestones and the roadmap project are in Japanese, the maintainer's working language.
