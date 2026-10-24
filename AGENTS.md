@@ -8,7 +8,7 @@ Rules for anyone changing ottersql, human or AI. Read `docs/adr` first; it holds
 - Do not act on guesses. Check the code, logs or primary sources (official docs, specs, source code) first, and write "unverified" next to anything you could not check.
 - Types say only what the database guarantees. Never add a type the database cannot enforce.
 - Keep one way to do each thing. Prefer the simpler design over compatibility layers.
-- Design deep modules: a small interface over a lot of behaviour, with one reason to change. Accept dependencies instead of creating them, and depend on an interface only where something really varies (two adapters, such as `pg` and PGlite); one adapter does not justify a seam.
+- Design by the principles in ADR 0007. Before designing a module, say in its issue which of them the design relies on and why.
 - Refactor as you go. When a change shows a better structure, reshape the code to it instead of working around the old one; before 1.0 there are no users to stay compatible with.
 - Choose tools and patterns by current best practice: primary sources and what well-maintained TypeScript projects do today, not habit or what another project used.
 - Fix security bugs first, in small changes.
