@@ -46,26 +46,47 @@ function decodeRange(range: RangeText, subtype: TypeInfo): unknown {
       };
 }
 
-const baseDecoders: Readonly<Record<string, (text: string) => unknown>> = {
-  bool: (text) => text === "t",
-  bytea: (text) => bytesFromHex(text.slice(String.raw`\x`.length)),
-  date: (text) => Temporal.PlainDate.from(isoYear(text)),
-  float4: Number,
-  float8: Number,
-  int2: Number,
-  int4: Number,
-  interval: parseInterval,
-  json: (text): unknown => JSON.parse(text),
-  jsonb: (text): unknown => JSON.parse(text),
-  oid: Number,
+/**
+ * What ottersql does with values of a built-in base type (ADR 0008). The content mapper types
+ * queries from the same table, so a type and its codec cannot drift apart. Types without a codec
+ * arrive as Postgres's text and are typed `string`.
+ */
+export interface BaseCodec {
+  /** The TypeScript type of decoded values. */
+  readonly type: string;
+  /** The TypeScript type parameters accept, where `encodeParameter` takes more or other values. */
+  readonly parameterType?: string;
+  readonly decode?: (text: string) => unknown;
+}
+
+export const baseCodecs: Readonly<Record<string, BaseCodec>> = {
+  bool: { type: "boolean", decode: (text) => text === "t" },
+  bytea: { type: "Uint8Array", decode: (text) => bytesFromHex(text.slice(String.raw`\x`.length)) },
+  date: { type: "Temporal.PlainDate", decode: (text) => Temporal.PlainDate.from(isoYear(text)) },
+  float4: { type: "number", decode: Number },
+  float8: { type: "number", decode: Number },
+  int2: { type: "number", decode: Number },
+  int4: { type: "number", decode: Number },
+  // Postgres accepts any int8, so a number or bigint is as good as the exact string it returns.
+  int8: { type: "string", parameterType: "string | number | bigint" },
+  interval: { type: "Interval", decode: parseInterval },
+  json: { type: "unknown", parameterType: "Json", decode: (text): unknown => JSON.parse(text) },
+  jsonb: { type: "unknown", parameterType: "Json", decode: (text): unknown => JSON.parse(text) },
+  oid: { type: "number", decode: Number },
   // Temporal rejects Postgres's 24:00:00, which no PlainTime can hold.
-  time: (text) => Temporal.PlainTime.from(text),
-  timestamp: (text) => Temporal.PlainDateTime.from(isoYear(text)),
-  timestamptz: (text) => Temporal.Instant.from(isoYear(text)),
+  time: { type: "Temporal.PlainTime", decode: (text) => Temporal.PlainTime.from(text) },
+  timestamp: {
+    type: "Temporal.PlainDateTime",
+    decode: (text) => Temporal.PlainDateTime.from(isoYear(text)),
+  },
+  timestamptz: {
+    type: "Temporal.Instant",
+    decode: (text) => Temporal.Instant.from(isoYear(text)),
+  },
 };
 
 function decodeBase(text: string, name: string): unknown {
-  const decode = baseDecoders[name];
+  const decode = baseCodecs[name]?.decode;
   if (decode === undefined) {
     return text;
   }

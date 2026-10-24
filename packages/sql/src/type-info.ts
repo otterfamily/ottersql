@@ -60,17 +60,35 @@ const builtInArrayOids = {
   jsonb: 3807,
 } as const satisfies Partial<Record<keyof typeof builtInBaseOids, number>>;
 
-/** Range and multirange oids by subtype name. */
-const builtInRangeOids = {
-  int4: { range: 3904, multirange: 4451 },
-  numeric: { range: 3906, multirange: 4532 },
-  timestamp: { range: 3908, multirange: 4533 },
-  timestamptz: { range: 3910, multirange: 4534 },
-  date: { range: 3912, multirange: 4535 },
-  int8: { range: 3926, multirange: 4536 },
-} as const satisfies Partial<
-  Record<keyof typeof builtInBaseOids, { range: number; multirange: number }>
+const builtInRanges = {
+  int4range: { subtype: "int4", oid: 3904, multirange: "int4multirange", multirangeOid: 4451 },
+  numrange: { subtype: "numeric", oid: 3906, multirange: "nummultirange", multirangeOid: 4532 },
+  tsrange: { subtype: "timestamp", oid: 3908, multirange: "tsmultirange", multirangeOid: 4533 },
+  tstzrange: {
+    subtype: "timestamptz",
+    oid: 3910,
+    multirange: "tstzmultirange",
+    multirangeOid: 4534,
+  },
+  daterange: { subtype: "date", oid: 3912, multirange: "datemultirange", multirangeOid: 4535 },
+  int8range: { subtype: "int8", oid: 3926, multirange: "int8multirange", multirangeOid: 4536 },
+} as const satisfies Record<
+  string,
+  {
+    subtype: keyof typeof builtInBaseOids;
+    oid: number;
+    multirange: string;
+    multirangeOid: number;
+  }
 >;
+
+/** The subtype of each built-in range and multirange type, by name. */
+export const rangeSubtypes: ReadonlyMap<string, string> = new Map(
+  Object.entries(builtInRanges).flatMap(([name, range]) => [
+    [name, range.subtype],
+    [range.multirange, range.subtype],
+  ]),
+);
 
 const builtIns: ReadonlyMap<number, TypeInfo> = new Map([
   ...Object.entries(builtInBaseOids).map(([name, oid]): [number, TypeInfo] => [
@@ -81,9 +99,9 @@ const builtIns: ReadonlyMap<number, TypeInfo> = new Map([
     oid,
     { kind: "array", element: { kind: "base", name } },
   ]),
-  ...Object.entries(builtInRangeOids).flatMap(([name, oids]): [number, TypeInfo][] => [
-    [oids.range, { kind: "range", subtype: { kind: "base", name } }],
-    [oids.multirange, { kind: "multirange", subtype: { kind: "base", name } }],
+  ...Object.values(builtInRanges).flatMap((range): [number, TypeInfo][] => [
+    [range.oid, { kind: "range", subtype: { kind: "base", name: range.subtype } }],
+    [range.multirangeOid, { kind: "multirange", subtype: { kind: "base", name: range.subtype } }],
   ]),
 ]);
 

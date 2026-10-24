@@ -1,52 +1,17 @@
 import { findDomain, findEnum } from "@ottersql/catalog";
 import type { Catalog, NamedTypeRef, TypeRef } from "@ottersql/catalog";
+import { baseCodecs, rangeSubtypes } from "@ottersql/sql";
 
 /** Types the rendered module imports from `@ottersql/sql` when it uses them. */
 export type SqlTypeImport = "Interval" | "Json" | "Range";
 
 export interface TypeContext {
   readonly catalog: Catalog;
-  /**
-   * Values ottersql decodes from Postgres (`output`) or encodes for it (`input`). Inputs may be
-   * wider: Postgres accepts any int8, so a JavaScript number or bigint is as good as a string.
-   */
+  /** Values ottersql decodes from Postgres (`output`) or encodes for it (`input`; see `BaseCodec`). */
   readonly direction: "input" | "output";
   /** Collects the `@ottersql/sql` types the rendered text refers to. */
   readonly imports: Set<SqlTypeImport>;
 }
-
-// ADR 0008's default codecs. Types without a codec arrive as Postgres's text.
-const baseTypes: Readonly<Record<string, string>> = {
-  bool: "boolean",
-  bytea: "Uint8Array",
-  date: "Temporal.PlainDate",
-  float4: "number",
-  float8: "number",
-  int2: "number",
-  int4: "number",
-  interval: "Interval",
-  json: "unknown",
-  jsonb: "unknown",
-  oid: "number",
-  time: "Temporal.PlainTime",
-  timestamp: "Temporal.PlainDateTime",
-  timestamptz: "Temporal.Instant",
-};
-
-const rangeBounds: Readonly<Record<string, string>> = {
-  daterange: "date",
-  datemultirange: "date",
-  int4range: "int4",
-  int4multirange: "int4",
-  int8range: "int8",
-  int8multirange: "int8",
-  numrange: "numeric",
-  nummultirange: "numeric",
-  tsrange: "timestamp",
-  tsmultirange: "timestamp",
-  tstzrange: "timestamptz",
-  tstzmultirange: "timestamptz",
-};
 
 /** The TypeScript type of a non-null value of `type`. */
 export function tsType(type: TypeRef, context: TypeContext): string {
@@ -84,16 +49,10 @@ function namedType(type: NamedTypeRef, context: TypeContext): string {
   return namedTypes[type.kind](type, context);
 }
 
-const inputBaseTypes: Readonly<Record<string, string>> = {
-  int8: "string | number | bigint",
-  json: "Json",
-  jsonb: "Json",
-};
-
 function baseType(type: NamedTypeRef, context: TypeContext): string {
-  const input = context.direction === "input" ? inputBaseTypes[type.name] : undefined;
+  const codec = type.schema === "pg_catalog" ? baseCodecs[type.name] : undefined;
   const base =
-    type.schema === "pg_catalog" ? (input ?? baseTypes[type.name] ?? "string") : "string";
+    (context.direction === "input" ? codec?.parameterType : undefined) ?? codec?.type ?? "string";
   if (base === "Interval" || base === "Json") {
     context.imports.add(base);
   }
@@ -113,7 +72,7 @@ function domainType(type: NamedTypeRef, context: TypeContext): string {
 
 function rangeType(type: NamedTypeRef, context: TypeContext): string {
   context.imports.add("Range");
-  const bound = type.schema === "pg_catalog" ? rangeBounds[type.name] : undefined;
+  const bound = type.schema === "pg_catalog" ? rangeSubtypes.get(type.name) : undefined;
   const boundType =
     bound === undefined
       ? "string"
