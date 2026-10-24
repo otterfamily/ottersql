@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import type { Connection } from "@ottersql/sql";
 
+import { checkApproval } from "./approval.ts";
 import { readLedger } from "./ledger.ts";
 import type { AppliedStep, PendingStep } from "./ledger.ts";
 import { readMigrationFile } from "./migration-file.ts";
@@ -14,6 +15,11 @@ import type { RunOptions, StepFailure } from "./run-step.ts";
 export interface ApplyOptions extends RunOptions {
   /** Only steps of this phase run: `expand` before the app deploys, `contract` after it. */
   readonly phase?: Step["phase"];
+  /**
+   * The `approval` of an `ApprovalRequiredError`, given after a person reviewed the steps it lists;
+   * it covers exactly the pending steps that error saw.
+   */
+  readonly approve?: string;
 }
 
 /** A step of a migration file, by the file's name and the step's index in it. */
@@ -42,7 +48,9 @@ interface HashedFile extends MigrationFile {
  * one session (a `pg` Client or PoolClient, or PGlite) so that a transaction's statements share
  * it. Each step is recorded with its file's hash, so running again resumes after the last step that
  * succeeded. Throws a `MigrationHistoryError` before running anything when a file changed after it
- * was applied, or when a file not yet applied is older than one that was.
+ * was applied, or when a file not yet applied is older than one that was, and an
+ * `ApprovalRequiredError` when a pending step cannot be undone and `options.approve` does not cover
+ * the pending steps.
  */
 export async function applyMigrations(
   connection: Connection,
@@ -56,7 +64,9 @@ export async function applyMigrations(
     hash: createHash("sha256").update(file.text).digest("hex"),
   }));
   checkHistory(hashed, history);
-  return runInOrder(connection, pendingSteps(hashed, history, options.phase), options);
+  const pending = pendingSteps(hashed, history, options.phase);
+  checkApproval(pending, options.approve);
+  return runInOrder(connection, pending, options);
 }
 
 function checkHistory(files: readonly HashedFile[], history: readonly AppliedStep[]): void {
