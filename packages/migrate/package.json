@@ -12,10 +12,14 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@ottersql/catalog": "catalog:"
+    "@ottersql/catalog": "catalog:",
+    "@ottersql/sql": "catalog:"
   },
   "devDependencies": {
+    "@ottersql/testing": "catalog:",
     "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "pg": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

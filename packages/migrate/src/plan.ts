@@ -19,6 +19,11 @@ export interface Step {
   readonly reversal: "reversible" | "lossy" | "irreversible";
   /** `outside` steps, such as `CREATE INDEX CONCURRENTLY`, cannot run in a transaction block. */
   readonly transaction: "inside" | "outside";
+  /**
+   * Run before an `outside` step, to remove what an earlier run that failed halfway left behind,
+   * such as an invalid index; an `inside` step leaves nothing, since its transaction rolls back.
+   */
+  readonly cleanup: readonly string[];
   readonly lock: Lock;
   /** Why the step takes the form it does, when that is not the obvious statement. */
   readonly reason: string | null;

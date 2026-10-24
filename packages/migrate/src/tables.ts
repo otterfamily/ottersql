@@ -8,7 +8,7 @@ import { constraintChanges, inlineConstraints, newTableConstraints } from "./con
 import { columnDefinition, createIndex, literal, qualified } from "./sql-text.ts";
 import { combine, matchByName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
-import { columnSqlName, objectName } from "./table-sql.ts";
+import { columnSqlName, dropIndexStatement, objectName } from "./table-sql.ts";
 
 function withKey(tables: readonly Table[]): { readonly name: string; readonly table: Table }[] {
   return tables.map((table) => ({ name: `${table.schema}.${table.name}`, table }));
@@ -111,6 +111,7 @@ function buildIndex(table: Table, index: Index, phase: "expand" | "contract"): C
       kind: "createIndex",
       object: objectName(table, index.name),
       statements: [createIndex(table, index, true)],
+      cleanup: [dropIndexStatement(table, index.name)],
       phase,
       reversal: "reversible",
       lock: "share update exclusive",
@@ -124,7 +125,7 @@ function dropIndex(table: Table, index: Index): Changes {
     step({
       kind: "dropIndex",
       object: objectName(table, index.name),
-      statements: [`DROP INDEX CONCURRENTLY ${qualified(table.schema, index.name)}`],
+      statements: [dropIndexStatement(table, index.name)],
       phase: "contract",
       reversal: "reversible",
       lock: "share update exclusive",

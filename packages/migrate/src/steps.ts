@@ -2,9 +2,10 @@ import type { ManualChange, Step } from "./plan.ts";
 
 /** A step that runs in a transaction and needs no explanation unless told otherwise. */
 export function step(
-  spec: Omit<Step, "transaction" | "reason"> & Partial<Pick<Step, "transaction" | "reason">>,
+  spec: Omit<Step, "transaction" | "reason" | "cleanup"> &
+    Partial<Pick<Step, "transaction" | "reason" | "cleanup">>,
 ): Step {
-  return { transaction: "inside", reason: null, ...spec };
+  return { transaction: "inside", reason: null, cleanup: [], ...spec };
 }
 
 /** What one part of the planner found: steps in any order, and changes left to a person. */

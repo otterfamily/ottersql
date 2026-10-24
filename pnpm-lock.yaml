@@ -325,10 +325,22 @@ importers:
       '@ottersql/catalog':
         specifier: 'catalog:'
         version: link:../catalog
+      '@ottersql/sql':
+        specifier: 'catalog:'
+        version: link:../sql
     devDependencies:
+      '@ottersql/testing':
+        specifier: 'catalog:'
+        version: link:../testing
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.23.1
+      pg:
+        specifier: 'catalog:'
+        version: 8.23.1
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta

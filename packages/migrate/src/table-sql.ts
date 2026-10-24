@@ -14,3 +14,8 @@ export function alterTable(table: Table, action: string): string {
 export function columnSqlName(table: Table, column: string): string {
   return `${qualified(table.schema, table.name)}.${identifier(column)}`;
 }
+
+/** Re-runnable, so it also clears an index a failed concurrent build left invalid. */
+export function dropIndexStatement(table: Table, index: string): string {
+  return `DROP INDEX CONCURRENTLY IF EXISTS ${qualified(table.schema, index)}`;
+}

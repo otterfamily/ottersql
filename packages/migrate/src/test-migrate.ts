@@ -5,7 +5,7 @@ import { planMigration } from "./index.ts";
 import type { Plan, Step } from "./index.ts";
 
 /** Columns cannot be reordered in Postgres, so a migrated table keeps its columns in another order. */
-function withSortedColumns(catalog: Catalog): Catalog {
+export function withSortedColumns(catalog: Catalog): Catalog {
   return {
     ...catalog,
     tables: catalog.tables.map((table) => ({

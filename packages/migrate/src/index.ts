@@ -1,2 +1,4 @@
+export { applyPlan } from "./apply-plan.ts";
+export type { ApplyOptions, ApplyResult } from "./apply-plan.ts";
 export { planMigration } from "./plan-migration.ts";
 export type { Lock, ManualChange, Plan, Step, StepKind } from "./plan.ts";
