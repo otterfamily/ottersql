@@ -12,7 +12,8 @@
   },
   "scripts": {
     "typecheck": "tsc -p .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "bench": "vitest bench"
   },
   "devDependencies": {
     "@electric-sql/pglite": "catalog:",

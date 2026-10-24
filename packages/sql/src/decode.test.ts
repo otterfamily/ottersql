@@ -42,6 +42,16 @@ describe("decoding values (ADR 0008)", () => {
       "'2000-01-02 03:04:05.5+09'::timestamptz",
       Temporal.Instant.from("2000-01-01T18:04:05.5Z"),
     ],
+    [
+      "timestamp after year 9999",
+      "'10000-01-01 00:00:00'::timestamp",
+      Temporal.PlainDateTime.from("+010000-01-01T00:00:00"),
+    ],
+    [
+      "timestamptz BC",
+      "'0001-01-01 00:00:00+00 BC'::timestamptz",
+      Temporal.Instant.from("0000-01-01T00:00:00Z"),
+    ],
     ["time", "'23:59:59.999999'::time", Temporal.PlainTime.from("23:59:59.999999")],
     [
       "interval",
@@ -140,6 +150,23 @@ describe("encoding parameters", () => {
     for (const connection of drivers) {
       const echo = defineQuery(`select $1::${type} as v`, ["value"]);
       await expect(echo.one(connection, { value })).resolves.toStrictEqual({ v: expected });
+    }
+  });
+});
+
+describe("rows", () => {
+  test.for([
+    [
+      'select 1 as "__proto__"',
+      'Column "__proto__" cannot be a property of a row; rename it with AS',
+    ],
+    [
+      "select 1 as a, 2 as a",
+      'Column "a" appears more than once; give each column its own name with AS',
+    ],
+  ] as const)("reject columns they cannot hold: %s", async ([sql, message], { drivers }) => {
+    for (const connection of drivers) {
+      await expect(defineQuery(sql, [])(connection)).rejects.toThrow(message);
     }
   });
 });

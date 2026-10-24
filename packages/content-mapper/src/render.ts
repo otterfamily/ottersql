@@ -1,6 +1,6 @@
 import { findDomain, findTable, sameType } from "@ottersql/catalog";
 import type { Catalog, Column, Table, TypeRef } from "@ottersql/catalog";
-import { isIdentifier } from "@ottersql/sql";
+import { columnNamesProblem, isIdentifier } from "@ottersql/sql";
 import type { Span } from "@ottersql/sql";
 
 import type { DescribedColumn, DescribedFile, DescribedQuery, Problem } from "./session.ts";
@@ -88,10 +88,7 @@ function rejection(query: DescribedQuery, typeOwner: string | undefined): string
     const typeName = pascalCase(name);
     return `Query "${name}" would declare the same ${typeName}Params and ${typeName}Row types as query "${typeOwner}"`;
   }
-  const duplicate = duplicateColumn(query);
-  return duplicate === null
-    ? null
-    : `Column "${duplicate}" appears more than once; give each column its own name with AS`;
+  return columnNamesProblem(query.columns.map((column) => column.name));
 }
 
 function problemDiagnostic(problem: Problem): MapperDiagnostic {
@@ -197,11 +194,6 @@ function originColumn(
   const table = origin === null ? undefined : findTable(catalog, origin.schema, origin.table);
   const found = table?.columns.find((candidate) => candidate.name === origin?.column);
   return table === undefined || found === undefined ? undefined : { table, column: found };
-}
-
-function duplicateColumn(query: DescribedQuery): string | null {
-  const names = query.columns.map(({ name }) => name);
-  return names.find((name, index) => names.indexOf(name) !== index) ?? null;
 }
 
 function propertyName(name: string): string {

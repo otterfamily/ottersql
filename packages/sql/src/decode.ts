@@ -49,7 +49,7 @@ function decodeRange(range: RangeText, subtype: TypeInfo): unknown {
 const baseDecoders: Readonly<Record<string, (text: string) => unknown>> = {
   bool: (text) => text === "t",
   bytea: (text) => bytesFromHex(text.slice(String.raw`\x`.length)),
-  date: (text) => Temporal.PlainDate.from(dateFields(text, "date")),
+  date: (text) => Temporal.PlainDate.from(isoYear(text)),
   float4: Number,
   float8: Number,
   int2: Number,
@@ -58,9 +58,10 @@ const baseDecoders: Readonly<Record<string, (text: string) => unknown>> = {
   json: (text): unknown => JSON.parse(text),
   jsonb: (text): unknown => JSON.parse(text),
   oid: Number,
-  time: (text) => Temporal.PlainTime.from(clockFields(text, "time")),
-  timestamp: decodeTimestamp,
-  timestamptz: decodeTimestamptz,
+  // Temporal rejects Postgres's 24:00:00, which no PlainTime can hold.
+  time: (text) => Temporal.PlainTime.from(text),
+  timestamp: (text) => Temporal.PlainDateTime.from(isoYear(text)),
+  timestamptz: (text) => Temporal.Instant.from(isoYear(text)),
 };
 
 function decodeBase(text: string, name: string): unknown {
@@ -78,95 +79,25 @@ function decodeBase(text: string, name: string): unknown {
   }
 }
 
-const dateText = /^(?<year>\d{4,})-(?<month>\d{2})-(?<day>\d{2})(?<bc> BC)?$/v;
-const dateTimeText =
-  /^(?<year>\d{4,})-(?<month>\d{2})-(?<day>\d{2}) (?<clock>\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?)(?<offset>[+\-]\d{2}(?::\d{2}){0,2})?(?<bc> BC)?$/v;
-const clockText = /^(?<hour>\d{2}):(?<minute>\d{2}):(?<second>\d{2})(?:\.(?<fraction>\d{1,6}))?$/v;
-const FRACTION_DIGITS = 6;
-const MICROSECONDS_PER_MILLISECOND = 1000;
+const yearDigits = /^\d+/v;
+const ISO_YEAR_DIGITS = 4;
+const EXPANDED_YEAR_DIGITS = 6;
 
-interface DateFields {
-  readonly year: number;
-  readonly month: number;
-  readonly day: number;
-}
-
-interface ClockFields {
-  readonly hour: number;
-  readonly minute: number;
-  readonly second: number;
-  readonly millisecond: number;
-  readonly microsecond: number;
-}
-
-/** ISO years count 1 BC as 0, Postgres prints it as `0001 BC`. */
-function isoDate(groups: Readonly<Record<string, string | undefined>>): DateFields {
-  const year = Number(groups["year"]);
-  return {
-    year: groups["bc"] === undefined ? year : 1 - year,
-    month: Number(groups["month"]),
-    day: Number(groups["day"]),
-  };
-}
-
-function dateFields(text: string, type: string): DateFields {
-  const groups = dateText.exec(text)?.groups;
-  if (groups === undefined) {
-    throw new TypeError(`not a finite ${type}`);
+/**
+ * Temporal reads Postgres's date and time output as it is, except for years: Postgres prints
+ * `0044-03-15 BC` and `10000-01-01`, where ISO 8601 writes `-000043-03-15` and `+010000-01-01`
+ * (1 BC is year 0). Other text, such as `infinity`, is left for Temporal to reject (ADR 0008).
+ */
+function isoYear(text: string): string {
+  const digits = yearDigits.exec(text)?.[0];
+  const bc = text.endsWith(" BC");
+  if (digits === undefined || (digits.length === ISO_YEAR_DIGITS && !bc)) {
+    return text;
   }
-  return isoDate(groups);
-}
-
-/** Rejects times Temporal cannot hold, such as Postgres's `24:00:00`. */
-function clockFields(text: string, type: string): ClockFields {
-  const groups = clockText.exec(text)?.groups;
-  if (groups === undefined) {
-    throw new TypeError(`not a ${type}`);
-  }
-  const microseconds = Number((groups["fraction"] ?? "").padEnd(FRACTION_DIGITS, "0"));
-  const time = {
-    hour: Number(groups["hour"]),
-    minute: Number(groups["minute"]),
-    second: Number(groups["second"]),
-    millisecond: Math.trunc(microseconds / MICROSECONDS_PER_MILLISECOND),
-    microsecond: microseconds % MICROSECONDS_PER_MILLISECOND,
-  };
-  Temporal.PlainTime.from(time, { overflow: "reject" });
-  return time;
-}
-
-function dateTime(
-  text: string,
-  type: string,
-): { readonly fields: DateFields & ClockFields; readonly offset: string | undefined } {
-  const groups = dateTimeText.exec(text)?.groups;
-  if (groups === undefined) {
-    throw new TypeError(`not a finite ${type}`);
-  }
-  return {
-    fields: { ...isoDate(groups), ...clockFields(groups["clock"] ?? "", type) },
-    offset: groups["offset"],
-  };
-}
-
-function decodeTimestamp(text: string): Temporal.PlainDateTime {
-  return Temporal.PlainDateTime.from(dateTime(text, "timestamp").fields);
-}
-
-const offsetText = /^(?<sign>[+\-])(?<hours>\d{2})(?::(?<minutes>\d{2}))?(?::(?<seconds>\d{2}))?$/v;
-const SECONDS_PER_HOUR = 3600;
-const SECONDS_PER_MINUTE = 60;
-
-/** Offsets may have seconds (historic local mean time), which Temporal time zone ids cannot. */
-function decodeTimestamptz(text: string): Temporal.Instant {
-  const { fields, offset } = dateTime(text, "timestamptz");
-  const groups = offsetText.exec(offset ?? "+00")?.groups;
-  const seconds =
-    Number(groups?.["hours"]) * SECONDS_PER_HOUR +
-    Number(groups?.["minutes"] ?? 0) * SECONDS_PER_MINUTE +
-    Number(groups?.["seconds"] ?? 0);
-  const utc = Temporal.PlainDateTime.from(fields).toZonedDateTime("UTC").toInstant();
-  return utc.subtract({ seconds: groups?.["sign"] === "-" ? -seconds : seconds });
+  const year = bc ? 1 - Number(digits) : Number(digits);
+  const sign = year < 0 ? "-" : "+";
+  const rest = text.slice(digits.length, bc ? -" BC".length : undefined);
+  return `${sign}${String(Math.abs(year)).padStart(EXPANDED_YEAR_DIGITS, "0")}${rest}`;
 }
 
 const HEX_DIGITS_PER_BYTE = 2;

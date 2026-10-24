@@ -149,6 +149,13 @@ describe("diagnostics", () => {
       },
     },
     {
+      content: '-- @name proto\nselect id as "__proto__" from users',
+      diagnostic: {
+        messageText: 'Column "__proto__" cannot be a property of a row; rename it with AS',
+        at: 'proto\nselect id as "__proto__" from users',
+      },
+    },
+    {
       content: "-- @name TypedQuery\nselect id from users",
       diagnostic: {
         messageText: 'Query "TypedQuery" would clash with the TypedQuery type the module imports',
