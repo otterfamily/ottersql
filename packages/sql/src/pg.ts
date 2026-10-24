@@ -4,8 +4,26 @@ import type { Connection } from "./values.ts";
 
 const asText = (value: string): string => value;
 
-/** A `Connection` over node-postgres, receiving every value as text. */
-export function pgConnection(pg: Pool | PoolClient | Client): Connection {
+type Driver = Pool | PoolClient | Client;
+
+const connections = new WeakMap<Driver, Connection>();
+
+/**
+ * A `Connection` over node-postgres, receiving every value as text. The same driver object gives
+ * the same connection, which remembers the types it has looked up; a client checked out of a pool
+ * is another object, so wrap the pool itself to share the lookups.
+ */
+export function pgConnection(pg: Driver): Connection {
+  const known = connections.get(pg);
+  if (known !== undefined) {
+    return known;
+  }
+  const connection = textConnection(pg);
+  connections.set(pg, connection);
+  return connection;
+}
+
+function textConnection(pg: Driver): Connection {
   return {
     query: async (sql, parameters) => {
       const result = await pg.query<(string | null)[]>({
