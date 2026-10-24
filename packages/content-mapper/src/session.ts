@@ -4,6 +4,8 @@ import type { Catalog, Relation, TypeRef } from "@ottersql/catalog";
 import { fileOffset, readQueryFile } from "@ottersql/sql";
 import type { Query, Span } from "@ottersql/sql";
 
+import { readBuiltInFacts } from "./built-in-functions.ts";
+import type { BuiltInFacts } from "./built-in-functions.ts";
 import { field, isNode, list, scalar } from "./node-tree.ts";
 import type { NodeObject } from "./node-tree.ts";
 import { nullableColumns } from "./nullability.ts";
@@ -56,8 +58,7 @@ export interface DescribedColumn {
 interface Context {
   readonly db: PGlite;
   readonly catalog: Catalog;
-  /** Aggregate and window functions that never return null, such as `count`. */
-  readonly nonNullFunctions: ReadonlySet<string>;
+  readonly builtIns: BuiltInFacts;
   /** Oids do not change while a session's schema is loaded, so lookups are kept. */
   readonly types: Map<number, TypeRef>;
   readonly relations: Map<number, Relation>;
@@ -77,7 +78,7 @@ export async function openQuerySession(schemaSql: string): Promise<QuerySession>
   const context: Context = {
     db,
     catalog: schema.catalog,
-    nonNullFunctions: await readNonNullFunctions(db),
+    builtIns: await readBuiltInFacts(db),
     types: new Map(),
     relations: new Map(),
   };
@@ -130,7 +131,7 @@ async function describeQuery(
       : nullableColumns(tree, {
           isNotNullColumn: (relationOid, attnum) =>
             isNotNullColumn(context.catalog, relations.get(relationOid), attnum),
-          nonNullFunctions: context.nonNullFunctions,
+          ...context.builtIns,
         });
   return {
     query,
@@ -198,13 +199,6 @@ function knownType(types: ReadonlyMap<number, TypeRef>, oid: number | undefined)
     throw new Error(`Postgres reported type oid ${String(oid)}, which pg_type does not list`);
   }
   return type;
-}
-
-async function readNonNullFunctions(db: PGlite): Promise<ReadonlySet<string>> {
-  const { rows } = await db.query<{ readonly oid: string }>(
-    "select oid::text as oid from pg_proc where proname = 'count' and pronamespace = 'pg_catalog'::regnamespace",
-  );
-  return new Set(rows.map((row) => row.oid));
 }
 
 /** Postgres counts the error position in characters (code points) of the SQL sent, from 1. */

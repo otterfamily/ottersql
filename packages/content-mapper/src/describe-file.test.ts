@@ -13,6 +13,8 @@ const schemaSql = `
     status text not null check (status in ('draft', 'published'))
   );
   create view post_titles as select id, title from posts;
+  create view author_posts as
+    select u.name, p.title from users u left join posts p on p.author_id = u.id;
 `;
 
 const test = base.extend<{ session: QuerySession }>({
@@ -101,11 +103,67 @@ describe("nullability (ADR 0009)", () => {
     },
     {
       sql: "select upper(name) as shout, :p::text as param, null::text as nothing from users",
-      expected: { shout: true, param: true, nothing: true },
+      expected: { shout: false, param: true, nothing: true },
     },
     {
       sql: "insert into users (id, name, mood) values (:id, :name, 'ok') returning id, bio",
       expected: { id: false, bio: true },
+    },
+    {
+      sql: "select coalesce(bio, 'none') as a, coalesce(bio, bio) as b from users",
+      expected: { a: false, b: true },
+    },
+    {
+      sql: "select case when bio is null then 'x' else name end as a, case when bio is null then 'x' end as b from users",
+      expected: { a: false, b: true },
+    },
+    {
+      sql: "select s.name, s.bio from (select name, bio from users) s",
+      expected: { name: false, bio: true },
+    },
+    {
+      sql: "with c as (select name, bio from users) select name, bio from c",
+      expected: { name: false, bio: true },
+    },
+    {
+      sql: "select name as v from users union all select title from posts union all select bio from users",
+      expected: { v: true },
+    },
+    {
+      sql: "select name as v from users union select title from posts",
+      expected: { v: false },
+    },
+    {
+      sql: "select id, title from post_titles",
+      expected: { id: false, title: false },
+    },
+    {
+      sql: "select name, title from author_posts",
+      expected: { name: false, title: true },
+    },
+    {
+      sql: "select id + 1 as a, name || '!' as b, name = 'x' as c, bio || '!' as d from users",
+      expected: { a: false, b: false, c: false, d: true },
+    },
+    {
+      sql: "select upper(name) as a, upper(bio) as b, concat(bio, 'x') as c, regexp_match(name, 'x') as d from users",
+      expected: { a: false, b: true, c: false, d: true },
+    },
+    {
+      sql: "select current_timestamp as a, row_number() over () as b, exists (select from posts) as c, bio is null as d, (select title from posts limit 1) as e from users",
+      expected: { a: false, b: false, c: false, d: false, e: true },
+    },
+    {
+      sql: "select id from users join posts using (id)",
+      expected: { id: false },
+    },
+    {
+      sql: "select id from users left join posts using (id)",
+      expected: { id: false },
+    },
+    {
+      sql: "select id from users full join posts using (id)",
+      expected: { id: true },
     },
   ])("proves non-null only what it can in $sql", async ({ sql, expected }, { session }) => {
     await expect(nullability(session, sql)).resolves.toStrictEqual(expected);
