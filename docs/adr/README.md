@@ -9,3 +9,4 @@ Each record states one decision, why it was made, and what follows from it. Reco
 | [0003](0003-deliver-types-through-content-mappers.md) | Deliver types through TypeScript content mappers | Accepted |
 | [0004](0004-forward-only-migrations.md) | Forward-only migrations | Accepted |
 | [0005](0005-sql-files-and-a-relational-api-no-query-builder.md) | SQL files and a relational API, no query builder | Accepted |
+| [0006](0006-every-layer-works-on-its-own.md) | Every layer works on its own | Accepted |
