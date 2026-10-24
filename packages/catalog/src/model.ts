@@ -1,4 +1,5 @@
 export interface Catalog {
+  readonly capabilities: Capabilities;
   readonly tables: readonly Table[];
   readonly enums: readonly Enum[];
   readonly domains: readonly Domain[];
@@ -218,4 +219,13 @@ export interface RoutineColumn {
   readonly name: string | null;
   readonly type: TypeRef;
   readonly typeSql: string;
+}
+
+/**
+ * What the database the catalog was read from supports. Only Postgres is read today; hosts such as
+ * Aurora DSQL will add what they lack here.
+ */
+export interface Capabilities {
+  readonly engine: "postgres";
+  readonly version: { readonly major: number; readonly minor: number };
 }

@@ -1,6 +1,9 @@
 export { loadCatalog } from "./load-catalog.ts";
+export { SchemaError } from "./schema-error.ts";
+export type { SchemaPosition } from "./schema-error.ts";
 export type {
   Annotation,
+  Capabilities,
   Catalog,
   Check,
   Column,
