@@ -2,7 +2,7 @@ import { findDomain, findEnum } from "@ottersql/catalog";
 import type { Catalog, NamedTypeRef, TypeRef } from "@ottersql/catalog";
 
 /** Types the rendered module imports from `@ottersql/sql` when it uses them. */
-export type SqlTypeImport = "Interval" | "Range";
+export type SqlTypeImport = "Interval" | "Json" | "Range";
 
 export interface TypeContext {
   readonly catalog: Catalog;
@@ -86,16 +86,16 @@ function namedType(type: NamedTypeRef, context: TypeContext): string {
 
 const inputBaseTypes: Readonly<Record<string, string>> = {
   int8: "string | number | bigint",
+  json: "Json",
+  jsonb: "Json",
 };
 
 function baseType(type: NamedTypeRef, context: TypeContext): string {
   const input = context.direction === "input" ? inputBaseTypes[type.name] : undefined;
-  if (type.schema === "pg_catalog" && input !== undefined) {
-    return input;
-  }
-  const base = type.schema === "pg_catalog" ? (baseTypes[type.name] ?? "string") : "string";
-  if (base === "Interval") {
-    context.imports.add("Interval");
+  const base =
+    type.schema === "pg_catalog" ? (input ?? baseTypes[type.name] ?? "string") : "string";
+  if (base === "Interval" || base === "Json") {
+    context.imports.add(base);
   }
   return base;
 }

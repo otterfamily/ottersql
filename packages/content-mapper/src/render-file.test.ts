@@ -52,18 +52,18 @@ function members(text: string, interfaceName: string): Record<string, string> {
 }
 
 describe("rendered module", () => {
-  test("declares a typed function per query, with flat named types", async ({ session }) => {
+  test("declares a typed query per query, with flat named types", async ({ session }) => {
     const rendered = await session.renderFile(
       "-- @name userName\nselect name from users where id = :id;\n\n-- @name everyone\nselect id from users",
     );
     expect(rendered.text).toBe(
       [
-        'import type { Connection } from "@ottersql/sql";',
+        'import type { TypedQuery } from "@ottersql/sql";',
         "export interface UserNameParams { readonly id: string | number | bigint | null; }",
         "export interface UserNameRow { readonly name: string; }",
-        "export declare function userName(connection: Connection, params: UserNameParams): Promise<UserNameRow[]>;",
+        "export declare const userName: TypedQuery<UserNameParams, UserNameRow>;",
         "export interface EveryoneRow { readonly id: string; }",
-        "export declare function everyone(connection: Connection): Promise<EveryoneRow[]>;",
+        "export declare const everyone: TypedQuery<undefined, EveryoneRow>;",
         "",
       ].join("\n"),
     );
@@ -115,6 +115,18 @@ describe("rendered module", () => {
     });
   });
 
+  test("takes JSON parameters wrapped with json(...), while JSON results are plain values", async ({
+    session,
+  }) => {
+    const rendered = await session.renderFile(
+      "-- @name setData\nupdate users set data = :data where id = 1 returning data",
+    );
+    expect({
+      params: members(rendered.text, "SetDataParams"),
+      row: members(rendered.text, "SetDataRow"),
+    }).toStrictEqual({ params: { data: "Json | null" }, row: { data: "unknown" } });
+  });
+
   test("quotes a column name that is not an identifier", async ({ session }) => {
     const rendered = await session.renderFile(
       '-- @name odd\nselect name as "full name" from users',
@@ -137,10 +149,10 @@ describe("diagnostics", () => {
       },
     },
     {
-      content: "-- @name Connection\nselect id from users",
+      content: "-- @name TypedQuery\nselect id from users",
       diagnostic: {
-        messageText: 'Query "Connection" would clash with the Connection type the module imports',
-        at: "Connection\nselect id from users",
+        messageText: 'Query "TypedQuery" would clash with the TypedQuery type the module imports',
+        at: "TypedQuery\nselect id from users",
       },
     },
     {

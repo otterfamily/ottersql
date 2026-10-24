@@ -14,7 +14,7 @@ await userById(connection);
 // A parameter the query does not have.
 await userById(connection, { id: "1", extra: true });
 
-const [user] = await userById(connection, { id: "1" });
+const user = await userById.maybeOne(connection, { id: "1" });
 // bio can be null, so calling a string method on it is an error.
 user?.bio.toUpperCase();
 // The query does not select this column.

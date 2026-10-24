@@ -12,7 +12,7 @@ import {
 
 declare const connection: Connection;
 
-const [user] = await userById(connection, { id: "1" });
+const user = await userById.maybeOne(connection, { id: "1" });
 const plan: "free" | "pro" | undefined = user?.plan;
 const bio: string | null | undefined = user?.bio;
 
@@ -27,6 +27,6 @@ const found = await searchPosts(connection, { term: "otter" });
 const body: string | undefined = found[0]?.body;
 
 const titles = await publishedTitles(connection);
-const [created] = await createUser(connection, { email: "otter@example.com", name: "Otter" });
+const created = await createUser.one(connection, { email: "otter@example.com", name: "Otter" });
 
 export { author, bio, body, created, plan, status, titles, total };

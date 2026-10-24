@@ -102,12 +102,17 @@ const app = [
   "const title: string | undefined = rows[0]?.title;",
   "const bio: string | undefined = rows[0]?.bio;",
   "await postsByAuthor(connection, { authorId: true });",
-  "export { bio, status, title };",
+  "const first = await postsByAuthor.maybeOne(connection, { authorId: 1n });",
+  "const firstTitle: string = first.title;",
+  "await postsByAuthor.one(connection);",
+  "export { bio, firstTitle, status, title };",
 ].join("\n");
 
 const misuseErrors = [
   "app.ts(7,7): error TS2322: Type 'string | null' is not assignable to type 'string | undefined'.",
   "app.ts(8,35): error TS2322: Type 'true' is not assignable to type 'string | number | bigint | null'.",
+  "app.ts(10,28): error TS18047: 'first' is possibly 'null'.",
+  "app.ts(11,21): error TS2554: Expected 2 arguments, but got 1.",
 ];
 
 describe("tsc with the content mapper", () => {

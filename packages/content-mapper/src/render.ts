@@ -18,7 +18,7 @@ export interface MapperDiagnostic {
 }
 
 export interface RenderedFile {
-  /** A TypeScript module that declares one typed function per query. */
+  /** A TypeScript module that declares one typed query per query. */
   readonly text: string;
   /** Where the rendered text came from in the `.sql` file, for diagnostics and go-to-definition. */
   readonly mappings: readonly SpanMapping[];
@@ -47,7 +47,7 @@ export function renderFile(file: DescribedFile, catalog: Catalog): RenderedFile 
   const body = file.queries
     .filter((query) => !rejected.has(query))
     .flatMap((query) => renderQuery(query, context));
-  const imports = ["Connection", ...[...context.imports].toSorted()].join(", ");
+  const imports = [...context.imports, "TypedQuery"].toSorted().join(", ");
   const header: Piece = { text: `import type { ${imports} } from "@ottersql/sql";\n` };
   return {
     ...assemble([header, ...body]),
@@ -61,7 +61,7 @@ export function renderFile(file: DescribedFile, catalog: Catalog): RenderedFile 
 }
 
 // Every type a rendered module may import from @ottersql/sql.
-const importedTypes: ReadonlySet<string> = new Set(["Connection", "Interval", "Range"]);
+const importedTypes: ReadonlySet<string> = new Set(["Interval", "Json", "Range", "TypedQuery"]);
 
 /** Queries whose declarations would not compile, with the reason for each. */
 function rejectedQueries(queries: readonly DescribedQuery[]): Map<DescribedQuery, string> {
@@ -101,16 +101,16 @@ function problemDiagnostic(problem: Problem): MapperDiagnostic {
 function renderQuery(described: DescribedQuery, context: TypeContext): Piece[] {
   const typeName = pascalCase(described.name);
   const hasParameters = described.parameters.length > 0;
-  const params = hasParameters ? `, params: ${typeName}Params` : "";
+  const params = hasParameters ? `${typeName}Params` : "undefined";
   return [
     ...(hasParameters ? renderParameters(described, typeName, context) : []),
     { text: `export interface ${typeName}Row { ` },
     ...described.columns.map((column) => ({
       text: `readonly ${propertyName(column.name)}: ${columnType(column, context)}; `,
     })),
-    { text: "}\nexport declare function " },
+    { text: "}\nexport declare const " },
     { text: described.name, original: described.query.nameSpan },
-    { text: `(connection: Connection${params}): Promise<${typeName}Row[]>;\n` },
+    { text: `: TypedQuery<${params}, ${typeName}Row>;\n` },
   ];
 }
 

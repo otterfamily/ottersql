@@ -3,13 +3,18 @@ import { encodeParameter } from "./encode.ts";
 import { typeInfos } from "./type-info.ts";
 import type { Connection } from "./values.ts";
 
+/** A query's arguments: the connection, then its parameters unless it has none (`undefined`). */
+export type QueryArguments<Params> = Params extends undefined
+  ? [connection: Connection]
+  : [connection: Connection, params: Params];
+
 /** A query from a `.sql` file, typed by the content mapper and run on any `Connection`. */
 export interface TypedQuery<Params, Row> {
-  (connection: Connection, params?: Params): Promise<Row[]>;
+  (...args: QueryArguments<Params>): Promise<Row[]>;
   /** The only row; rejects unless the query returns exactly one. */
-  readonly one: (connection: Connection, params?: Params) => Promise<Row>;
+  readonly one: (...args: QueryArguments<Params>) => Promise<Row>;
   /** The only row, or `null` for none; rejects when the query returns more than one. */
-  readonly maybeOne: (connection: Connection, params?: Params) => Promise<Row | null>;
+  readonly maybeOne: (...args: QueryArguments<Params>) => Promise<Row | null>;
 }
 
 /** Parameters by name and a row by column name, as `defineQuery` sees them before the content mapper types them. */
@@ -23,7 +28,7 @@ export type QueryRow = Readonly<Record<string, unknown>>;
 export function defineQuery(
   sql: string,
   parameterNames: readonly string[],
-): TypedQuery<QueryParams, QueryRow> {
+): TypedQuery<QueryParams | undefined, QueryRow> {
   type Params = QueryParams;
   type Row = QueryRow;
   const run = async (connection: Connection, params?: Params): Promise<Row[]> => {
