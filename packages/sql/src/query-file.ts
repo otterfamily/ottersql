@@ -48,6 +48,14 @@ interface Section {
   readonly tokens: readonly Token[];
 }
 
+/** Postgres counts error positions in characters (code points) from 1; JavaScript strings count UTF-16 code units from 0. */
+export function offsetOfPosition(text: string, position: number): number {
+  return text[Symbol.iterator]()
+    .take(position - 1)
+    .toArray()
+    .join("").length;
+}
+
 /** Where `offset` is in `content`. Both start at 1; the column counts UTF-16 code units, as `tsc` does. */
 export function lineAndColumn(
   content: string,

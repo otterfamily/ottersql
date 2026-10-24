@@ -13,7 +13,7 @@ async function schemaError(schemaSql: string): Promise<SchemaError> {
   return rejection;
 }
 
-describe("schema errors", () => {
+describe("schema errors, at columns counted in UTF-16 code units as tsc counts them", () => {
   test.each([
     {
       schemaSql: "create table a (id int);\n\ncreate table b (id int, oops);",
@@ -32,6 +32,12 @@ describe("schema errors", () => {
       code: "42703",
       message: "column é.nope does not exist",
       position: { line: 2, column: 25 },
+    },
+    {
+      schemaSql: 'create table "🦦" (id int);\ncreate view v as select "🦦".id, nope from "🦦";',
+      code: "42703",
+      message: 'column "nope" does not exist',
+      position: { line: 2, column: 34 },
     },
     {
       schemaSql: "create table a (id int);\ncreate index on a (missing);",

@@ -1,3 +1,4 @@
+import { byteaText } from "./bytea.ts";
 import { arrayLiteral, intervalLiteral, rangeLiteral } from "./literals.ts";
 import type { ArrayItems } from "./literals.ts";
 import { Json } from "./values.ts";
@@ -32,19 +33,15 @@ function encodeScalar(value: unknown): string {
     : encodeObject(value);
 }
 
-const HEX = 16;
-const HEX_DIGITS_PER_BYTE = 2;
-
 const objectEncoders: readonly ((value: unknown) => string | undefined)[] = [
   (value) => (value instanceof Json ? JSON.stringify(value.value) : undefined),
-  (value) => (value instanceof Uint8Array ? String.raw`\x${hex(value)}` : undefined),
+  (value) => (value instanceof Uint8Array ? byteaText(value) : undefined),
   (value) => (isTemporal(value) ? value.toString() : undefined),
   (value) => (isInterval(value) ? intervalLiteral(value) : undefined),
   (value) =>
     isRange(value)
       ? rangeLiteral({ ...value, lower: encodeBound(value.lower), upper: encodeBound(value.upper) })
       : undefined,
-  (value) => (value === "empty" ? rangeLiteral("empty") : undefined),
 ];
 
 function encodeObject(value: unknown): string {
@@ -55,10 +52,6 @@ function encodeObject(value: unknown): string {
     }
   }
   throw new TypeError(`cannot send ${String(value)} as a Postgres parameter`);
-}
-
-function hex(bytes: Uint8Array): string {
-  return [...bytes].map((byte) => byte.toString(HEX).padStart(HEX_DIGITS_PER_BYTE, "0")).join("");
 }
 
 function encodeBound(bound: unknown): string | null {

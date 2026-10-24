@@ -275,6 +275,9 @@ importers:
       '@electric-sql/pglite':
         specifier: 'catalog:'
         version: 0.5.11
+      '@ottersql/sql':
+        specifier: 'catalog:'
+        version: link:../sql
     devDependencies:
       '@ottersql/testing':
         specifier: 'catalog:'

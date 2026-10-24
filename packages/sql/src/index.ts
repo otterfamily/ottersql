@@ -3,7 +3,13 @@ export type { BaseCodec } from "./decode.ts";
 export { rangeSubtypes } from "./type-info.ts";
 export { columnNamesProblem, defineQuery } from "./query.ts";
 export type { QueryArguments, TypedQuery } from "./query.ts";
-export { fileOffset, isIdentifier, lineAndColumn, readQueryFile } from "./query-file.ts";
+export {
+  fileOffset,
+  isIdentifier,
+  lineAndColumn,
+  offsetOfPosition,
+  readQueryFile,
+} from "./query-file.ts";
 export type {
   Parameter,
   Query,

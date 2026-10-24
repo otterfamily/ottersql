@@ -15,7 +15,10 @@ export interface NullabilityFacts {
   readonly nonNullCasts: ReadonlySet<string>;
 }
 
-// Node field values from Postgres 18 (parsenodes.h, primnodes.h); the reader is pinned to that major.
+/** The Postgres major whose node format the reader below knows (ADR 0009, ADR 0010). */
+export const NODE_FORMAT_MAJOR = 18;
+
+// Node field values from Postgres 18 (parsenodes.h, primnodes.h).
 const COMMAND_SELECT = "1";
 const COMMAND_MERGE = "5";
 const RTE_RELATION = "0";

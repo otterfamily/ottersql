@@ -1,14 +1,14 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { findTable, openSchema, readRelations, readTypeRefs } from "@ottersql/catalog";
 import type { Catalog, Relation, TypeRef } from "@ottersql/catalog";
-import { fileOffset, readQueryFile } from "@ottersql/sql";
+import { fileOffset, offsetOfPosition, readQueryFile } from "@ottersql/sql";
 import type { Query, Span } from "@ottersql/sql";
 
 import { readBuiltInFacts } from "./built-in-functions.ts";
 import type { BuiltInFacts } from "./built-in-functions.ts";
 import { nodesOfType, scalar } from "./node-tree.ts";
 import type { NodeObject } from "./node-tree.ts";
-import { nullableColumns } from "./nullability.ts";
+import { NODE_FORMAT_MAJOR, nullableColumns } from "./nullability.ts";
 import { renderFile } from "./render.ts";
 import type { RenderedFile } from "./render.ts";
 import { describeStatement } from "./statement.ts";
@@ -75,6 +75,13 @@ interface Context {
  */
 export async function openQuerySession(schemaSql: string): Promise<QuerySession> {
   const schema = await openSchema(schemaSql);
+  const { major } = schema.catalog.capabilities.version;
+  if (major !== NODE_FORMAT_MAJOR) {
+    await schema.close();
+    throw new Error(
+      `ottersql reads query trees of Postgres ${String(NODE_FORMAT_MAJOR)}, but PGlite runs Postgres ${String(major)}`,
+    );
+  }
   const db = schema.database;
   // Postgres sends the analyzed tree of every statement it parses back as a LOG notice (ADR 0009).
   await db.exec(
@@ -226,14 +233,9 @@ function knownType(types: ReadonlyMap<number, TypeRef>, oid: number | undefined)
   return type;
 }
 
-/** Postgres counts the error position in characters (code points) of the SQL sent, from 1. */
 function errorSpan(query: Query, error: PostgresError): Span {
   if (error.position === null) {
     return query.nameSpan;
   }
-  const sqlOffset = query.sql[Symbol.iterator]()
-    .take(error.position - 1)
-    .toArray()
-    .join("").length;
-  return { start: fileOffset(query, sqlOffset), length: 0 };
+  return { start: fileOffset(query, offsetOfPosition(query.sql, error.position)), length: 0 };
 }

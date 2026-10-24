@@ -1,4 +1,6 @@
-/** Where in `schema.sql` Postgres reported an error. Both counts start at 1; columns count characters. */
+import { lineAndColumn, offsetOfPosition } from "@ottersql/sql";
+
+/** Where in `schema.sql` Postgres reported an error, as `lineAndColumn` counts it. */
 export interface SchemaPosition {
   readonly line: number;
   readonly column: number;
@@ -35,17 +37,7 @@ export function schemaError(error: unknown, schemaSql: string): SchemaError | nu
   }
   const offset =
     "position" in error && typeof error.position === "string" ? Number(error.position) : null;
-  const position = offset === null ? null : positionAt(schemaSql, offset);
+  const position =
+    offset === null ? null : lineAndColumn(schemaSql, offsetOfPosition(schemaSql, offset));
   return new SchemaError(error.message, { code: error.code, position, cause: error });
-}
-
-/** Postgres counts the offset in characters (code points), from 1. */
-function positionAt(text: string, offset: number): SchemaPosition {
-  const before = text[Symbol.iterator]()
-    .take(offset - 1)
-    .toArray();
-  return {
-    line: before.filter((character) => character === "\n").length + 1,
-    column: before.length - before.lastIndexOf("\n"),
-  };
 }

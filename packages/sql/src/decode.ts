@@ -1,3 +1,4 @@
+import { byteaBytes } from "./bytea.ts";
 import {
   isNested,
   parseArrayLiteral,
@@ -85,7 +86,7 @@ export interface BaseCodec {
 
 export const baseCodecs: Readonly<Record<string, BaseCodec>> = {
   bool: { type: "boolean", decode: (text) => text === "t" },
-  bytea: { type: "Uint8Array", decode: bytesFromHex },
+  bytea: { type: "Uint8Array", decode: byteaBytes },
   date: { type: "Temporal.PlainDate", decode: (text) => Temporal.PlainDate.from(isoYear(text)) },
   float4: { type: "number", decode: Number },
   float8: { type: "number", decode: Number },
@@ -133,23 +134,4 @@ function isoYear(text: string): string {
   const sign = year < 0 ? "-" : "+";
   const rest = text.slice(digits.length, bc ? -" BC".length : undefined);
   return `${sign}${String(Math.abs(year)).padStart(EXPANDED_YEAR_DIGITS, "0")}${rest}`;
-}
-
-const HEX_DIGITS_PER_BYTE = 2;
-const HEX = 16;
-
-const byteaHex = /^\\x(?:[\da-f]{2})*$/v;
-const HEX_PREFIX_LENGTH = 2;
-
-/** Only the hex output format: reading `bytea_output = escape` text as hex would corrupt it. */
-function bytesFromHex(text: string): Uint8Array {
-  if (!byteaHex.test(text)) {
-    throw new TypeError("not bytea in the hex output format");
-  }
-  const bytes = new Uint8Array((text.length - HEX_PREFIX_LENGTH) / HEX_DIGITS_PER_BYTE);
-  for (let index = 0; index < bytes.length; index += 1) {
-    const start = HEX_PREFIX_LENGTH + index * HEX_DIGITS_PER_BYTE;
-    bytes[index] = Number.parseInt(text.slice(start, start + HEX_DIGITS_PER_BYTE), HEX);
-  }
-  return bytes;
 }

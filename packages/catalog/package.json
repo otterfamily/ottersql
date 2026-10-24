@@ -13,7 +13,8 @@
     "bench": "vitest bench"
   },
   "dependencies": {
-    "@electric-sql/pglite": "catalog:"
+    "@electric-sql/pglite": "catalog:",
+    "@ottersql/sql": "catalog:"
   },
   "devDependencies": {
     "@ottersql/testing": "catalog:",
