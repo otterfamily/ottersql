@@ -17,6 +17,7 @@ const identifierPart = /[\p{L}\p{N}$_]/v;
 const dollarTag = /\$(?:[\p{L}_][\p{L}\p{N}_]*)?\$/vy;
 const parameterName = /[\p{L}_][\p{L}\p{N}_]*/vy;
 const positional = /\$\d+/vy;
+const endsValue = /[\p{L}\p{N}"$\)\]_]/v;
 const plainString = /'(?:''|[^'])*'/vy;
 const escapeString = /'(?:''|\\.|[^'\\])*'/svy;
 const quotedIdentifier = /"(?:""|[^"])*"/vy;
@@ -71,11 +72,13 @@ function scanLineComment(text: string, start: number): Token {
 }
 
 function scanBlockComment(text: string, start: number): Token {
+  const markers = /\/\*|\*\//gv;
+  markers.lastIndex = start;
   let depth = 0;
-  for (const marker of text.slice(start).matchAll(/\/\*|\*\//gv)) {
+  for (let marker = markers.exec(text); marker !== null; marker = markers.exec(text)) {
     depth += marker[0] === "/*" ? 1 : -1;
     if (depth === 0) {
-      return { kind: "blockComment", start, end: start + marker.index + PAIR };
+      return { kind: "blockComment", start, end: marker.index + PAIR };
     }
   }
   return unterminated(text, start, "Unterminated comment");
@@ -125,10 +128,14 @@ function scanDollarQuote(text: string, start: number, tag: string): Token {
     : { kind: "quoted", start, end: close + tag.length };
 }
 
+/**
+ * `:name` right after a value, as in the array slice `a[lo:hi]`, is not a parameter; a parameter
+ * starts an operand, after an operator, a keyword and space, or an opening bracket.
+ */
 function scanParameter(text: string, start: number): Token {
   parameterName.lastIndex = start + 1;
   const name = parameterName.exec(text)?.[0];
-  return name === undefined
+  return name === undefined || endsValue.test(text.charAt(start - 1))
     ? { kind: "other", start, end: start + 1 }
     : { kind: "parameter", name, start, end: start + 1 + name.length };
 }

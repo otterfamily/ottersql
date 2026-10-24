@@ -8,7 +8,7 @@ export interface Span {
 }
 
 export interface QueryFile {
-  /** The queries that can be typed; a query with a problem in its header or body is left out. */
+  /** The queries that can be typed; a query with any problem is left out. */
   readonly queries: readonly Query[];
   readonly problems: readonly QueryFileProblem[];
 }
@@ -51,6 +51,57 @@ interface Section {
 const header = /^--[\t ]*@name[\t ]+(?<name>\S+)[\t ]*$/v;
 const queryName = /^[\p{L}$_][\p{L}\p{N}$_]*$/v;
 
+// Each query becomes an exported function of that name, so it cannot be a reserved word
+// (ECMAScript 2025, 13.1 and strict mode).
+const reservedWords: ReadonlySet<string> = new Set([
+  "await",
+  "break",
+  "case",
+  "catch",
+  "class",
+  "const",
+  "continue",
+  "debugger",
+  "default",
+  "delete",
+  "do",
+  "else",
+  "enum",
+  "export",
+  "extends",
+  "false",
+  "finally",
+  "for",
+  "function",
+  "if",
+  "implements",
+  "import",
+  "in",
+  "instanceof",
+  "interface",
+  "let",
+  "new",
+  "null",
+  "package",
+  "private",
+  "protected",
+  "public",
+  "return",
+  "static",
+  "super",
+  "switch",
+  "this",
+  "throw",
+  "true",
+  "try",
+  "typeof",
+  "var",
+  "void",
+  "while",
+  "with",
+  "yield",
+]);
+
 /** Splits a `.sql` file into its `-- @name` queries and turns their `:name` parameters into `$n`. */
 export function readQueryFile(content: string): QueryFile {
   const all = [...tokens(content)];
@@ -59,10 +110,10 @@ export function readQueryFile(content: string): QueryFile {
   const queries: Query[] = [];
   for (const section of sections) {
     const problem = sectionProblem(content, section, queries);
-    if (problem === null) {
-      queries.push(buildQuery(content, section));
-    } else {
+    if (problem !== null) {
       problems.push(problem);
+    } else if (tokenProblems(statementTokens(content, section)).length === 0) {
+      queries.push(buildQuery(content, section));
     }
   }
   return { queries, problems };
@@ -142,6 +193,9 @@ function sectionProblem(
   const span = section.nameSpan;
   if (!queryName.test(section.name)) {
     return { message: `"${section.name}" is not a valid query name`, span };
+  }
+  if (reservedWords.has(section.name)) {
+    return { message: `"${section.name}" is a reserved word in JavaScript`, span };
   }
   if (queries.some((query) => query.name === section.name)) {
     return { message: `Query "${section.name}" is already defined`, span };

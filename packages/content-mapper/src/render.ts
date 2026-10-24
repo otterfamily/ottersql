@@ -26,7 +26,7 @@ export interface RenderedFile {
 export const DiagnosticCode = {
   queryFile: 9001,
   postgres: 9002,
-  duplicateColumn: 9003,
+  unrenderable: 9003,
   schema: 9004,
 } as const;
 
@@ -41,22 +41,55 @@ const VERBATIM = 0;
 /** Renders a described `.sql` file as the TypeScript module its importers see. */
 export function renderFile(file: DescribedFile, catalog: Catalog): RenderedFile {
   const context: TypeContext = { catalog, imports: new Set<SqlTypeImport>() };
-  const rendered = file.queries.filter((query) => duplicateColumn(query) === null);
-  const body = rendered.flatMap((query) => renderQuery(query, context));
+  const rejected = rejectedQueries(file.queries);
+  const body = file.queries
+    .filter((query) => !rejected.has(query))
+    .flatMap((query) => renderQuery(query, context));
   const imports = ["Connection", ...[...context.imports].toSorted()].join(", ");
   const header: Piece = { text: `import type { ${imports} } from "@ottersql/sql";\n` };
-  return { ...assemble([header, ...body]), diagnostics: diagnostics(file) };
+  return {
+    ...assemble([header, ...body]),
+    diagnostics: [
+      ...file.problems.map((problem) => problemDiagnostic(problem)),
+      ...[...rejected].map(([query, message]) =>
+        diagnostic(message, query.query.nameSpan, DiagnosticCode.unrenderable),
+      ),
+    ],
+  };
 }
 
-function diagnostics(file: DescribedFile): MapperDiagnostic[] {
-  const duplicates = file.queries.flatMap((query) => {
-    const duplicate = duplicateColumn(query);
-    const message = `Column "${String(duplicate)}" appears more than once; give each column its own name with AS`;
-    return duplicate === null
-      ? []
-      : [diagnostic(message, query.query.nameSpan, DiagnosticCode.duplicateColumn)];
-  });
-  return [...file.problems.map((problem) => problemDiagnostic(problem)), ...duplicates];
+// Every type a rendered module may import from @ottersql/sql.
+const importedTypes: ReadonlySet<string> = new Set(["Connection", "Interval", "Range"]);
+
+/** Queries whose declarations would not compile, with the reason for each. */
+function rejectedQueries(queries: readonly DescribedQuery[]): Map<DescribedQuery, string> {
+  const rejected = new Map<DescribedQuery, string>();
+  const typeOwners = new Map<string, string>();
+  for (const query of queries) {
+    const typeName = pascalCase(query.name);
+    const reason = rejection(query, typeOwners.get(typeName));
+    if (reason !== null) {
+      rejected.set(query, reason);
+    }
+    typeOwners.set(typeName, typeOwners.get(typeName) ?? query.name);
+  }
+  return rejected;
+}
+
+/** Why `query` cannot be declared, given the query that already owns its type names, if any. */
+function rejection(query: DescribedQuery, typeOwner: string | undefined): string | null {
+  const { name } = query;
+  if (importedTypes.has(name)) {
+    return `Query "${name}" would clash with the ${name} type the module imports`;
+  }
+  if (typeOwner !== undefined) {
+    const typeName = pascalCase(name);
+    return `Query "${name}" would declare the same ${typeName}Params and ${typeName}Row types as query "${typeOwner}"`;
+  }
+  const duplicate = duplicateColumn(query);
+  return duplicate === null
+    ? null
+    : `Column "${duplicate}" appears more than once; give each column its own name with AS`;
 }
 
 function problemDiagnostic(problem: Problem): MapperDiagnostic {

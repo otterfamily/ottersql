@@ -27,6 +27,13 @@ async function transform(
   return result;
 }
 
+/** Writes `schema` as the project's schema.sql, or leaves the file out when it is `null`. */
+async function writeSchema(root: string, schema: string | null): Promise<void> {
+  if (schema !== null) {
+    await writeFile(join(root, "schema.sql"), schema);
+  }
+}
+
 describe("content mapper protocol", () => {
   test("retypes queries when schema.sql changes, without restarting", async () => {
     const root = await mkdtemp(join(tmpdir(), "ottersql-mapper-"));
@@ -84,5 +91,35 @@ describe("content mapper protocol", () => {
       await mapper("closeProject", { projectHandle: "p" });
       await rm(root, { recursive: true, force: true });
     }
+  });
+
+  test.for([
+    {
+      label: "an error in schema.sql",
+      schema: "create table t (id int;",
+      expected: /schema\.sql:1:23: syntax error at or near ";"$/v,
+    },
+    { label: "a missing schema.sql", schema: null, expected: /schema\.sql: cannot be read/v },
+  ])("reports $label at the head of every query file", async ({ schema, expected }) => {
+    const root = await mkdtemp(join(tmpdir(), "ottersql-mapper-"));
+    const mapper = createMapper();
+    try {
+      await writeSchema(root, schema);
+      await mapper("openProject", {
+        projectHandle: "p",
+        configFileName: join(root, "tsconfig.json"),
+      });
+      const file = await transform(mapper, join(root, "queries.sql"), "-- @name q\nselect 1");
+      expect(file.diagnostics.map(({ messageText }) => messageText)).toStrictEqual([
+        expect.stringMatching(expected),
+      ]);
+    } finally {
+      await mapper("closeProject", { projectHandle: "p" });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  test("answers an unknown method with JSON-RPC's method-not-found error", async () => {
+    await expect(createMapper()("nonsense", {})).rejects.toMatchObject({ code: -32_601 });
   });
 });

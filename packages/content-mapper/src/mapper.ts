@@ -4,6 +4,7 @@ import { dirname, resolve } from "node:path";
 
 import { SchemaError } from "@ottersql/catalog";
 
+import { METHOD_NOT_FOUND, RpcError } from "./json-rpc.ts";
 import type { Handler } from "./json-rpc.ts";
 import { DiagnosticCode } from "./render.ts";
 import type { RenderedFile } from "./render.ts";
@@ -24,51 +25,66 @@ type Loaded = { readonly session: QuerySession } | { readonly error: string };
  * with the same schema text and replaced when it changes.
  */
 export function createMapper(): Handler {
-  const projects = new Map<string, Project>();
-  const sessions = new Map<string, Promise<Loaded>>();
+  const state: State = { projects: new Map(), sessions: new Map() };
   const methods: Readonly<Record<string, (params: unknown) => unknown>> = {
     initialize: () => ({ positionEncoding: "utf-16", diagnosticSource: "sql" }),
-    openProject: async (params) => {
-      const { projectHandle, configFileName, schema } = openProjectParams(params);
-      const schemaPath = resolve(dirname(configFileName), schema);
-      const schemaText = await readFile(schemaPath, "utf8");
-      const schemaHash = createHash("sha256").update(schemaText).digest("hex");
-      projects.set(projectHandle, { schemaPath, schemaHash });
-      if (!sessions.has(schemaHash)) {
-        sessions.set(schemaHash, load(schemaText, schemaPath));
-      }
-      await closeUnused(projects, sessions);
-      return { configIdentity: schemaHash, watchedFiles: [schemaPath] };
-    },
-    transform: async (params) => {
-      const { projectHandle, fileName, content } = transformParams(params);
-      const project = projects.get(projectHandle);
-      if (project !== undefined && resolve(fileName) === project.schemaPath) {
-        return transformed({ text: "export {};\n", mappings: [], diagnostics: [] });
-      }
-      const loaded = await (project === undefined ? undefined : sessions.get(project.schemaHash));
-      if (loaded === undefined) {
-        throw new Error(`transform for unknown project ${projectHandle}`);
-      }
-      return transformed(
-        "session" in loaded
-          ? await loaded.session.renderFile(content)
-          : schemaFailure(loaded.error),
-      );
-    },
+    openProject: async (params) => openProject(state, params),
+    transform: async (params) => transform(state, params),
     closeProject: async (params) => {
-      projects.delete(stringField(params, "projectHandle"));
-      await closeUnused(projects, sessions);
+      state.projects.delete(stringField(params, "projectHandle"));
+      await closeUnused(state);
       return null;
     },
   };
   return async (method, params) => {
     const run = methods[method];
     if (run === undefined) {
-      throw new Error(`unknown method ${method}`);
+      throw new RpcError(METHOD_NOT_FOUND, `unknown method ${method}`);
     }
     return await run(params);
   };
+}
+
+/** Open projects by handle, and the sessions they use by schema text hash. */
+interface State {
+  readonly projects: Map<string, Project>;
+  readonly sessions: Map<string, Promise<Loaded>>;
+}
+
+async function openProject(state: State, params: unknown): Promise<object> {
+  const { projectHandle, configFileName, schema } = openProjectParams(params);
+  const schemaPath = resolve(dirname(configFileName), schema);
+  const schemaText = await readFile(schemaPath, "utf8").catch(() => null);
+  const schemaHash = createHash("sha256")
+    .update(schemaText ?? `unreadable ${schemaPath}`)
+    .digest("hex");
+  state.projects.set(projectHandle, { schemaPath, schemaHash });
+  if (!state.sessions.has(schemaHash)) {
+    state.sessions.set(
+      schemaHash,
+      schemaText === null
+        ? Promise.resolve({ error: `${schemaPath}: cannot be read` })
+        : load(schemaText, schemaPath),
+    );
+  }
+  await state.sessions.get(schemaHash);
+  await closeUnused(state);
+  return { configIdentity: schemaHash, watchedFiles: [schemaPath] };
+}
+
+async function transform(state: State, params: unknown): Promise<object> {
+  const { projectHandle, fileName, content } = transformParams(params);
+  const project = state.projects.get(projectHandle);
+  if (project !== undefined && resolve(fileName) === project.schemaPath) {
+    return transformed({ text: "export {};\n", mappings: [], diagnostics: [] });
+  }
+  const loaded = await (project === undefined ? undefined : state.sessions.get(project.schemaHash));
+  if (loaded === undefined) {
+    throw new Error(`transform for unknown project ${projectHandle}`);
+  }
+  return transformed(
+    "session" in loaded ? await loaded.session.renderFile(content) : schemaFailure(loaded.error),
+  );
 }
 
 async function load(schemaText: string, schemaPath: string): Promise<Loaded> {
@@ -86,20 +102,21 @@ async function load(schemaText: string, schemaPath: string): Promise<Loaded> {
   }
 }
 
-async function closeUnused(
-  projects: ReadonlyMap<string, Project>,
-  sessions: Map<string, Promise<Loaded>>,
-): Promise<void> {
-  const used = new Set([...projects.values()].map((project) => project.schemaHash));
-  for (const [hash, loaded] of sessions) {
-    if (!used.has(hash)) {
-      sessions.delete(hash);
+/** Closes the sessions no open project uses; one that failed to load has nothing to close. */
+async function closeUnused(state: State): Promise<void> {
+  const used = new Set([...state.projects.values()].map((project) => project.schemaHash));
+  const unused = [...state.sessions].filter(([hash]) => !used.has(hash));
+  for (const [hash] of unused) {
+    state.sessions.delete(hash);
+  }
+  await Promise.allSettled(
+    unused.map(async ([, loaded]) => {
       const settled = await loaded;
       if ("session" in settled) {
         await settled.session.close();
       }
-    }
-  }
+    }),
+  );
 }
 
 function schemaFailure(error: string): RenderedFile {

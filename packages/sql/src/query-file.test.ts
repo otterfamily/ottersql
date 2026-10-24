@@ -48,10 +48,18 @@ describe("named queries", () => {
     { content: '-- @name a\nselect "open', message: "Unterminated quoted identifier" },
     { content: "-- @name a\nselect $tag$ open", message: "Unterminated dollar-quoted string" },
     { content: "-- @name a\nselect $1", message: "Use :name parameters instead of $1" },
+    { content: "-- @name delete\nselect 1", message: '"delete" is a reserved word in JavaScript' },
   ])("reports $message", ({ content, message }) => {
     expect(readQueryFile(content).problems.map((problem) => problem.message)).toStrictEqual([
       message,
     ]);
+  });
+});
+
+describe("queries with problems", () => {
+  test("leaves out a query whose SQL has a problem, rather than sending it to Postgres", () => {
+    const file = readQueryFile("-- @name broken\nselect 'open\n");
+    expect(file.queries).toStrictEqual([]);
   });
 });
 
@@ -84,6 +92,7 @@ describe("parameters", () => {
     ["a line comment", "select 1 -- :x\nfrom t"],
     ["a nested block comment", "select 1 /* :x /* :y */ :z */ from t"],
     ["an array slice with numbers", "select a[1:2] from t"],
+    ["an array slice with names", "select a[lo:hi] from t"],
     ["a named argument with :=", "select f(a := 1) from t"],
   ])("finds no parameter in %s", (_label, sql) => {
     const query = onlyQuery(`-- @name q\n${sql}`);

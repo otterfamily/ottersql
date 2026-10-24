@@ -118,6 +118,21 @@ describe("diagnostics", () => {
         at: "twice\nselect id, id from users",
       },
     },
+    {
+      content: "-- @name Connection\nselect id from users",
+      diagnostic: {
+        messageText: 'Query "Connection" would clash with the Connection type the module imports',
+        at: "Connection\nselect id from users",
+      },
+    },
+    {
+      content: "-- @name user\nselect id from users\n-- @name User\nselect name from users",
+      diagnostic: {
+        messageText:
+          'Query "User" would declare the same UserParams and UserRow types as query "user"',
+        at: "User\nselect name from users",
+      },
+    },
   ])("reports $diagnostic.messageText", async ({ content, diagnostic }, { session }) => {
     const rendered = await session.renderFile(content);
     expect(
