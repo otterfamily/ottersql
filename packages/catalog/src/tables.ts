@@ -27,9 +27,12 @@ interface ColumnRow extends ColumnBaseRow {
   readonly identity: string;
   readonly generated: string;
   readonly expression: string | null;
+  readonly volatile: boolean;
 }
 
-// A NOT VALID not-null constraint still sets attnotnull, but existing rows may hold NULL.
+// A NOT VALID not-null constraint still sets attnotnull, but existing rows may hold NULL. A default
+// is volatile when its stored expression tree calls a volatile function, directly or through an
+// operator: dependencies on built-in functions are not recorded in pg_depend, so the tree is read.
 const columnFields = `
   'notNull', col_attr.attnotnull and not exists (
     select from pg_constraint col_not_null
@@ -38,7 +41,15 @@ const columnFields = `
   ),
   'identity', col_attr.attidentity,
   'generated', col_attr.attgenerated,
-  'expression', pg_get_expr(col_default.adbin, col_default.adrelid)`;
+  'expression', pg_get_expr(col_default.adbin, col_default.adrelid),
+  'volatile', coalesce((
+    select bool_or(col_func.provolatile = 'v')
+    from regexp_matches(col_default.adbin::text, ':(funcid|opno) (\\d+)', 'g') as col_node(found)
+      join pg_proc col_func on col_func.oid = case col_node.found[1]
+        when 'funcid' then col_node.found[2]::oid
+        else (select oprcode from pg_operator where oid = col_node.found[2]::oid)::oid
+      end
+  ), false)`;
 
 export async function readTables(db: PGlite): Promise<Table[]> {
   const { rows } = await db.query<TableRow>(`
@@ -89,5 +100,5 @@ function parseColumnValue(row: ColumnRow): ColumnValue {
     const storage = decode(generatedStorages, row.generated, "pg_attribute.attgenerated");
     return { kind: "generated", storage, expression: row.expression };
   }
-  return { kind: "default", expression: row.expression };
+  return { kind: "default", expression: row.expression, volatile: row.volatile };
 }

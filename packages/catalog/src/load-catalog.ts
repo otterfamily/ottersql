@@ -10,6 +10,8 @@ export interface OpenSchema {
   readonly catalog: Catalog;
   /** Queries run here see the schema; the database is discarded on `close`. */
   readonly database: PGlite;
+  /** Reads the catalog of `database` as it is now, after statements have changed it. */
+  readonly readCatalog: () => Promise<Catalog>;
   readonly close: () => Promise<void>;
 }
 
@@ -24,7 +26,12 @@ export async function openSchema(schemaSql: string): Promise<OpenSchema> {
       throw schemaError(error, schemaSql) ?? error;
     });
     const catalog = await readCatalog(database);
-    return { catalog, database, close: async () => database.close() };
+    return {
+      catalog,
+      database,
+      readCatalog: async () => readCatalog(database),
+      close: async () => database.close(),
+    };
   } catch (error) {
     await database.close();
     throw error;

@@ -63,8 +63,34 @@ describe("tables", () => {
 
   test.each([
     { definition: "a int", value: { kind: "none" } },
-    { definition: "a int default 42", value: { kind: "default", expression: "42" } },
-    { definition: "a timestamptz default now()", value: { kind: "default", expression: "now()" } },
+    {
+      definition: "a int default 42",
+      value: { kind: "default", expression: "42", volatile: false },
+    },
+    {
+      definition: "a timestamptz default now()",
+      value: { kind: "default", expression: "now()", volatile: false },
+    },
+    {
+      definition: "a uuid default gen_random_uuid()",
+      value: { kind: "default", expression: "gen_random_uuid()", volatile: true },
+    },
+    {
+      definition: "a uuid default my_uuid7()",
+      value: { kind: "default", expression: "my_uuid7()", volatile: true },
+    },
+    {
+      definition: "a int default b_plus_one(1) + 1",
+      value: { kind: "default", expression: "(b_plus_one(1) + 1)", volatile: false },
+    },
+    {
+      definition: "a serial",
+      value: {
+        kind: "default",
+        expression: "nextval('t_a_seq'::regclass)",
+        volatile: true,
+      },
+    },
     {
       definition: "a int generated always as identity",
       value: { kind: "identity", generation: "always" },
@@ -81,11 +107,18 @@ describe("tables", () => {
       definition: "a int generated always as (b * 2) virtual",
       value: { kind: "generated", storage: "virtual", expression: "(b * 2)" },
     },
-  ])("reads how $definition gets its value", async ({ definition, value }) => {
-    const catalog = await loadCatalog(`create table t (b int, ${definition});`);
-    const column = table(catalog, "t").columns.find((candidate) => candidate.name === "a");
-    expect(column?.value).toStrictEqual(value);
-  });
+  ])(
+    "reads how $definition gets its value, and whether a default is volatile",
+    async ({ definition, value }) => {
+      const catalog = await loadCatalog(`
+      create function my_uuid7() returns uuid language sql volatile as 'select gen_random_uuid()';
+      create function b_plus_one(int) returns int language sql immutable as 'select $1 + 1';
+      create table t (b int, ${definition});
+    `);
+      const column = table(catalog, "t").columns.find((candidate) => candidate.name === "a");
+      expect(column?.value).toStrictEqual(value);
+    },
+  );
 
   test("treats a column as nullable while its not-null constraint is not valid", async () => {
     const catalog = await loadCatalog(`
