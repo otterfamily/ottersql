@@ -1,4 +1,5 @@
-export { loadCatalog } from "./load-catalog.ts";
+export { loadCatalog, openSchema } from "./load-catalog.ts";
+export type { OpenSchema } from "./load-catalog.ts";
 export { SchemaError } from "./schema-error.ts";
 export type { SchemaPosition } from "./schema-error.ts";
 export type {
@@ -31,3 +32,5 @@ export type {
   View,
   ViewColumn,
 } from "./model.ts";
+export { readRelations, readTypeRefs } from "./lookup.ts";
+export type { Relation } from "./lookup.ts";

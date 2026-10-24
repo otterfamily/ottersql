@@ -16,6 +16,7 @@
     "@electric-sql/pglite": "catalog:"
   },
   "devDependencies": {
+    "@ottersql/testing": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

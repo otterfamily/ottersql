@@ -6,7 +6,8 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./global-setup": "./src/global-setup.ts"
+    "./global-setup": "./src/global-setup.ts",
+    "./benchmark-schema": "./src/benchmark-schema.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",

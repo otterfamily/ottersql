@@ -225,6 +225,9 @@
     "vitest/no-importing-vitest-globals": "off",
     // Vitest 5 already fails tests with unawaited assertions.
     "vitest/prefer-expect-assertions": "off",
+    // Round trips on one database connection must run in order; awaiting them in parallel would
+    // interleave their protocol messages.
+    "eslint/no-await-in-loop": "off",
     // describe titles name concepts, not functions.
     "vitest/prefer-describe-function-title": "off",
     // typescript/require-await covers this with types and allows async functions that only return
@@ -247,6 +250,14 @@
       "rules": {
         // Expected values are literals by design: they come from the spec, not the code.
         "eslint/no-magic-numbers": "off",
+        // Vitest reads which fixtures a fixture depends on from its first parameter's pattern, so
+        // a fixture with none is written `({}, use)`.
+        "eslint/no-empty-pattern": ["error", { "allowObjectPatternsAsParameters": true }],
+        // Tests extended with fixtures (`test.extend`) are still test blocks.
+        "vitest/no-standalone-expect": [
+          "error",
+          { "additionalTestBlockFunctions": ["test", "test.for"] },
+        ],
         // A table-driven test is one long list of cases.
         "eslint/max-lines-per-function": "off",
         "eslint/max-statements": "off",

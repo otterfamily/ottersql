@@ -1,0 +1,26 @@
+{
+  "name": "@ottersql/content-mapper",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Types .sql query files for TypeScript 7.1 content mappers, from a schema.sql run in PGlite",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "bench": "vitest bench"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "catalog:",
+    "@ottersql/catalog": "catalog:",
+    "@ottersql/sql": "catalog:"
+  },
+  "devDependencies": {
+    "@ottersql/testing": "catalog:",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

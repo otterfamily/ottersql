@@ -4,6 +4,9 @@ packages:
 
 catalog:
   "@electric-sql/pglite": ^0.5.11
+  "@ottersql/catalog": workspace:*
+  "@ottersql/sql": workspace:*
+  "@ottersql/testing": workspace:*
   "@testcontainers/postgresql": ^12.2.1
   "@types/node": ^26.6.5
   "@types/pg": ^8.23.1
