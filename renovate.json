@@ -3,5 +3,12 @@
   "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
   "minimumReleaseAge": "3 days",
   "osvVulnerabilityAlerts": true,
-  "lockFileMaintenance": { "enabled": true }
+  "lockFileMaintenance": { "enabled": true },
+  "packageRules": [
+    {
+      "description": "Content mappers need a TypeScript 7.1 prerelease for now; follow betas and release candidates, never nightly builds.",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "!/-dev\\./"
+    }
+  ]
 }
