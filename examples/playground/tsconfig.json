@@ -5,10 +5,11 @@
     "lib": ["esnext"],
     "strict": true,
     "noEmit": true,
-    "types": [],
+    "types": ["node"],
     "allowImportingTsExtensions": true,
     "noUncheckedIndexedAccess": true,
-    "exactOptionalPropertyTypes": true
+    "exactOptionalPropertyTypes": true,
+    "skipLibCheck": true
   },
   "contentMappers": [
     {

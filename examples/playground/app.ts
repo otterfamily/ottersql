@@ -1,7 +1,12 @@
 // Hover over the names below to see the types ottersql derives from schema.sql and queries.sql.
-import type { Connection } from "@ottersql/sql";
+// Run it with `pnpm start`: the queries run on an in-process Postgres (PGlite).
+import { readFile } from "node:fs/promises";
+
+import { PGlite } from "@electric-sql/pglite";
+import { pgliteConnection } from "@ottersql/sql/pglite";
 
 import {
+  createPost,
   createUser,
   postCountsByStatus,
   postsWithAuthors,
@@ -10,9 +15,27 @@ import {
   userById,
 } from "./queries.sql";
 
-declare const connection: Connection;
+const db = await PGlite.create();
+await db.exec(await readFile(new URL("schema.sql", import.meta.url), "utf8"));
+const connection = pgliteConnection(db);
 
-const user = await userById.maybeOne(connection, { id: "1" });
+const created = await createUser.one(connection, { email: "otter@example.com", name: "Otter" });
+await createPost(connection, {
+  authorId: created.id,
+  title: "Swimming",
+  status: "published",
+  publishedOn: Temporal.PlainDate.from("2026-10-01"),
+  tags: ["water"],
+});
+await createPost(connection, {
+  authorId: created.id,
+  title: "Otter notes",
+  status: "draft",
+  publishedOn: null,
+  tags: [],
+});
+
+const user = await userById.maybeOne(connection, { id: created.id });
 const plan: "free" | "pro" | undefined = user?.plan;
 const bio: string | null | undefined = user?.bio;
 
@@ -27,6 +50,6 @@ const found = await searchPosts(connection, { term: "otter" });
 const body: string | undefined = found[0]?.body;
 
 const titles = await publishedTitles(connection);
-const created = await createUser.one(connection, { email: "otter@example.com", name: "Otter" });
 
-export { author, bio, body, created, plan, status, titles, total };
+console.log({ created, plan, bio, author, status, total, body, counts, titles });
+await db.close();

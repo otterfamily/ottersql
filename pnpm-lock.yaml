@@ -253,6 +253,9 @@ importers:
 
   examples/playground:
     dependencies:
+      '@electric-sql/pglite':
+        specifier: 'catalog:'
+        version: 0.5.11
       '@ottersql/sql':
         specifier: 'catalog:'
         version: link:../../packages/sql
@@ -260,6 +263,9 @@ importers:
       '@ottersql/content-mapper':
         specifier: 'catalog:'
         version: link:../../packages/content-mapper
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
       typescript:
         specifier: 'catalog:'
         version: 7.1.0-beta

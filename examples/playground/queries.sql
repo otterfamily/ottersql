@@ -27,3 +27,8 @@ select id, title, author from published_posts;
 insert into users (email, name)
 values (:email, :name)
 returning id, plan, created_at;
+
+-- @name createPost
+insert into posts (author_id, title, status, published_on, tags)
+values (:authorId, :title, :status, :publishedOn, :tags)
+returning id;

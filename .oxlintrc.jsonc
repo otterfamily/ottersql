@@ -254,6 +254,8 @@
         "typescript/no-unsafe-call": "off",
         "typescript/no-unsafe-member-access": "off",
         "typescript/no-unsafe-return": "off",
+        // Examples print what they do for the reader to see.
+        "eslint/no-console": "off",
       },
     },
     {
