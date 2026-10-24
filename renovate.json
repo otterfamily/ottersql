@@ -4,11 +4,28 @@
   "minimumReleaseAge": "3 days",
   "osvVulnerabilityAlerts": true,
   "lockFileMaintenance": { "enabled": true },
+  "customManagers": [
+    {
+      "description": "The Postgres image the tests start lives in TypeScript, which no built-in manager reads.",
+      "customType": "regex",
+      "managerFilePatterns": ["/^packages/testing/src/global-setup\\.ts$/"],
+      "matchStrings": ["\"(?<depName>postgres):(?<currentValue>[^\"]+)\""],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "docker"
+    }
+  ],
   "packageRules": [
     {
       "description": "Content mappers need a TypeScript 7.1 prerelease for now; follow betas and release candidates, never nightly builds.",
       "matchPackageNames": ["typescript"],
       "allowedVersions": "!/-dev\\./"
+    },
+    {
+      "description": "A new Postgres major changes what ottersql supports, so it is adopted on purpose, not by a bot.",
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["postgres"],
+      "matchUpdateTypes": ["major"],
+      "enabled": false
     }
   ]
 }
