@@ -2,7 +2,7 @@
 
 Otters hold hands while they sleep so they don't drift apart. ottersql keeps your schema, your database and your types holding hands.
 
-ottersql is an AI-first TypeScript ORM and migration tool for Postgres, at an early prototype.
+ottersql is an AI-first TypeScript ORM and migration tool for Postgres, still an early prototype.
 
 - **Correct types.** Types say only what the database guarantees: a column is non-null only when Postgres's own analysis of the query proves it, `int8` and `numeric` stay exact, dates and times are Temporal values, and a CHECK that lists values becomes a union of them.
 - **Safe migrations.** Forward-only plans from the difference between `schema.sql` and the database, written with the lock-safe recipes production teams apply by hand, saying what is safe to roll back, which steps run before and after a deploy, and resuming where a failed run stopped.
