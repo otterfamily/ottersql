@@ -18,6 +18,9 @@ Each `.sql` file becomes a module that exports its queries. Load it with:
   export default defineConfig({ plugins: [ottersql()] });
   ```
 
+- esbuild and `Bun.build`: `plugins: [ottersql()]` with `ottersql` from `@ottersql/sql/esbuild`.
+- webpack and Rspack: a rule `{ test: /\.sql$/, loader: "@ottersql/sql/webpack" }`.
+
 ## Connections
 
 Queries run on a `Connection`, made from the driver the application already uses:

@@ -1,15 +1,12 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { pathToFileURL } from "node:url";
 
 import { pglite } from "@ottersql/testing";
-import { build } from "vite";
 import { describe, expect, onTestFinished, test } from "vitest";
 
 import { pgliteConnection } from "./pglite.ts";
 import type { TypedQuery } from "./query.ts";
-import { ottersql } from "./vite.ts";
 
 const queries = "-- @name add\nselect :a::int4 + :b::int4 as sum";
 
@@ -49,22 +46,5 @@ describe("importing .sql files through the Vite plugin", () => {
     await expect(import(join(root, "queries.sql"))).rejects.toThrow(
       "queries.sql:2:8 Use :name parameters instead of $1",
     );
-  });
-
-  test("a Vite build bundles the queries into a module that runs them", async () => {
-    const root = await project(queries);
-    await writeFile(join(root, "main.js"), 'export { add } from "./queries.sql";\n');
-    await build({
-      root,
-      logLevel: "silent",
-      configFile: false,
-      plugins: [ottersql()],
-      build: { ssr: "main.js", outDir: "dist" },
-    });
-    const add = addOf(await import(pathToFileURL(join(root, "dist", "main.mjs")).href));
-    const connection = pgliteConnection(await pglite());
-    await expect(add.one(connection, { a: 2, b: 3 })).resolves.toStrictEqual({
-      sum: 5,
-    });
   });
 });

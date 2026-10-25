@@ -268,6 +268,20 @@
       "rules": { "node/no-process-env": "off" },
     },
     {
+      "files": ["packages/sql/src/esbuild.ts"],
+      // esbuild reads plugin filters as Go regular expressions, which take no flags.
+      "rules": {
+        "eslint/require-unicode-regexp": "off",
+        "regexp/require-unicode-regexp": "off",
+        "regexp/require-unicode-sets-regexp": "off",
+      },
+    },
+    {
+      "files": ["packages/sql/src/webpack.ts", "packages/sql/src/test-typescript-loader.ts"],
+      // webpack takes a loader as a module's default export and calls it with its context as `this`.
+      "rules": { "import/no-default-export": "off", "oxc/no-this-in-exported-function": "off" },
+    },
+    {
       "files": ["packages/sql/src/register-bun.ts"],
       // Bun asks the plugin for a module synchronously when a .sql file is loaded through require.
       "rules": { "node/no-sync": "off" },

@@ -1,4 +1,7 @@
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import { once } from "node:events";
+import { text } from "node:stream/consumers";
 import { fileURLToPath } from "node:url";
 
 import { PGlite } from "@electric-sql/pglite";
@@ -76,3 +79,15 @@ async function withClient<Result>(
 export const bunExecutable: string = fileURLToPath(
   new URL("../node_modules/.bin/bun", import.meta.url),
 );
+
+/** Runs `script` in Bun in `cwd`; rejects with what it printed to stderr when it fails. */
+export async function runInBun(script: string, cwd: string): Promise<void> {
+  const child = spawn(bunExecutable, ["--eval", script], {
+    cwd,
+    stdio: ["ignore", "ignore", "pipe"],
+  });
+  const [stderr] = await Promise.all([text(child.stderr), once(child, "close")]);
+  if (child.exitCode !== 0) {
+    throw new Error(`Bun exited with ${String(child.exitCode)}: ${stderr}`);
+  }
+}

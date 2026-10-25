@@ -98,9 +98,12 @@ describe("the packages as npm installs them", () => {
     });
   });
 
-  test("give the Vite plugin", async ({ project }) => {
-    const args = ["--eval", 'console.log(typeof (await import("@ottersql/sql/vite")).ottersql)'];
-    await expect(succeeded("node", args, project)).resolves.toBe("function\n");
+  test("give the bundler plugins and loader", async ({ project }) => {
+    const entries = ["vite", "esbuild", "webpack"].map((name) => `@ottersql/sql/${name}`);
+    const script = `for (const entry of ${JSON.stringify(entries)}) console.log(Object.values(await import(entry)).map((value) => typeof value).join())`;
+    await expect(succeeded("node", ["--eval", script], project)).resolves.toBe(
+      "function\nfunction\nfunction\n",
+    );
   });
 
   test("run .sql imports through the register hook", async ({ project }) => {

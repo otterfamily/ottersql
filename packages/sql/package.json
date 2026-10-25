@@ -17,6 +17,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./esbuild": "./src/esbuild.ts",
     "./pg": "./src/pg.ts",
     "./pglite": "./src/pglite.ts",
     "./postgres": "./src/postgres.ts",
@@ -25,7 +26,8 @@
       "default": "./src/register.ts"
     },
     "./tooling": "./src/tooling.ts",
-    "./vite": "./src/vite.ts"
+    "./vite": "./src/vite.ts",
+    "./webpack": "./src/webpack.ts"
   },
   "publishConfig": {
     "imports": {
@@ -33,6 +35,7 @@
     },
     "exports": {
       ".": "./dist/index.js",
+      "./esbuild": "./dist/esbuild.js",
       "./pg": "./dist/pg.js",
       "./pglite": "./dist/pglite.js",
       "./postgres": "./dist/postgres.js",
@@ -41,7 +44,8 @@
         "default": "./dist/register.js"
       },
       "./tooling": "./dist/tooling.js",
-      "./vite": "./dist/vite.js"
+      "./vite": "./dist/vite.js",
+      "./webpack": "./dist/webpack.js"
     }
   },
   "scripts": {
@@ -56,11 +60,13 @@
     "@ottersql/testing": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "esbuild": "catalog:",
     "pg": "catalog:",
     "postgres": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "webpack": "catalog:"
   },
   "peerDependencies": {
     "@electric-sql/pglite": ">=0.5",

@@ -2,8 +2,7 @@ import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
 
 import { queryModule } from "./query-module.ts";
-
-const runtime = import.meta.resolve("#query");
+import { queryRuntimeUrl } from "./query-runtime.ts";
 
 // Synchronous, in-thread hooks: no loader thread to start, and `.sql` files load like any module.
 registerHooks({
@@ -18,7 +17,7 @@ registerHooks({
       source: queryModule(
         typeof source === "string" ? source : new TextDecoder().decode(source),
         fileURLToPath(url),
-        runtime,
+        queryRuntimeUrl,
       ),
       shortCircuit: true,
     };
