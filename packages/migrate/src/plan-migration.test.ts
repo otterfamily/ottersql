@@ -76,6 +76,34 @@ describe("planMigration, run on PGlite to the target schema", () => {
       ],
     },
     {
+      change:
+        "widens a unique key before the deploy: the new key is built first, then takes the old one's place",
+      from: "create table users (id int8 primary key, email text, tenant int8, unique (email))",
+      to: "create table users (id int8 primary key, email text, tenant int8, unique (email, tenant))",
+      steps: [
+        "expand createIndex public.users.users_email_tenant_key (reversible, outside, share update exclusive)",
+        "expand addUnique public.users.users_email_tenant_key (lossy, inside, access exclusive)",
+      ],
+    },
+    {
+      change: "widens a unique key that keeps its name, building it under a temporary name",
+      from: "create table users (id int8 primary key, email text, tenant int8, constraint users_key unique (email))",
+      to: "create table users (id int8 primary key, email text, tenant int8, constraint users_key unique (email, tenant))",
+      steps: [
+        "expand createIndex public.users.ottersql_new_users_key (reversible, outside, share update exclusive)",
+        "expand addUnique public.users.users_key (lossy, inside, access exclusive)",
+      ],
+    },
+    {
+      change: "narrows a unique key after the deploy, the old one holding until the new one does",
+      from: "create table users (id int8 primary key, email text, tenant int8, unique (email, tenant))",
+      to: "create table users (id int8 primary key, email text, tenant int8, unique (email))",
+      steps: [
+        "contract createIndex public.users.users_email_key (reversible, outside, share update exclusive)",
+        "contract addUnique public.users.users_email_key (reversible, inside, access exclusive)",
+      ],
+    },
+    {
       change: "rebuilds a changed index under a temporary name, so queries never go without it",
       from: `${users}; create index users_lookup on users (email)`,
       to: `${users}; create index users_lookup on users (lower(email))`,

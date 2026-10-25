@@ -107,6 +107,12 @@ describe("steps that block writes", () => {
       to: "create table users (id int8 primary key, nickname text default 'otter')",
     },
     {
+      change: "widening and narrowing unique keys",
+      from: `create table accounts (id int8 primary key, email text, tenant int8, code text, unique (email), unique (code, tenant));
+        insert into accounts select i, 'a' || i, i, 'c' || i from generate_series(1, 1000) i`,
+      to: "create table accounts (id int8 primary key, email text, tenant int8, code text, unique (email, tenant), unique (code))",
+    },
+    {
       change: "adding an enum value and an index",
       from: `create type status as enum ('new'); ${orders}; alter table orders add column status status`,
       to: `create type status as enum ('new', 'paid');

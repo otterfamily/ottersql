@@ -32,7 +32,8 @@ import {
 import type { Changes } from "./steps.ts";
 
 /**
- * Constraints added to a table that has rows hold for new rows first and are validated in a step of
+ * Checks, foreign keys and primary keys; unique keys are planned in unique-keys.ts. Constraints
+ * added to a table that has rows hold for new rows first and are validated in a step of
  * their own, which blocks no writes; unique and primary keys are built as indexes concurrently.
  * Adding one tightens what the app may write, so it waits for the deploy; dropping one loosens it,
  * so it runs before.
@@ -51,28 +52,16 @@ export function constraintChanges(before: Table, after: Table): Changes {
       add: (key) => addForeignKey(after, key),
       validate: (key) => validateStep(after, key.name, "validateForeignKey"),
     }),
-    keyedChanges(before.uniqueConstraints, after.uniqueConstraints, {
-      drop,
-      add: (key) => indexBackedKey(after, key, "addUnique"),
-      redefine: (key) => changedKey(after, key),
-    }),
     keyedChanges(primaryKeys(before), primaryKeys(after), {
       drop,
       add: (key) => indexBackedKey(after, key, "addPrimaryKey"),
-      redefine: (key) => changedKey(after, key),
+      redefine: (key) =>
+        manual(
+          objectName(after, key.name),
+          "A changed primary key is left to a person: foreign keys often refer to it and its columns must be NOT NULL; write the change by hand",
+        ),
     }),
   ]);
-}
-
-/**
- * Whether a changed key loosens or tightens what may be written decides the safe order, and its
- * definition does not say which, so a person writes the change.
- */
-function changedKey(table: Table, key: { readonly name: string }): Changes {
-  return manual(
-    objectName(table, key.name),
-    "A changed key cannot be swapped safely without knowing its intent: keeping the old one until after the deploy fails the new app's writes if the change loosens it, and dropping it first leaves the table without it during the deploy; write the change by hand",
-  );
 }
 
 function primaryKeys(table: Table): PrimaryKey[] {
@@ -215,7 +204,7 @@ function addForeignKey(table: Table, key: ForeignKey): Changes {
   });
 }
 
-function keyIndex(key: PrimaryKey | UniqueConstraint): Index {
+export function keyIndex(key: PrimaryKey | UniqueConstraint): Index {
   return {
     name: key.name,
     method: "btree",
@@ -235,7 +224,7 @@ function keyIndex(key: PrimaryKey | UniqueConstraint): Index {
 }
 
 /** Builds the key's index concurrently, then turns it into the constraint, which only takes a moment. */
-function indexBackedKey(
+export function indexBackedKey(
   table: Table,
   key: PrimaryKey | UniqueConstraint,
   kind: "addUnique" | "addPrimaryKey",

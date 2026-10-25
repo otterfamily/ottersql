@@ -12,6 +12,8 @@ const domains = `create domain positive as int check (value > 0);
   create domain still_ticket as ticket;
   create domain label as text default 'none'`;
 
+const uniqueReason =
+  "A changed unique key that neither only adds columns nor only removes them, or that a foreign key refers to, cannot be swapped safely without knowing its intent; write the change by hand";
 const checkedRowByRow =
   "A column of a domain with a CHECK or NOT NULL is checked row by row, which rewrites the table under an exclusive lock; use the base type with a CHECK constraint instead, which is validated without blocking writes";
 const volatileDomainDefault =
@@ -134,33 +136,33 @@ describe("planMigration", () => {
 
   test.for([
     {
-      change: "unique constraint",
-      from: "create table users (id int8 primary key, email text, tenant int8, constraint users_email_key unique (email))",
-      to: "create table users (id int8 primary key, email text, tenant int8, constraint users_email_key unique (email, tenant))",
-      object: "public.users.users_email_key",
+      change: "unique key on other columns",
+      from: "create table users (id int8 primary key, email text, tenant int8, constraint users_key unique (email))",
+      to: "create table users (id int8 primary key, email text, tenant int8, constraint users_key unique (tenant))",
+      object: "public.users.users_key",
+      reason: uniqueReason,
+    },
+    {
+      change: "unique key a foreign key refers to",
+      from: `create table users (id int8 primary key, email text, tenant int8, constraint users_key unique (email));
+        create table invites (email text references users (email))`,
+      to: `create table users (id int8 primary key, email text, tenant int8, constraint users_key unique (email, tenant));
+        create table invites (email text)`,
+      object: "public.users.users_key",
+      reason: uniqueReason,
     },
     {
       change: "primary key",
       from: "create table users (id int8, tenant int8 not null, constraint users_pkey primary key (id))",
       to: "create table users (id int8, tenant int8 not null, constraint users_pkey primary key (id, tenant))",
       object: "public.users.users_pkey",
+      reason:
+        "A changed primary key is left to a person: foreign keys often refer to it and its columns must be NOT NULL; write the change by hand",
     },
-  ])(
-    "leaves a $change whose definition changed to be written by hand",
-    async ({ from, to, object }) => {
-      const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
-      expect(plan).toStrictEqual({
-        steps: [],
-        manual: [
-          {
-            object,
-            reason:
-              "A changed key cannot be swapped safely without knowing its intent: keeping the old one until after the deploy fails the new app's writes if the change loosens it, and dropping it first leaves the table without it during the deploy; write the change by hand",
-          },
-        ],
-      });
-    },
-  );
+  ])("leaves a changed $change to be written by hand", async ({ from, to, object, reason }) => {
+    const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
+    expect(plan.manual).toStrictEqual([{ object, reason }]);
+  });
 
   test("leaves new and changed functions to be written by hand", async () => {
     const plan = planMigration(await loadCatalog(users), await loadCatalog(`${uuid7}; ${users}`));

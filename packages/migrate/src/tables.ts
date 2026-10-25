@@ -18,6 +18,7 @@ import {
 } from "./sql-text.ts";
 import { combine, manual, matchByName, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
+import { uniqueChanges } from "./unique-keys.ts";
 
 function withKey(tables: readonly Table[]): { readonly name: string; readonly table: Table }[] {
   return tables.map((table) => ({ name: `${table.schema}.${table.name}`, table }));
@@ -37,7 +38,7 @@ export function tableChanges(from: Catalog, to: Catalog): Changes {
         ? dropTable(table, removed)
         : maybeRenamedTable(table, other.table);
     }),
-    ...kept.map(([before, after]) => changeTable(before.table, after.table, to)),
+    ...kept.map(([before, after]) => changeTable(before.table, after.table, { from, to })),
   ]);
 }
 
@@ -125,11 +126,16 @@ function dropTable(
   return combine([...dropKeys, only(drop)]);
 }
 
-/** The changes from `before` to `after`, a table of the catalog `to`. */
-function changeTable(before: Table, after: Table, to: Catalog): Changes {
+/** The changes from `before`, a table of the catalog `from`, to `after`, one of `to`. */
+function changeTable(
+  before: Table,
+  after: Table,
+  { from, to }: { readonly from: Catalog; readonly to: Catalog },
+): Changes {
   return combine([
     columnChanges(before, after, to),
     constraintChanges(before, after),
+    uniqueChanges(before, after, from),
     indexChanges(before, after),
     commentChange({
       on: "TABLE",
