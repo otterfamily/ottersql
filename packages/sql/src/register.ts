@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { queryModule } from "./query-module.ts";
 
-const runtime = import.meta.resolve("./query.ts");
+const runtime = import.meta.resolve("#query");
 
 // Synchronous, in-thread hooks: no loader thread to start, and `.sql` files load like any module.
 registerHooks({

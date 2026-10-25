@@ -1,9 +1,20 @@
 {
   "name": "@ottersql/sql",
   "version": "0.0.0",
-  "private": true,
   "description": "Typed SQL at runtime: reads .sql query files and decodes values with ottersql's codecs",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/otterfamily/ottersql.git",
+    "directory": "packages/sql"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "imports": {
+    "#query": "./src/query.ts"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./pg": "./src/pg.ts",
@@ -11,7 +22,20 @@
     "./register": "./src/register.ts",
     "./tooling": "./src/tooling.ts"
   },
+  "publishConfig": {
+    "imports": {
+      "#query": "./dist/query.js"
+    },
+    "exports": {
+      ".": "./dist/index.js",
+      "./pg": "./dist/pg.js",
+      "./pglite": "./dist/pglite.js",
+      "./register": "./dist/register.js",
+      "./tooling": "./dist/tooling.js"
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "test:postgres": "vitest run postgres.test",
@@ -37,5 +61,8 @@
     "pg": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=26"
   }
 }

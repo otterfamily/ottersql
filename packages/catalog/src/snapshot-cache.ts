@@ -25,7 +25,7 @@ export async function cachedEmptySnapshot(): Promise<Blob> {
 }
 
 async function makeSnapshot(file: string): Promise<void> {
-  const script = fileURLToPath(new URL("snapshot-child.ts", import.meta.url));
+  const script = fileURLToPath(import.meta.resolve("#snapshot-child"));
   // The content mapper's stdout carries JSON-RPC, so the child may only write to stderr.
   const child = spawn(execPath, [script, file], { stdio: ["ignore", "ignore", "inherit"] });
   const exit = await once(child, "exit");

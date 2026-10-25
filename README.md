@@ -28,6 +28,11 @@ Not usable yet.
 - [Roadmap](https://github.com/orgs/otterfamily/projects/1): milestones and work items
 - branch `prototype/content-mapper`: a throwaway prototype showing `.sql` files typed through content mappers
 
+## Requirements
+
+- Node.js 26 or later, for the global `Temporal`.
+- TypeScript 7.1 or later for typed `.sql` files. The types they get use the global `Temporal`, so `lib` in `tsconfig.json` needs `esnext.temporal` (or `esnext`).
+
 ## License
 
 [Apache-2.0](LICENSE)

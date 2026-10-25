@@ -1,13 +1,27 @@
 {
-  "name": "@ottersql/cli",
+  "name": "ottersql",
   "version": "0.0.0",
-  "private": true,
   "description": "The ottersql command: generates, checks and applies migrations, with JSON output for agents",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/otterfamily/ottersql.git",
+    "directory": "packages/cli"
+  },
   "bin": {
     "ottersql": "./src/bin.ts"
   },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "publishConfig": {
+    "bin": {
+      "ottersql": "./dist/bin.js"
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "test:postgres": "vitest run postgres.test"
@@ -27,5 +41,8 @@
     "@types/pg": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=26"
   }
 }

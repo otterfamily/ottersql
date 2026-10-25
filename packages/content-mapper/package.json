@@ -1,13 +1,34 @@
 {
   "name": "@ottersql/content-mapper",
   "version": "0.0.0",
-  "private": true,
   "description": "Types .sql query files for TypeScript 7.1 content mappers, from a schema.sql run in PGlite",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/otterfamily/ottersql.git",
+    "directory": "packages/content-mapper"
+  },
+  "files": [
+    "dist",
+    "server.js"
+  ],
   "type": "module",
+  "imports": {
+    "#server": "./src/server.ts"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
+  "publishConfig": {
+    "imports": {
+      "#server": "./dist/server.js"
+    },
+    "exports": {
+      ".": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "bench": "vitest bench"
@@ -30,8 +51,11 @@
       "dynamicConfig": true,
       "exec": [
         "node",
-        "src/server.ts"
+        "server.js"
       ]
     }
+  },
+  "engines": {
+    "node": ">=26"
   }
 }

@@ -1,13 +1,27 @@
 {
   "name": "@ottersql/migrate",
   "version": "0.0.0",
-  "private": true,
   "description": "Plans forward-only Postgres migrations between two catalogs, with safe procedures",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/otterfamily/ottersql.git",
+    "directory": "packages/migrate"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
+  "publishConfig": {
+    "exports": {
+      ".": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "test:postgres": "vitest run postgres.test"
@@ -23,5 +37,8 @@
     "pg": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "engines": {
+    "node": ">=26"
   }
 }

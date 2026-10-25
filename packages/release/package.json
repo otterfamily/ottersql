@@ -1,0 +1,16 @@
+{
+  "name": "@ottersql/release",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Checks ottersql's packages as npm installs them",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

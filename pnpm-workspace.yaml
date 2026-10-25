@@ -6,7 +6,6 @@ catalog:
   "@electric-sql/pglite": ^0.5.11
   "@electric-sql/pglite-pgvector": ^0.0.12
   "@ottersql/catalog": workspace:*
-  "@ottersql/cli": workspace:*
   "@ottersql/content-mapper": workspace:*
   "@ottersql/migrate": workspace:*
   "@ottersql/sql": workspace:*
@@ -17,6 +16,7 @@ catalog:
   eslint-plugin-regexp: ^3.3.1
   jsonc-parser: ^3.3.1
   knip: ^6.42.1
+  ottersql: workspace:*
   oxfmt: ^0.74.0
   oxlint: ^1.89.0
   oxlint-tsgolint: ^7.0.2005

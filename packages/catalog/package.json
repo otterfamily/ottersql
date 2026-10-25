@@ -1,13 +1,33 @@
 {
   "name": "@ottersql/catalog",
   "version": "0.0.0",
-  "private": true,
   "description": "Reads a Postgres schema into ottersql's catalog model",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/otterfamily/ottersql.git",
+    "directory": "packages/catalog"
+  },
+  "files": [
+    "dist"
+  ],
   "type": "module",
+  "imports": {
+    "#snapshot-child": "./src/snapshot-child.ts"
+  },
   "exports": {
     ".": "./src/index.ts"
   },
+  "publishConfig": {
+    "imports": {
+      "#snapshot-child": "./dist/snapshot-child.js"
+    },
+    "exports": {
+      ".": "./dist/index.js"
+    }
+  },
   "scripts": {
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p .",
     "test": "vitest run",
     "test:postgres": "vitest run postgres.test",
@@ -33,5 +53,8 @@
     "@electric-sql/pglite-pgvector": {
       "optional": true
     }
+  },
+  "engines": {
+    "node": ">=26"
   }
 }
