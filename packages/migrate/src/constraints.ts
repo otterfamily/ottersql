@@ -19,7 +19,16 @@ import {
   foreignKeyDefinition,
   identifier,
 } from "./sql-text.ts";
-import { combine, matchByName, noChanges, objectName, only, outsideStep, step } from "./steps.ts";
+import {
+  combine,
+  manual,
+  matchByName,
+  noChanges,
+  objectName,
+  only,
+  outsideStep,
+  step,
+} from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 /**
@@ -45,12 +54,25 @@ export function constraintChanges(before: Table, after: Table): Changes {
     keyedChanges(before.uniqueConstraints, after.uniqueConstraints, {
       drop,
       add: (key) => indexBackedKey(after, key, "addUnique"),
+      redefine: (key) => changedKey(after, key),
     }),
     keyedChanges(primaryKeys(before), primaryKeys(after), {
       drop,
       add: (key) => indexBackedKey(after, key, "addPrimaryKey"),
+      redefine: (key) => changedKey(after, key),
     }),
   ]);
+}
+
+/**
+ * Whether a changed key loosens or tightens what may be written decides the safe order, and its
+ * definition does not say which, so a person writes the change.
+ */
+function changedKey(table: Table, key: { readonly name: string }): Changes {
+  return manual(
+    objectName(table, key.name),
+    "A changed key cannot be swapped safely without knowing its intent: keeping the old one until after the deploy fails the new app's writes if the change loosens it, and dropping it first leaves the table without it during the deploy; write the change by hand",
+  );
 }
 
 function primaryKeys(table: Table): PrimaryKey[] {
@@ -62,6 +84,8 @@ interface KeyedPlan<Item> {
   readonly drop: (item: Item) => Changes;
   /** Validates an item that was NOT VALID and is otherwise unchanged; without it, it is re-added. */
   readonly validate?: (item: Item) => Changes;
+  /** Plans an item whose definition changed; without it, the old one is dropped and the new added. */
+  readonly redefine?: (item: Item) => Changes;
 }
 
 /**
@@ -83,10 +107,13 @@ function keyedChanges<Item extends { readonly name: string; readonly enforcement
       isDeepStrictEqual({ ...old, enforcement: null }, { ...current, enforcement: null }),
   );
   const redefined = changed.filter((pair) => !validated.includes(pair));
+  const { redefine } = plan;
+  const swapped = redefine === undefined ? redefined : [];
   return combine([
-    ...[...removed, ...redefined.map(([old]) => old)].map((item) => plan.drop(item)),
-    ...[...added, ...redefined.map(([, current]) => current)].map((item) => plan.add(item)),
+    ...[...removed, ...swapped.map(([old]) => old)].map((item) => plan.drop(item)),
+    ...[...added, ...swapped.map(([, current]) => current)].map((item) => plan.add(item)),
     ...validated.map(([, current]) => plan.validate?.(current) ?? noChanges),
+    ...(redefine === undefined ? [] : redefined.map(([, current]) => redefine(current))),
   ]);
 }
 

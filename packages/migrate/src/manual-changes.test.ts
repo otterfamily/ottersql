@@ -132,6 +132,36 @@ describe("planMigration", () => {
     },
   );
 
+  test.for([
+    {
+      change: "unique constraint",
+      from: "create table users (id int8 primary key, email text, tenant int8, constraint users_email_key unique (email))",
+      to: "create table users (id int8 primary key, email text, tenant int8, constraint users_email_key unique (email, tenant))",
+      object: "public.users.users_email_key",
+    },
+    {
+      change: "primary key",
+      from: "create table users (id int8, tenant int8 not null, constraint users_pkey primary key (id))",
+      to: "create table users (id int8, tenant int8 not null, constraint users_pkey primary key (id, tenant))",
+      object: "public.users.users_pkey",
+    },
+  ])(
+    "leaves a $change whose definition changed to be written by hand",
+    async ({ from, to, object }) => {
+      const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
+      expect(plan).toStrictEqual({
+        steps: [],
+        manual: [
+          {
+            object,
+            reason:
+              "A changed key cannot be swapped safely without knowing its intent: keeping the old one until after the deploy fails the new app's writes if the change loosens it, and dropping it first leaves the table without it during the deploy; write the change by hand",
+          },
+        ],
+      });
+    },
+  );
+
   test("leaves new and changed functions to be written by hand", async () => {
     const plan = planMigration(await loadCatalog(users), await loadCatalog(`${uuid7}; ${users}`));
     expect(plan).toStrictEqual({
