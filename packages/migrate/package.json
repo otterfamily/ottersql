@@ -1,6 +1,6 @@
 {
   "name": "@ottersql/migrate",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Plans forward-only Postgres migrations between two catalogs, with safe procedures",
   "license": "Apache-2.0",
   "repository": {

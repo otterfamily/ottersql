@@ -1,6 +1,6 @@
 {
   "name": "@ottersql/sql",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Typed SQL at runtime: reads .sql query files and decodes values with ottersql's codecs",
   "license": "Apache-2.0",
   "repository": {
