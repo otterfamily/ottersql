@@ -33,20 +33,46 @@ function isExtension(value: unknown): value is Extension {
   );
 }
 
+/**
+ * Extensions PGlite publishes as packages of their own, which ottersql loads when the project has
+ * installed them, so that nobody else downloads them.
+ */
+const separatePackages: ReadonlyMap<
+  string,
+  { readonly name: string; readonly load: () => Promise<Extension> }
+> = new Map([
+  [
+    "vector",
+    {
+      name: "@electric-sql/pglite-pgvector",
+      load: async () => {
+        const { vector } = await import("@electric-sql/pglite-pgvector");
+        return vector;
+      },
+    },
+  ],
+]);
+
 /** The extension PGlite ships under `name`, or `null` when it ships none by that name. */
 async function shippedExtension(name: string): Promise<Extension | null> {
+  const separate = separatePackages.get(name);
+  try {
+    return await (separate === undefined ? contribExtension(name) : separate.load());
+  } catch {
+    return null;
+  }
+}
+
+/** An extension of PGlite's own contrib directory, which throws when there is none by `name`. */
+async function contribExtension(name: string): Promise<Extension | null> {
   const module = name.replaceAll("-", "_");
   if (!moduleName.test(module)) {
     return null;
   }
-  try {
-    const exports: unknown = await import(`@electric-sql/pglite/contrib/${module}`);
-    const extension: unknown =
-      typeof exports === "object" && exports !== null ? Reflect.get(exports, module) : undefined;
-    return isExtension(extension) ? extension : null;
-  } catch {
-    return null;
-  }
+  const exports: unknown = await import(`@electric-sql/pglite/contrib/${module}`);
+  const extension: unknown =
+    typeof exports === "object" && exports !== null ? Reflect.get(exports, module) : undefined;
+  return isExtension(extension) ? extension : null;
 }
 
 /**
@@ -98,7 +124,12 @@ export function withoutMissing(sql: string, missing: readonly string[]): string 
 
 /** The note an error gets when extensions were skipped, which is often why the SQL failed. */
 export function skippedNote(missing: readonly string[]): string {
-  return missing.length === 0
-    ? ""
-    : `; PGlite has no extension ${missing.join(", ")}, so ottersql skipped creating it`;
+  if (missing.length === 0) {
+    return "";
+  }
+  const named = missing.map((name) => {
+    const installable = separatePackages.get(name)?.name;
+    return installable === undefined ? name : `${name} (install ${installable} to load it)`;
+  });
+  return `; PGlite has no extension ${named.join(", ")}, so ottersql skipped creating it`;
 }

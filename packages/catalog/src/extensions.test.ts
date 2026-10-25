@@ -15,6 +15,16 @@ describe("extensions in schema.sql", () => {
     ]);
   });
 
+  test("load pgvector when its PGlite package is installed", async () => {
+    const catalog = await loadCatalog(
+      "create extension vector; create table items (id int8, embedding vector(3))",
+    );
+    expect(catalog.tables[0]?.columns.map(({ typeSql }) => typeSql)).toStrictEqual([
+      "bigint",
+      "vector(3)",
+    ]);
+  });
+
   test("skip creating an extension PGlite lacks when nothing in the schema uses it", async () => {
     const catalog = await loadCatalog(
       "create extension if not exists pgaudit; create table logs (id int8)",

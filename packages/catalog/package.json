@@ -18,11 +18,20 @@
     "@ottersql/sql": "catalog:"
   },
   "devDependencies": {
+    "@electric-sql/pglite-pgvector": "catalog:",
     "@ottersql/testing": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "pg": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "@electric-sql/pglite-pgvector": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "@electric-sql/pglite-pgvector": {
+      "optional": true
+    }
   }
 }
