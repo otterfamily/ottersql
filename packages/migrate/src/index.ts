@@ -12,6 +12,8 @@ export {
 } from "./migration-file.ts";
 export { isMigrationLabel, nextMigrationName } from "./migration-name.ts";
 export { pendingChanges } from "./migrations.ts";
+export { pushSchema } from "./push.ts";
+export type { PushOptions, PushResult } from "./push.ts";
 export type { MigrationFile } from "./migrations.ts";
 export { planMigration } from "./plan-migration.ts";
 export type { Lock, ManualChange, Plan, Step, StepKind } from "./plan.ts";

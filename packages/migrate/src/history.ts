@@ -27,7 +27,7 @@ export function deployOrder(files: readonly MigrationFile[]): PendingStep[] {
  * What identifies a step once it ran: everything that decides what it does, so comments and line
  * endings may change, and a step that has not run may be fixed.
  */
-function stepHash(step: Step): string {
+export function stepHash(step: Step): string {
   const { kind, object, phase, reversal, transaction, lock, statements } = step;
   const cleanup = step.transaction === "outside" ? step.cleanup : null;
   return createHash("sha256")

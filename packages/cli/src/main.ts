@@ -7,6 +7,7 @@ import type { Context } from "./context.ts";
 import { generate } from "./generate.ts";
 import { CommandError, exitCode, toJson, toText } from "./outcome.ts";
 import type { Failure, Outcome } from "./outcome.ts";
+import { push } from "./push.ts";
 import { status } from "./status.ts";
 
 /** Everything the CLI reads from and writes to its process, so that tests can stand in for it. */
@@ -64,6 +65,13 @@ function parsed(args: readonly string[], io: Io): Command | Failure {
 async function runCommand(
   context: Context,
   command: Exclude<Command, { name: "help" }>,
+): Promise<Outcome> {
+  return command.name === "push" ? push(context, command) : runMigrate(context, command);
+}
+
+async function runMigrate(
+  context: Context,
+  command: Exclude<Command, { name: "help" | "push" }>,
 ): Promise<Outcome> {
   if (command.name === "migrate generate") {
     return generate(context, command);

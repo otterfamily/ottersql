@@ -49,3 +49,23 @@ async function connect(url: string): Promise<Client> {
     });
   }
 }
+
+const localHosts: ReadonlySet<string> = new Set(["", "localhost", "127.0.0.1", "[::1]"]);
+
+/**
+ * Refuses a DATABASE_URL that is not on this machine: a host name or address elsewhere, rather
+ * than localhost, a loopback address or a Unix socket. Names such as a Docker Compose service are
+ * refused too, since nothing tells them from a server elsewhere.
+ */
+export function requireLocal(env: Context["env"], command: string): void {
+  const url = URL.parse(databaseUrl(env));
+  const host = url === null ? null : (url.searchParams.get("host") ?? url.hostname);
+  if (host === null || !(localHosts.has(host) || host.startsWith("/"))) {
+    throw new CommandError({
+      kind: "invalid",
+      code: `${command}.not_local`,
+      why: `${command} changes the database directly, without migrations, so it runs only on a database on this machine, and DATABASE_URL points ${host === null ? "to an address it cannot read" : `to ${host}`}`,
+      fix: "Change that database through migrations: `ottersql migrate generate <name>` and `ottersql migrate apply`",
+    });
+  }
+}

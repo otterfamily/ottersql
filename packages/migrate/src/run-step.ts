@@ -3,8 +3,6 @@ import { setTimeout as sleep } from "node:timers/promises";
 import type { QualifiedName } from "@ottersql/catalog";
 import type { Connection } from "@ottersql/sql";
 
-import { record } from "./ledger.ts";
-import type { PendingStep } from "./ledger.ts";
 import { writeBlockingLocks } from "./plan.ts";
 import type { OutsideStep, Step } from "./plan.ts";
 import { qualified } from "./sql-text.ts";
@@ -53,17 +51,20 @@ export interface StepFailure {
   readonly message: string;
 }
 
-/** Runs one step and records it, retrying while it gives up waiting for a lock or deadlocks. */
+/** A step to run, and what to do once it ran: inside its transaction, when it has one. */
+export interface Run {
+  readonly step: Step;
+  readonly done?: () => Promise<void>;
+}
+
+/** Runs one step, retrying while it gives up waiting for a lock or deadlocks. */
 export async function runStep(
   connection: Connection,
-  pending: PendingStep,
+  run: Run,
   options: RunOptions,
 ): Promise<StepFailure | null> {
   const settings = { ...defaults, ...options };
-  return withRetries(
-    async () => runOnce(connection, pending, timeouts(pending.step, settings)),
-    settings,
-  );
+  return withRetries(async () => runOnce(connection, run, timeouts(run.step, settings)), settings);
 }
 
 interface Timeouts {
@@ -80,22 +81,14 @@ function timeouts(step: Step, settings: Settings): Timeouts {
   return { lock: `${String(lock)}ms`, statement: `${String(statement)}ms` };
 }
 
-async function runOnce(
-  connection: Connection,
-  pending: PendingStep,
-  timeout: Timeouts,
-): Promise<void> {
-  const { step } = pending;
+async function runOnce(connection: Connection, run: Run, timeout: Timeouts): Promise<void> {
+  const { step } = run;
   await (step.transaction === "outside"
-    ? runOutside(connection, { pending, step }, timeout)
-    : runInside(connection, pending, timeout));
+    ? runOutside(connection, { ...run, step }, timeout)
+    : runInside(connection, run, timeout));
 }
-/** The step and its record commit together, so a step is never applied without being recorded. */
-async function runInside(
-  connection: Connection,
-  pending: PendingStep,
-  timeout: Timeouts,
-): Promise<void> {
+/** The step and what follows it commit together, so a step is never applied without being recorded. */
+async function runInside(connection: Connection, run: Run, timeout: Timeouts): Promise<void> {
   await connection.query("begin", []);
   try {
     // Like SET LOCAL, set_config(..., true) ends with the transaction, and RDS Proxy does not pin
@@ -104,10 +97,10 @@ async function runInside(
       "select set_config('lock_timeout', $1, true), set_config('statement_timeout', $2, true)",
       [timeout.lock, timeout.statement],
     );
-    for (const sql of pending.step.statements) {
+    for (const sql of run.step.statements) {
       await connection.query(sql, []);
     }
-    await record(connection, pending);
+    await run.done?.();
     await connection.query("commit", []);
   } catch (error) {
     await connection.query("rollback", []);
@@ -121,7 +114,7 @@ async function runInside(
  */
 async function runOutside(
   connection: Connection,
-  { pending, step }: { readonly pending: PendingStep; readonly step: OutsideStep },
+  { step, done }: { readonly step: OutsideStep; readonly done?: () => Promise<void> },
   timeout: Timeouts,
 ): Promise<void> {
   await connection.query(
@@ -134,7 +127,7 @@ async function runOutside(
         await connection.query(sql, []);
       }
     }
-    await record(connection, pending);
+    await done?.();
   } finally {
     await connection.query("reset lock_timeout", []);
     await connection.query("reset statement_timeout", []);

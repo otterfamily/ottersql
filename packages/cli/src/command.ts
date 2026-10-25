@@ -20,6 +20,7 @@ export type Command =
       readonly migration: string | null;
       readonly project: Project;
     }
+  | { readonly name: "push"; readonly project: Project; readonly approve: string | null }
   | {
       readonly name: "migrate apply";
       readonly project: Project;
@@ -46,6 +47,9 @@ Commands:
   ottersql migrate baseline [<name>] Start from the existing database at DATABASE_URL: write its
                                      schema as the first migration and record it as applied
 
+  ottersql push                      Bring the database at DATABASE_URL, on this machine only, to
+                                     schema.sql directly, without migrations
+
 Options:
   --json                Print one JSON object on stdout: { ok, command, result } or
                         { ok: false, command, code, why, fix, where?, result? }
@@ -53,7 +57,7 @@ Options:
                         schema.sql (default: tsconfig.json, else db/schema.sql)
   --phase <phase>       apply: only "expand" steps (before the app deploys) or
                         "contract" steps (after it)
-  --approve <approval>  apply: run steps that cannot be undone; the approval comes from the
+  --approve <approval>  apply, push: run steps that cannot be undone; the approval comes from the
                         refusal that listed them, and only a person can give it
   --empty               generate: write a file for steps written by hand, such as moving data
   -h, --help            Show this help
@@ -94,39 +98,46 @@ export function parseCommand(args: readonly string[]): Command {
   if (values.help === true) {
     return { name: "help" };
   }
-  const [group, verb, ...rest] = positionals;
+  const [group, ...afterGroup] = positionals;
+  const [verb, ...rest] = group === "push" ? ["", ...afterGroup] : afterGroup;
   if (group === undefined || verb === undefined) {
     throw new UsageError("Name a command; run `ottersql --help` for the list");
   }
-  const name = `${group} ${verb}`;
+  const name = group === "push" ? group : `${group} ${verb}`;
   refuseOtherOptions(name, values);
   return commandOf(name, rest, values);
 }
 
-/** The options only one command takes. */
+/** The options only some commands take. */
 const optionCommands = {
-  phase: "migrate apply",
-  approve: "migrate apply",
-  empty: "migrate generate",
-} as const;
+  phase: ["migrate apply"],
+  approve: ["migrate apply", "push"],
+  empty: ["migrate generate"],
+} as const satisfies Record<string, readonly string[]>;
 
 function refuseOtherOptions(name: string, values: Values): void {
   for (const option of ["phase", "approve", "empty"] as const) {
-    if (name !== optionCommands[option] && values[option] !== undefined) {
+    const takers: readonly string[] = optionCommands[option];
+    if (!takers.includes(name) && values[option] !== undefined) {
       throw new UsageError(`${name} takes no --${option}`);
     }
   }
 }
 
+/** Commands that take a name after them; the others take no more arguments. */
+const named: ReadonlySet<string> = new Set(["migrate generate", "migrate baseline"]);
+
 function commandOf(name: string, rest: readonly string[], values: Values): Command {
   const project = values.project ?? null;
+  if (!named.has(name)) {
+    noMore(rest);
+  }
   switch (name) {
     case "migrate generate": {
       return { name, migration: parseMigrationName(rest), project, empty: values.empty === true };
     }
     case "migrate check":
     case "migrate status": {
-      noMore(rest);
       return { name, project };
     }
     case "migrate baseline": {
@@ -136,8 +147,10 @@ function commandOf(name: string, rest: readonly string[], values: Values): Comma
         project,
       };
     }
+    case "push": {
+      return { name, project, approve: values.approve ?? null };
+    }
     case "migrate apply": {
-      noMore(rest);
       return { name, project, phase: parsePhase(values.phase), approve: values.approve ?? null };
     }
     default: {

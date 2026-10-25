@@ -2,21 +2,8 @@ import { openSchema } from "@ottersql/catalog";
 import { pgliteConnection } from "@ottersql/sql/pglite";
 import { describe, expect, test } from "vitest";
 
-import { applyMigrations, ApprovalRequiredError } from "./index.ts";
-import { migrationFrom, step, users } from "./test-migrate.ts";
-
-/** The error `run` rejects with, so a test can read what it carries. */
-async function approvalRequired(run: Promise<unknown>): Promise<ApprovalRequiredError> {
-  try {
-    await run;
-  } catch (error) {
-    if (error instanceof ApprovalRequiredError) {
-      return error;
-    }
-    throw error;
-  }
-  throw new TypeError("expected an ApprovalRequiredError");
-}
+import { applyMigrations } from "./index.ts";
+import { approvalRequired, migrationFrom, step, users } from "./test-migrate.ts";
 
 describe("applyMigrations approval", () => {
   test("runs nothing while a pending step cannot be undone, until those pending steps are approved", async () => {

@@ -2,7 +2,7 @@ import { loadCatalog, openSchema } from "@ottersql/catalog";
 import type { Catalog } from "@ottersql/catalog";
 import { Client } from "pg";
 
-import { planMigration, renderMigration } from "./index.ts";
+import { ApprovalRequiredError, planMigration, renderMigration } from "./index.ts";
 import type { MigrationFile, Plan, Step, StepRef } from "./index.ts";
 
 /** Columns cannot be reordered in Postgres, so a migrated table keeps its columns in another order. */
@@ -64,4 +64,17 @@ export async function connect(url: string): Promise<Client> {
   const client = new Client({ connectionString: url });
   await client.connect();
   return client;
+}
+
+/** The error `run` rejects with, so a test can read what it carries. */
+export async function approvalRequired(run: Promise<unknown>): Promise<ApprovalRequiredError> {
+  try {
+    await run;
+  } catch (error) {
+    if (error instanceof ApprovalRequiredError) {
+      return error;
+    }
+    throw error;
+  }
+  throw new TypeError("expected an ApprovalRequiredError");
 }

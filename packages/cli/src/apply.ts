@@ -3,29 +3,25 @@ import { join } from "node:path";
 import { applyMigrations, ApprovalRequiredError } from "@ottersql/migrate";
 import type { ApplyOptions, ApplyResult } from "@ottersql/migrate";
 
+import { approvalRequired, refuseApprovalByAgent } from "./approval.ts";
+import type { Approvable } from "./approval.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
-import { CommandError } from "./outcome.ts";
 import type { Outcome } from "./outcome.ts";
 import { historyRefusal, locate, readMigrations, shown } from "./project.ts";
 import type { Layout } from "./project.ts";
 
 type Apply = Extract<Command, { name: "migrate apply" }>;
 
+const applying: Approvable = { command: "ottersql migrate apply", namespace: "migrate" };
+
 /**
  * Applies the pending migration steps to DATABASE_URL. Steps that cannot be undone wait for a
  * person's approval, which an AI agent cannot give.
  */
 export async function apply(context: Context, command: Apply): Promise<Outcome> {
-  if (context.agent !== null && command.approve !== null) {
-    throw new CommandError({
-      kind: "approval",
-      code: "migrate.approval_by_agent",
-      why: `${context.agent} is an AI agent, and only a person can approve steps that cannot be undone`,
-      fix: "Show the steps to the user and ask them to run the command with --approve in their own terminal",
-    });
-  }
+  refuseApprovalByAgent(context, command.approve, applying);
   const layout = await locate(context.cwd, command.project);
   const files = await readMigrations(layout);
   try {
@@ -45,29 +41,8 @@ function applyOptions({ phase, approve }: Apply): ApplyOptions {
 /** The refusal `error` stands for, or `error` itself when it is not one. */
 function refusal(error: unknown, layout: Layout, agent: string | null): unknown {
   return error instanceof ApprovalRequiredError
-    ? approvalRequired(error, agent)
+    ? approvalRequired(error, agent, applying)
     : historyRefusal(error, layout);
-}
-
-function approvalRequired(
-  { approval, steps }: Pick<ApprovalRequiredError, "approval" | "steps">,
-  agent: string | null,
-): CommandError {
-  const run = `ottersql migrate apply --approve ${approval}`;
-  return new CommandError({
-    kind: "approval",
-    code: "migrate.approval_required",
-    why: `${String(steps.length)} pending steps cannot be undone`,
-    fix:
-      agent === null
-        ? `Review the steps, then run \`${run}\``
-        : `Show the steps to the user and ask them to run \`${run}\` in their own terminal; an agent cannot approve them`,
-    result: { approval, steps },
-    lines: steps.map(
-      ({ migration, step, kind, object }) =>
-        `  ${migration} step ${String(step)}: ${kind} ${object}`,
-    ),
-  });
 }
 
 function reported(layout: Layout, { applied, failed, waiting }: ApplyResult): Outcome {

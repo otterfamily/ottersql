@@ -18,21 +18,25 @@ export async function changesToSchema(
   try {
     return await pendingChanges(files, schema);
   } catch (error) {
-    if (error instanceof MigrationFileError) {
-      throw unreadableMigration(layout, error);
-    }
-    if (!(error instanceof SchemaError)) {
-      throw error;
-    }
-    const file = shown(layout, layout.schemaFile);
-    throw new CommandError({
-      kind: "invalid",
-      code: "schema.invalid",
-      why: `Postgres rejected ${file}: ${error.message} (SQLSTATE ${error.code})`,
-      fix: "Fix schema.sql",
-      where: error.position === null ? { file } : { file, line: error.position.line },
-    });
+    throw error instanceof MigrationFileError
+      ? unreadableMigration(layout, error)
+      : schemaRefusal(layout, error);
   }
+}
+
+/** The refusal for schema.sql that Postgres rejected; anything else is returned as it was. */
+export function schemaRefusal(layout: Layout, error: unknown): unknown {
+  if (!(error instanceof SchemaError)) {
+    return error;
+  }
+  const file = shown(layout, layout.schemaFile);
+  return new CommandError({
+    kind: "invalid",
+    code: "schema.invalid",
+    why: `Postgres rejected ${file}: ${error.message} (SQLSTATE ${error.code})`,
+    fix: "Fix schema.sql",
+    where: error.position === null ? { file } : { file, line: error.position.line },
+  });
 }
 
 export function isEmpty(plan: Plan): boolean {

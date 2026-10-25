@@ -2,7 +2,7 @@ import type { Connection } from "@ottersql/sql";
 
 import { checkApproval } from "./approval.ts";
 import { deployOrder, notYetApplied } from "./history.ts";
-import { createLedger, exclusively, readLedger } from "./ledger.ts";
+import { createLedger, exclusively, readLedger, record } from "./ledger.ts";
 import type { PendingStep } from "./ledger.ts";
 import type { MigrationFile } from "./migrations.ts";
 import type { Step } from "./plan.ts";
@@ -81,7 +81,11 @@ async function runInOrder(
 ): Promise<Omit<ApplyResult, "waiting">> {
   const applied: StepRef[] = [];
   for (const step of pending) {
-    const failure = await runStep(connection, step, options);
+    const failure = await runStep(
+      connection,
+      { step: step.step, done: async () => record(connection, step) },
+      options,
+    );
     const ref = { migration: step.migration, step: step.index };
     if (failure !== null) {
       return { applied, failed: { ...ref, ...failure } };
