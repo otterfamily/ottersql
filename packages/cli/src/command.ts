@@ -5,7 +5,13 @@ import { isMigrationLabel } from "@ottersql/migrate";
 /** What the command line asks for, parsed once where it enters. */
 export type Command =
   | { readonly name: "help" }
-  | { readonly name: "migrate generate"; readonly migration: string; readonly project: Project }
+  | {
+      readonly name: "migrate generate";
+      readonly migration: string;
+      readonly project: Project;
+      /** Writes a file for steps written by hand instead of the planned changes. */
+      readonly empty: boolean;
+    }
   | { readonly name: "migrate check"; readonly project: Project }
   | {
       readonly name: "migrate apply";
@@ -38,6 +44,7 @@ Options:
                         "contract" steps (after it)
   --approve <approval>  apply: run steps that cannot be undone; the approval comes from the
                         refusal that listed them, and only a person can give it
+  --empty               generate: write a file for steps written by hand, such as moving data
   -h, --help            Show this help
 
 Migrations live in the migrations/ directory next to schema.sql.
@@ -55,6 +62,7 @@ const options = {
   project: { type: "string" },
   phase: { type: "string" },
   approve: { type: "string" },
+  empty: { type: "boolean" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -79,13 +87,20 @@ export function parseCommand(args: readonly string[]): Command {
     throw new UsageError("Name a command; run `ottersql --help` for the list");
   }
   const name = `${group} ${verb}`;
-  refuseApplyOptions(name, values);
+  refuseOtherOptions(name, values);
   return commandOf(name, rest, values);
 }
 
-function refuseApplyOptions(name: string, values: Values): void {
-  for (const option of ["phase", "approve"] as const) {
-    if (name !== "migrate apply" && values[option] !== undefined) {
+/** The options only one command takes. */
+const optionCommands = {
+  phase: "migrate apply",
+  approve: "migrate apply",
+  empty: "migrate generate",
+} as const;
+
+function refuseOtherOptions(name: string, values: Values): void {
+  for (const option of ["phase", "approve", "empty"] as const) {
+    if (name !== optionCommands[option] && values[option] !== undefined) {
       throw new UsageError(`${name} takes no --${option}`);
     }
   }
@@ -95,7 +110,7 @@ function commandOf(name: string, rest: readonly string[], values: Values): Comma
   const project = values.project ?? null;
   switch (name) {
     case "migrate generate": {
-      return { name, migration: parseMigrationName(rest), project };
+      return { name, migration: parseMigrationName(rest), project, empty: values.empty === true };
     }
     case "migrate check": {
       noMore(rest);

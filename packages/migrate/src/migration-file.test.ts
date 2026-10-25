@@ -115,6 +115,31 @@ describe("migration files", () => {
     });
   });
 
+  test("read a step written by hand with only its object at the safest settings, which wait for approval", () => {
+    const text =
+      '-- ottersql:step kind=custom object="public.users"\nupdate users set nickname = name;';
+    expect(readMigrationFile(text)).toStrictEqual([
+      {
+        kind: "custom",
+        object: "public.users",
+        phase: "contract",
+        reversal: "irreversible",
+        transaction: "inside",
+        lock: "access exclusive",
+        statements: ["update users set nickname = name"],
+        reason: null,
+      },
+    ]);
+  });
+
+  test("keep what a step written by hand says about itself", () => {
+    const text =
+      '-- ottersql:step kind=custom object="public.users" phase=expand reversal=reversible lock="row exclusive"\nupdate users set nickname = name;';
+    expect(
+      readMigrationFile(text).map(({ phase, reversal, lock }) => ({ phase, reversal, lock })),
+    ).toStrictEqual([{ phase: "expand", reversal: "reversible", lock: "row exclusive" }]);
+  });
+
   test("read a directive written without the space or indented as one", () => {
     const text = [
       inside,

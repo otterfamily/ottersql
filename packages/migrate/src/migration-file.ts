@@ -60,6 +60,22 @@ export function renderMigration(plan: Plan): string {
   return [...manual, ...steps].join("\n");
 }
 
+/**
+ * A migration file with no steps yet, for a person to write them: data to move, or objects
+ * ottersql does not plan. It explains the step line, which on its own is a plain comment here.
+ */
+export function emptyMigration(): string {
+  return [
+    "-- Steps written by hand. Each starts with a line such as",
+    `-- -- ${PREFIX}step kind=custom object="public.users"`,
+    "-- followed by its SQL. A step that leaves out phase, reversal, transaction or lock runs after",
+    "-- the deploy, in a transaction, and waits for approval: say what it does, such as",
+    `-- -- ${PREFIX}step kind=custom object="public.users" phase=contract reversal=lossy lock="row exclusive"`,
+    "-- for an UPDATE that fills a column. Whatever the steps create must be in schema.sql too.",
+    "",
+  ].join("\n");
+}
+
 function stepHeader(step: Step): string {
   return [
     `kind=${step.kind}`,
@@ -222,11 +238,26 @@ function oneOf<Value extends string>(
   return found;
 }
 
+/**
+ * What a step written by hand runs as when its line leaves it out: the safest settings, which make
+ * applying it wait for a person's approval.
+ */
+const customDefaults: ReadonlyMap<string, string> = new Map([
+  ["phase", "contract"],
+  ["reversal", "irreversible"],
+  ["transaction", "inside"],
+  ["lock", "access exclusive"],
+]);
+
 function readStep(
-  header: Directive,
+  written: Directive,
   statements: readonly string[],
   cleanups: readonly Directive[],
 ): Step {
+  const header =
+    written.values.get("kind") === "custom"
+      ? { ...written, values: new Map([...customDefaults, ...written.values]) }
+      : written;
   if (statements.length === 0) {
     throw new MigrationFileError(header.where, "the step has no SQL");
   }

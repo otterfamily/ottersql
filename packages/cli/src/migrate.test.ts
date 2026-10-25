@@ -1,4 +1,4 @@
-import { readdir } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import { describe, expect, test } from "vitest";
@@ -64,6 +64,29 @@ describe("ottersql migrate generate", () => {
     expect(json).toMatchObject({
       ok: true,
       result: { steps: [], manual: [{ object: "public.users.created" }] },
+    });
+  });
+
+  test("writes a file for steps written by hand with --empty, whatever schema.sql says", async () => {
+    const root = await project({ "db/schema.sql": users });
+    const generated = await ottersqlJson(root, ["migrate", "generate", "backfill", "--empty"]);
+    const text = await readFile(join(root, "db/migrations/20261025123456_backfill.sql"), "utf8");
+    const checked = await ottersqlJson(root, ["migrate", "check"]);
+    expect({
+      generated,
+      startsWith: text.split("\n")[0],
+      checked: at(checked.json, "code"),
+    }).toStrictEqual({
+      generated: {
+        exitCode: 0,
+        json: {
+          ok: true,
+          command: "migrate generate",
+          result: { file: "db/migrations/20261025123456_backfill.sql", steps: [], manual: [] },
+        },
+      },
+      startsWith: "-- Steps written by hand. Each starts with a line such as",
+      checked: "migrate.out_of_date",
     });
   });
 
@@ -157,6 +180,7 @@ describe("ottersql arguments", () => {
     },
     { args: ["migrate", "check", "--phase", "expand"], why: "migrate check takes no --phase" },
     { args: ["migrate", "check", "--force"], why: "Unknown option '--force'" },
+    { args: ["migrate", "apply", "--empty"], why: "migrate apply takes no --empty" },
   ])("refuses $args with exit code 2", async ({ args, why }) => {
     const root = await project({});
     const { exitCode, json } = await ottersqlJson(root, args);

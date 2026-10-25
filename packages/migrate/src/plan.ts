@@ -75,6 +75,7 @@ export const reversals = ["reversible", "lossy", "irreversible"] as const;
 export const transactions = ["inside", "outside"] as const;
 export const locks = [
   "none",
+  "row exclusive",
   "share update exclusive",
   "share row exclusive",
   "access exclusive",
