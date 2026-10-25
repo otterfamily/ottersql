@@ -9,6 +9,7 @@ Part of [ottersql](https://github.com/otterfamily/ottersql), a TypeScript toolki
 Each `.sql` file becomes a module that exports its queries. Load it with:
 
 - Node: `node --import @ottersql/sql/register app.ts`
+- Bun: `bun --preload @ottersql/sql/register app.ts`, or `preload = ["@ottersql/sql/register"]` in `bunfig.toml` (under `[test]` too for `bun test`)
 - Vite, Vitest, Rolldown and Rollup: add the plugin to the config.
 
   ```ts

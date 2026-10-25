@@ -19,7 +19,10 @@
     ".": "./src/index.ts",
     "./pg": "./src/pg.ts",
     "./pglite": "./src/pglite.ts",
-    "./register": "./src/register.ts",
+    "./register": {
+      "bun": "./src/register-bun.ts",
+      "default": "./src/register.ts"
+    },
     "./tooling": "./src/tooling.ts",
     "./vite": "./src/vite.ts"
   },
@@ -31,7 +34,10 @@
       ".": "./dist/index.js",
       "./pg": "./dist/pg.js",
       "./pglite": "./dist/pglite.js",
-      "./register": "./dist/register.js",
+      "./register": {
+        "bun": "./dist/register-bun.js",
+        "default": "./dist/register.js"
+      },
       "./tooling": "./dist/tooling.js",
       "./vite": "./dist/vite.js"
     }

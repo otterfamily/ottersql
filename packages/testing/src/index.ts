@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { fileURLToPath } from "node:url";
 
 import { PGlite } from "@electric-sql/pglite";
 import { Client } from "pg";
@@ -70,3 +71,8 @@ async function withClient<Result>(
     await client.end();
   }
 }
+
+/** The Bun executable, pinned by this package's `devEngines`, for tests that run code in Bun. */
+export const bunExecutable: string = fileURLToPath(
+  new URL("../node_modules/.bin/bun", import.meta.url),
+);

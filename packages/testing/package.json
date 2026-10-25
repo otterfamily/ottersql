@@ -24,5 +24,12 @@
     "@types/pg": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
+  },
+  "devEngines": {
+    "runtime": {
+      "name": "bun",
+      "version": "1.4.4",
+      "onFail": "download"
+    }
   }
 }

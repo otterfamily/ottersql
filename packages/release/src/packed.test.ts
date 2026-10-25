@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { bunExecutable } from "@ottersql/testing";
 import { test as base, describe, expect } from "vitest";
 
 import { run, succeeded } from "./command.ts";
@@ -105,5 +106,10 @@ describe("the packages as npm installs them", () => {
   test("run .sql imports through the register hook", async ({ project }) => {
     const args = ["--import", "@ottersql/sql/register", "app.ts"];
     await expect(succeeded("node", args, project)).resolves.toContain("author: 'Otter'");
+  });
+
+  test("run .sql imports in Bun, through the same register entry", async ({ project }) => {
+    const args = ["--preload", "@ottersql/sql/register", "app.ts"];
+    await expect(succeeded(bunExecutable, args, project)).resolves.toContain("Otter");
   });
 });

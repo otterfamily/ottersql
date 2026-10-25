@@ -267,6 +267,11 @@
       "rules": { "node/no-process-env": "off" },
     },
     {
+      "files": ["packages/sql/src/register-bun.ts"],
+      // Bun asks the plugin for a module synchronously when a .sql file is loaded through require.
+      "rules": { "node/no-sync": "off" },
+    },
+    {
       "files": ["packages/testing/src/global-setup.ts"],
       // CI picks the Postgres major of a run through the environment, before any test starts.
       "rules": { "node/no-process-env": "off" },
