@@ -2,10 +2,11 @@ import type { PGlite } from "@electric-sql/pglite";
 import { pgliteConnection } from "@ottersql/sql/pglite";
 
 import { extensionsFor, skippedNote, withoutMissing } from "./extensions.ts";
-import { freshDatabase } from "./fresh-database.ts";
+import { freshDatabase, restoredDatabase } from "./fresh-database.ts";
 import type { Catalog } from "./model.ts";
 import { readCatalog } from "./read-catalog.ts";
 import { schemaError } from "./schema-error.ts";
+import { cachedSchemaSnapshot, saveSchemaSnapshot, schemaSnapshotKey } from "./snapshot-cache.ts";
 
 /** A throwaway in-process Postgres with a schema applied, and the catalog read from it. */
 export interface OpenSchema {
@@ -28,33 +29,73 @@ export interface OpenSchema {
  * to be run later, create; creating one it does not ship is skipped, which an extension that no
  * object uses, such as pgaudit, never notices. Rejects with a `SchemaError` when Postgres rejects
  * the SQL.
+ *
+ * With `cache`, the database as `schemaSql` leaves it is kept in the user's cache directory, and a
+ * later open with the same SQL restores it instead of running the SQL again: for a large schema
+ * that is most of the time opening takes. Only the database is kept, which depends on nothing but
+ * PGlite and the SQL; the catalog is always read from it.
  */
 export async function openSchema(
   schemaSql: string,
-  { alsoRuns = [] }: { readonly alsoRuns?: readonly string[] } = {},
+  {
+    alsoRuns = [],
+    cache = false,
+  }: { readonly alsoRuns?: readonly string[]; readonly cache?: boolean } = {},
 ): Promise<OpenSchema> {
-  const { shipped, missing } = await extensionsFor([schemaSql, ...alsoRuns]);
-  const database = await freshDatabase(shipped);
+  const sources = [schemaSql, ...alsoRuns];
+  const { shipped, missing } = await extensionsFor(sources);
+  const { database, key, restored } = await startDatabase(sources, shipped, cache);
   const run = async (sql: string): Promise<void> => {
     await database.exec(withoutMissing(sql, missing)).catch((error: unknown) => {
       throw schemaError(error, sql, skippedNote(missing)) ?? error;
     });
   };
   try {
-    await run(schemaSql);
-    const connection = pgliteConnection(database);
-    const catalog = await readCatalog(connection);
-    return {
-      catalog,
-      database,
-      readCatalog: async () => readCatalog(connection),
-      run,
-      close: async () => database.close(),
-    };
+    if (!restored) {
+      await applySchema({ database, run, schemaSql, key });
+    }
+    return await opened(database, run);
   } catch (error) {
     await database.close();
     throw error;
   }
+}
+
+/** A database restored with the schema from the cache, or a fresh one to run it in. */
+async function startDatabase(
+  sources: readonly string[],
+  shipped: readonly string[],
+  cache: boolean,
+): Promise<{ readonly database: PGlite; readonly key: string | null; readonly restored: boolean }> {
+  const key = cache ? await schemaSnapshotKey(sources) : null;
+  const cached = key === null ? null : await cachedSchemaSnapshot(key);
+  return cached === null
+    ? { database: await freshDatabase(shipped), key, restored: false }
+    : { database: await restoredDatabase(cached, shipped), key, restored: true };
+}
+
+/** Runs the schema in a fresh database, and keeps the result under `key` when there is one. */
+async function applySchema(fresh: {
+  readonly database: PGlite;
+  readonly run: (sql: string) => Promise<void>;
+  readonly schemaSql: string;
+  readonly key: string | null;
+}): Promise<void> {
+  await fresh.run(fresh.schemaSql);
+  if (fresh.key !== null) {
+    await saveSchemaSnapshot(fresh.key, await fresh.database.dumpDataDir("none"));
+  }
+}
+
+async function opened(database: PGlite, run: (sql: string) => Promise<void>): Promise<OpenSchema> {
+  const connection = pgliteConnection(database);
+  return {
+    catalog: await readCatalog(connection),
+    database,
+    readCatalog: async () => readCatalog(connection),
+    run,
+    close: async () => database.close(),
+  };
 }
 
 /**

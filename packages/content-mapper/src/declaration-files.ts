@@ -33,7 +33,7 @@ export async function declarationFiles(
   schema: string,
   queryFiles: readonly { readonly path: string; readonly content: string }[],
 ): Promise<DeclarationFile[]> {
-  const session = await openQuerySession(schema);
+  const session = await openQuerySession(schema, { cache: true });
   try {
     const files: DeclarationFile[] = [];
     for (const file of queryFiles) {

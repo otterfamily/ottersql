@@ -82,10 +82,14 @@ interface Context {
 
 /**
  * Opens a session that describes queries against `schemaSql`. Rejects with a `SchemaError` from
- * `@ottersql/catalog` when Postgres rejects the schema.
+ * `@ottersql/catalog` when Postgres rejects the schema. `cache` keeps the database the schema
+ * leaves for the next session with the same schema (`openSchema`).
  */
-export async function openQuerySession(schemaSql: string): Promise<QuerySession> {
-  const schema = await openSchema(schemaSql);
+export async function openQuerySession(
+  schemaSql: string,
+  { cache = false }: { readonly cache?: boolean } = {},
+): Promise<QuerySession> {
+  const schema = await openSchema(schemaSql, { cache });
   const { major } = schema.catalog.capabilities.version;
   if (major !== NODE_FORMAT_MAJOR) {
     await schema.close();

@@ -12,7 +12,7 @@ if (target === undefined) {
   throw new Error("usage: snapshot-child.ts <target file>");
 }
 const db = await PGlite.create();
-const snapshot = await db.dumpDataDir("gzip");
+const snapshot = await db.dumpDataDir("none");
 await db.close();
 const temporary = `${target}.${String(process.pid)}.tmp`;
 await writeFile(temporary, new Uint8Array(await snapshot.arrayBuffer()));

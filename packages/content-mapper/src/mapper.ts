@@ -104,7 +104,8 @@ function holdsNoQueries(project: Project, file: string): boolean {
 
 async function load(schemaText: string, schemaPath: string): Promise<Loaded> {
   try {
-    return { session: await openQuerySession(schemaText) };
+    // Each tsc run starts a new content mapper, so an unchanged schema is restored, not rerun.
+    return { session: await openQuerySession(schemaText, { cache: true }) };
   } catch (error) {
     if (!(error instanceof SchemaError)) {
       throw error;
