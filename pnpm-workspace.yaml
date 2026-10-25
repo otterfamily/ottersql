@@ -24,6 +24,7 @@ catalog:
   simple-git-hooks: ^2.14.0
   std-env: ^4.3.0
   typescript: 7.1.0-beta
+  vite: ^8.3.5
   vitest: ^5.0.5
   vscode-jsonrpc: ^10.0.0
 

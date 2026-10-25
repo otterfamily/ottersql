@@ -3,7 +3,11 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vitest/config";
 import type { ViteUserConfig } from "vitest/config";
 
+import { ottersql } from "./src/vite.ts";
+
 const config: ViteUserConfig = defineConfig({
+  // The plugin's tests import .sql files through it.
+  plugins: [ottersql()],
   test: {
     // Tests start PGlite or reach the Postgres container, which takes seconds on a busy machine.
     testTimeout: 30_000,

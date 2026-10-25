@@ -97,6 +97,11 @@ describe("the packages as npm installs them", () => {
     });
   });
 
+  test("give the Vite plugin", async ({ project }) => {
+    const args = ["--eval", 'console.log(typeof (await import("@ottersql/sql/vite")).ottersql)'];
+    await expect(succeeded("node", args, project)).resolves.toBe("function\n");
+  });
+
   test("run .sql imports through the register hook", async ({ project }) => {
     const args = ["--import", "@ottersql/sql/register", "app.ts"];
     await expect(succeeded("node", args, project)).resolves.toContain("author: 'Otter'");

@@ -20,7 +20,8 @@
     "./pg": "./src/pg.ts",
     "./pglite": "./src/pglite.ts",
     "./register": "./src/register.ts",
-    "./tooling": "./src/tooling.ts"
+    "./tooling": "./src/tooling.ts",
+    "./vite": "./src/vite.ts"
   },
   "publishConfig": {
     "imports": {
@@ -31,7 +32,8 @@
       "./pg": "./dist/pg.js",
       "./pglite": "./dist/pglite.js",
       "./register": "./dist/register.js",
-      "./tooling": "./dist/tooling.js"
+      "./tooling": "./dist/tooling.js",
+      "./vite": "./dist/vite.js"
     }
   },
   "scripts": {
@@ -48,6 +50,7 @@
     "@types/pg": "catalog:",
     "pg": "catalog:",
     "typescript": "catalog:",
+    "vite": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
