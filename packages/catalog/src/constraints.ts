@@ -1,20 +1,28 @@
+import { array, boolean, fields, nullable, string } from "./catalog-json.ts";
+import type { Field, Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
 import { columnNames } from "./columns.ts";
-import { constraintStateFields, parseDeferral, parseEnforcement } from "./constraint-state.ts";
+import {
+  constraintState,
+  constraintStateFields,
+  parseDeferral,
+  parseEnforcement,
+} from "./constraint-state.ts";
 import type { ConstraintStateRow } from "./constraint-state.ts";
+import type { CatalogFeatures } from "./features.ts";
 import type { ForeignKey, Table } from "./model.ts";
 
 /**
  * Selects the primary key, unique constraints and foreign keys of the table `relationOid` as the
  * columns `parseKeys` reads. Its aliases start with `key_` so they cannot shadow the caller's.
  */
-export function keysJson(relationOid: string): string {
+export function keysJson(relationOid: string, features: CatalogFeatures): string {
   const indexed = `
     'name', key_con.conname,
     'columns', ${columnNames("key_con.conrelid", "key_con.conkey")},
     'include', ${columnNames("key_index.indrelid", "(key_index.indkey::int2[])[key_index.indnkeyatts : key_index.indnatts - 1]")},
     'nullsNotDistinct', key_index.indnullsnotdistinct,
-    ${constraintStateFields("key_con")}`;
+    ${constraintStateFields("key_con", features)}`;
   const indexedOf = (contype: string): string => `
     from pg_constraint key_con join pg_index key_index on key_index.indexrelid = key_con.conindid
     where key_con.conrelid = ${relationOid} and key_con.contype = '${contype}'`;
@@ -33,7 +41,7 @@ export function keysJson(relationOid: string): string {
         'match', key_con.confmatchtype,
         'onUpdate', key_con.confupdtype,
         'onDelete', key_con.confdeltype,
-        ${constraintStateFields("key_con")}
+        ${constraintStateFields("key_con", features)}
       ) order by key_con.conname)
       from pg_constraint key_con
       join pg_class key_ref on key_ref.oid = key_con.confrelid
@@ -64,6 +72,41 @@ interface ForeignKeyRow extends ConstraintStateRow {
   readonly match: string;
   readonly onUpdate: string;
   readonly onDelete: string;
+}
+
+const indexedKeyRow: Shape<IndexedKeyRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    ...constraintState(field),
+    name: field("name", string),
+    columns: field("columns", array(string)),
+    include: field("include", array(string)),
+    nullsNotDistinct: field("nullsNotDistinct", boolean),
+  };
+};
+
+const foreignKeyRow: Shape<ForeignKeyRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    ...constraintState(field),
+    name: field("name", string),
+    columns: field("columns", array(string)),
+    referencedSchema: field("referencedSchema", string),
+    referencedTable: field("referencedTable", string),
+    referencedColumns: field("referencedColumns", array(string)),
+    match: field("match", string),
+    onUpdate: field("onUpdate", string),
+    onDelete: field("onDelete", string),
+  };
+};
+
+/** Reads the key columns `keysJson` selects, from a row read with `field`. */
+export function keyRows(field: Field): KeyRows {
+  return {
+    primaryKey: field("primaryKey", nullable(indexedKeyRow)),
+    uniqueConstraints: field("uniqueConstraints", array(indexedKeyRow)),
+    foreignKeys: field("foreignKeys", array(foreignKeyRow)),
+  };
 }
 
 export function parseKeys(

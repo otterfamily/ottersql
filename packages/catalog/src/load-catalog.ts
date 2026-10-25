@@ -1,4 +1,5 @@
 import type { PGlite } from "@electric-sql/pglite";
+import { pgliteConnection } from "@ottersql/sql/pglite";
 
 import { freshDatabase } from "./fresh-database.ts";
 import type { Catalog } from "./model.ts";
@@ -25,11 +26,12 @@ export async function openSchema(schemaSql: string): Promise<OpenSchema> {
     await database.exec(schemaSql).catch((error: unknown) => {
       throw schemaError(error, schemaSql) ?? error;
     });
-    const catalog = await readCatalog(database);
+    const connection = pgliteConnection(database);
+    const catalog = await readCatalog(connection);
     return {
       catalog,
       database,
-      readCatalog: async () => readCatalog(database),
+      readCatalog: async () => readCatalog(connection),
       close: async () => database.close(),
     };
   } catch (error) {

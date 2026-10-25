@@ -1,15 +1,18 @@
+import { array, fields, string } from "./catalog-json.ts";
+import type { Shape } from "./catalog-json.ts";
 import { columnNames } from "./columns.ts";
-import { constraintStateFields, parseEnforcement } from "./constraint-state.ts";
+import { constraintState, constraintStateFields, parseEnforcement } from "./constraint-state.ts";
 import type { ConstraintStateRow } from "./constraint-state.ts";
+import type { CatalogFeatures } from "./features.ts";
 import type { Check, DomainCheck } from "./model.ts";
 
 /**
  * Selects the fields `parseCheckBase` reads from the `pg_constraint` row `alias`, whose expression
  * is printed against `relationOid` (`0` for a domain).
  */
-function checkFields(alias: string, relationOid: string): string {
+function checkFields(alias: string, relationOid: string, features: CatalogFeatures): string {
   return `'name', ${alias}.conname, 'expression', pg_get_expr(${alias}.conbin, ${relationOid}),
-    ${constraintStateFields(alias)}`;
+    ${constraintStateFields(alias, features)}`;
 }
 
 export interface CheckBaseRow extends ConstraintStateRow {
@@ -21,10 +24,10 @@ export interface CheckBaseRow extends ConstraintStateRow {
  * Selects the check constraints of the table `relationOid` as `parseTableCheck` reads them. Its
  * aliases start with `check_` so they cannot shadow the caller's.
  */
-export function checksJson(relationOid: string): string {
+export function checksJson(relationOid: string, features: CatalogFeatures): string {
   return `coalesce((
     select json_agg(json_build_object(
-      ${checkFields("check_con", "check_con.conrelid")},
+      ${checkFields("check_con", "check_con.conrelid", features)},
       'columns', check_columns.names,
       'quotedColumns', array(select quote_ident(check_name) from unnest(check_columns.names) as check_name)
     ) order by check_con.conname)
@@ -40,9 +43,9 @@ export function checksJson(relationOid: string): string {
  * Selects the check constraints of the domain `typeOid` as `parseDomainCheck` reads them. Its
  * aliases start with `check_` so they cannot shadow the caller's.
  */
-export function domainChecksJson(typeOid: string): string {
+export function domainChecksJson(typeOid: string, features: CatalogFeatures): string {
   return `coalesce((
-    select json_agg(json_build_object(${checkFields("check_con", "0")}) order by check_con.conname)
+    select json_agg(json_build_object(${checkFields("check_con", "0", features)}) order by check_con.conname)
     from pg_constraint check_con
     where check_con.contypid = ${typeOid} and check_con.contype = 'c'
   ), '[]')`;
@@ -52,6 +55,24 @@ export interface TableCheckRow extends CheckBaseRow {
   readonly columns: readonly string[];
   readonly quotedColumns: readonly string[];
 }
+
+export const checkBaseRow: Shape<CheckBaseRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    ...constraintState(field),
+    name: field("name", string),
+    expression: field("expression", string),
+  };
+};
+
+export const tableCheckRow: Shape<TableCheckRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    ...checkBaseRow(value, path),
+    columns: field("columns", array(string)),
+    quotedColumns: field("quotedColumns", array(string)),
+  };
+};
 
 export function parseTableCheck(row: TableCheckRow): Check {
   const [column, ...others] = row.columns;

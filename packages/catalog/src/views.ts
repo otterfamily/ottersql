@@ -1,6 +1,8 @@
-import type { PGlite } from "@electric-sql/pglite";
+import type { Connection } from "@ottersql/sql";
 
-import { columnsJson, parseColumnBase } from "./columns.ts";
+import { array, boolean, fields, nullable, queryRows, string } from "./catalog-json.ts";
+import type { Shape } from "./catalog-json.ts";
+import { columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
 import type { ColumnBaseRow } from "./columns.ts";
 import { parseComment } from "./comments.ts";
 import type { View } from "./model.ts";
@@ -14,15 +16,28 @@ interface ViewRow {
   readonly comment: string | null;
 }
 
-export async function readViews(db: PGlite): Promise<View[]> {
-  const { rows } = await db.query<ViewRow>(`
-    select n.nspname as schema, c.relname as name, c.relkind = 'm' as materialized,
-      ${columnsJson("c.oid")} as columns,
-      obj_description(c.oid, 'pg_class') as comment
-    from pg_class c join pg_namespace n on n.oid = c.relnamespace
-    where c.relkind in ('v', 'm') and ${userObject("pg_class", "c.oid", "c.relnamespace")}
-    order by n.nspname, c.relname
-  `);
+const viewRow: Shape<ViewRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    schema: field("schema", string),
+    name: field("name", string),
+    materialized: field("materialized", boolean),
+    columns: field("columns", array(columnBaseRow)),
+    comment: field("comment", nullable(string)),
+  };
+};
+
+export async function readViews(connection: Connection): Promise<View[]> {
+  const rows = await queryRows(connection, {
+    select: `select n.nspname as schema, c.relname as name, c.relkind = 'm' as materialized,
+        ${columnsJson("c.oid")} as columns,
+        obj_description(c.oid, 'pg_class') as comment
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+      where c.relkind in ('v', 'm') and ${userObject("pg_class", "c.oid", "c.relnamespace")}`,
+    orderBy: "rows.schema, rows.name",
+    row: viewRow,
+    label: "views",
+  });
   return rows.map((row) => ({
     schema: row.schema,
     name: row.name,

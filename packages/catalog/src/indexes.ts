@@ -1,3 +1,5 @@
+import { array, boolean, fields, nullable, string } from "./catalog-json.ts";
+import type { Shape } from "./catalog-json.ts";
 import { columnNames } from "./columns.ts";
 import type { Index, IndexKey, QualifiedName } from "./model.ts";
 
@@ -70,6 +72,36 @@ interface IndexKeyRow {
   readonly operatorClass: QualifiedName | null;
   readonly collation: QualifiedName | null;
 }
+
+const qualifiedName: Shape<QualifiedName> = (value, path) => {
+  const field = fields(value, path);
+  return { schema: field("schema", string), name: field("name", string) };
+};
+
+const indexKeyRow: Shape<IndexKeyRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    column: field("column", nullable(string)),
+    definition: field("definition", string),
+    descending: field("descending", boolean),
+    nullsFirst: field("nullsFirst", boolean),
+    operatorClass: field("operatorClass", nullable(qualifiedName)),
+    collation: field("collation", nullable(qualifiedName)),
+  };
+};
+
+export const indexRow: Shape<IndexRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    name: field("name", string),
+    method: field("method", string),
+    unique: field("unique", boolean),
+    nullsNotDistinct: field("nullsNotDistinct", boolean),
+    keys: field("keys", array(indexKeyRow)),
+    include: field("include", array(string)),
+    predicate: field("predicate", nullable(string)),
+  };
+};
 
 export function parseIndex(row: IndexRow): Index {
   return {

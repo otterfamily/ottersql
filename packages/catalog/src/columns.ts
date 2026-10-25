@@ -1,6 +1,8 @@
+import { fields, nullable, string } from "./catalog-json.ts";
+import type { Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
 import type { ViewColumn } from "./model.ts";
-import { parseTypeRef, typeRefJson } from "./type-ref.ts";
+import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 
 /**
@@ -43,6 +45,16 @@ export interface ColumnBaseRow {
   readonly typeSql: string;
   readonly comment: string | null;
 }
+
+export const columnBaseRow: Shape<ColumnBaseRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    name: field("name", string),
+    type: field("type", typeRow),
+    typeSql: field("typeSql", string),
+    comment: field("comment", nullable(string)),
+  };
+};
 
 export function parseColumnBase(row: ColumnBaseRow): ViewColumn {
   return {

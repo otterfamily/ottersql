@@ -1,3 +1,4 @@
+import { pgliteConnection } from "@ottersql/sql/pglite";
 import { describe, expect, test } from "vitest";
 
 import { openSchema, readRelations, readTypeRefs } from "./index.ts";
@@ -26,8 +27,9 @@ describe("lookups by oid", () => {
     `);
     try {
       const oids = await oidsOf(schema);
-      const types = await readTypeRefs(schema.database, [oids.int8, oids.moods]);
-      const relations = await readRelations(schema.database, [oids.table]);
+      const connection = pgliteConnection(schema.database);
+      const types = await readTypeRefs(connection, [oids.int8, oids.moods]);
+      const relations = await readRelations(connection, [oids.table]);
       expect({
         types: [types.get(oids.int8), types.get(oids.moods)],
         relation: relations.get(oids.table),

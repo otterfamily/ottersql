@@ -1,3 +1,5 @@
+import { fields, nullable, string } from "./catalog-json.ts";
+import type { Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
 import type { NamedTypeRef, TypeRef } from "./model.ts";
 
@@ -28,6 +30,20 @@ export interface TypeRow {
   readonly name: string;
   readonly element: Omit<TypeRow, "element"> | null;
 }
+
+const namedTypeRow: Shape<Omit<TypeRow, "element">> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    typtype: field("typtype", string),
+    schema: field("schema", string),
+    name: field("name", string),
+  };
+};
+
+export const typeRow: Shape<TypeRow> = (value, path) => ({
+  ...namedTypeRow(value, path),
+  element: fields(value, path)("element", nullable(namedTypeRow)),
+});
 
 export function parseTypeRef(row: TypeRow): TypeRef {
   if (row.element !== null) {

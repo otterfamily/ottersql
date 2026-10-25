@@ -1,10 +1,12 @@
-import type { PGlite } from "@electric-sql/pglite";
+import type { Connection } from "@ottersql/sql";
 
+import { array, boolean, fields, nullable, number, queryRows, string } from "./catalog-json.ts";
+import type { Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
 import { parseComment } from "./comments.ts";
 import type { Routine, RoutineArgument, RoutineResult } from "./model.ts";
 import { userObject } from "./scope.ts";
-import { parseTypeRef, typeRefJson } from "./type-ref.ts";
+import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 
 interface RoutineRow {
@@ -27,31 +29,60 @@ interface ParameterRow {
   readonly typeSql: string;
 }
 
-export async function readRoutines(db: PGlite): Promise<Routine[]> {
-  const { rows } = await db.query<RoutineRow>(`
-    select n.nspname as schema, p.proname as name, p.prokind as kind,
-      p.provolatile as volatility, p.proretset as "setOf",
-      ${typeRefJson("p.prorettype")} as "resultType",
-      format_type(p.prorettype, null) as "resultTypeSql",
-      p.pronargdefaults as defaults,
-      coalesce((
-        select json_agg(json_build_object(
-          'name', nullif(param.name, ''),
-          'mode', coalesce(param.mode, 'i'),
-          'type', ${typeRefJson("param.type")},
-          'typeSql', format_type(param.type, null)
-        ) order by param.pos)
-        from unnest(
-          coalesce(p.proallargtypes, p.proargtypes::oid[]),
-          p.proargmodes,
-          p.proargnames
-        ) with ordinality as param(type, mode, name, pos)
-      ), '[]') as parameters,
-      obj_description(p.oid, 'pg_proc') as comment
-    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-    where ${userObject("pg_proc", "p.oid", "p.pronamespace")}
-    order by n.nspname, p.proname, pg_get_function_identity_arguments(p.oid)
-  `);
+const parameterRow: Shape<ParameterRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    name: field("name", nullable(string)),
+    mode: field("mode", string),
+    type: field("type", typeRow),
+    typeSql: field("typeSql", string),
+  };
+};
+
+const routineRow: Shape<RoutineRow> = (value, path) => {
+  const field = fields(value, path);
+  return {
+    schema: field("schema", string),
+    name: field("name", string),
+    kind: field("kind", string),
+    volatility: field("volatility", string),
+    setOf: field("setOf", boolean),
+    resultType: field("resultType", typeRow),
+    resultTypeSql: field("resultTypeSql", string),
+    defaults: field("defaults", number),
+    parameters: field("parameters", array(parameterRow)),
+    comment: field("comment", nullable(string)),
+  };
+};
+
+export async function readRoutines(connection: Connection): Promise<Routine[]> {
+  const rows = await queryRows(connection, {
+    select: `select n.nspname as schema, p.proname as name, p.prokind as kind,
+        p.provolatile as volatility, p.proretset as "setOf",
+        ${typeRefJson("p.prorettype")} as "resultType",
+        format_type(p.prorettype, null) as "resultTypeSql",
+        p.pronargdefaults as defaults,
+        coalesce((
+          select json_agg(json_build_object(
+            'name', nullif(param.name, ''),
+            'mode', coalesce(param.mode, 'i'),
+            'type', ${typeRefJson("param.type")},
+            'typeSql', format_type(param.type, null)
+          ) order by param.pos)
+          from unnest(
+            coalesce(p.proallargtypes, p.proargtypes::oid[]),
+            p.proargmodes,
+            p.proargnames
+          ) with ordinality as param(type, mode, name, pos)
+        ), '[]') as parameters,
+        obj_description(p.oid, 'pg_proc') as comment,
+        pg_get_function_identity_arguments(p.oid) as "identityArguments"
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+      where ${userObject("pg_proc", "p.oid", "p.pronamespace")}`,
+    orderBy: 'rows.schema, rows.name, rows."identityArguments"',
+    row: routineRow,
+    label: "routines",
+  });
   return rows.map((row) => parseRoutine(row));
 }
 

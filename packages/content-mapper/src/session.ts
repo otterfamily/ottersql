@@ -2,7 +2,8 @@ import type { PGlite } from "@electric-sql/pglite";
 import { findTable, openSchema, readRelations, readTypeRefs } from "@ottersql/catalog";
 import type { Catalog, Relation, TypeRef } from "@ottersql/catalog";
 import { fileOffset, offsetOfPosition, readQueryFile } from "@ottersql/sql";
-import type { Query, Span } from "@ottersql/sql";
+import type { Connection, Query, Span } from "@ottersql/sql";
+import { pgliteConnection } from "@ottersql/sql/pglite";
 
 import { readBuiltInFacts } from "./built-in-functions.ts";
 import type { BuiltInFacts } from "./built-in-functions.ts";
@@ -64,6 +65,8 @@ interface DescribedStatement {
 
 interface Context {
   readonly db: PGlite;
+  /** The same database as `db`, for the catalog lookups that read it as any driver would. */
+  readonly connection: Connection;
   readonly catalog: Catalog;
   readonly builtIns: BuiltInFacts;
   /**
@@ -96,6 +99,7 @@ export async function openQuerySession(schemaSql: string): Promise<QuerySession>
   );
   const context: Context = {
     db,
+    connection: pgliteConnection(db),
     catalog: schema.catalog,
     builtIns: await readBuiltInFacts(db),
     statements: new Map(),
@@ -145,14 +149,14 @@ async function analyze(
   const types = await cached(
     context.types,
     [...parameterTypes, ...fields.map((column) => column.dataTypeID)],
-    async (oids) => readTypeRefs(context.db, oids),
+    async (oids) => readTypeRefs(context.connection, oids),
   );
   // A computed column reports table oid 0, which no lookup can find.
   const tableOids = fields.map((column) => column.tableID).filter((oid) => oid !== 0);
   const relations = await cached(
     context.relations,
     [...tableOids, ...relationOids(tree)],
-    async (oids) => readRelations(context.db, oids),
+    async (oids) => readRelations(context.connection, oids),
   );
   const nullable =
     tree === null
