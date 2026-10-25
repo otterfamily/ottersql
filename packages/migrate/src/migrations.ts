@@ -18,14 +18,13 @@ export function inOrder(files: readonly MigrationFile[]): MigrationFile[] {
 
 /** The schema `files` build when run in order on an empty database, replayed in PGlite. */
 async function replayedCatalog(files: readonly MigrationFile[]): Promise<Catalog> {
-  const schema = await openSchema("");
+  const statements = inOrder(files).flatMap((file) =>
+    readMigration(file).flatMap((step) => step.statements),
+  );
+  const schema = await openSchema("", { alsoRuns: statements });
   try {
-    for (const file of inOrder(files)) {
-      for (const step of readMigration(file)) {
-        for (const sql of step.statements) {
-          await schema.database.exec(sql);
-        }
-      }
+    for (const sql of statements) {
+      await schema.run(sql);
     }
     return await schema.readCatalog();
   } finally {

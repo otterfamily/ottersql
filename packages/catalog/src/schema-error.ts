@@ -30,8 +30,11 @@ export class SchemaError extends Error {
   }
 }
 
-/** Turns what PGlite threw while running `schemaSql` into a `SchemaError`, or `null` if it is not a database error. */
-export function schemaError(error: unknown, schemaSql: string): SchemaError | null {
+/**
+ * Turns what PGlite threw while running `schemaSql` into a `SchemaError`, with `note` after its
+ * message, or `null` if it is not a database error.
+ */
+export function schemaError(error: unknown, schemaSql: string, note = ""): SchemaError | null {
   if (!(error instanceof Error) || !("code" in error) || typeof error.code !== "string") {
     return null;
   }
@@ -39,5 +42,5 @@ export function schemaError(error: unknown, schemaSql: string): SchemaError | nu
     "position" in error && typeof error.position === "string" ? Number(error.position) : null;
   const position =
     offset === null ? null : lineAndColumn(schemaSql, offsetOfPosition(schemaSql, offset));
-  return new SchemaError(error.message, { code: error.code, position, cause: error });
+  return new SchemaError(`${error.message}${note}`, { code: error.code, position, cause: error });
 }

@@ -1,5 +1,6 @@
 import { PGlite } from "@electric-sql/pglite";
 
+import { shippedExtensions } from "./extensions.ts";
 import { cachedEmptySnapshot } from "./snapshot-cache.ts";
 
 let emptyDataDir: Promise<Blob> | null = null;
@@ -17,10 +18,15 @@ const startParams = [
 
 /**
  * An empty in-process Postgres, restored from a snapshot of a freshly initialised database, because
- * initialising a database takes most of PGlite's startup time and memory.
+ * initialising a database takes most of PGlite's startup time and memory, with the `extensions` it
+ * ships loaded for `CREATE EXTENSION`.
  */
-export async function freshDatabase(): Promise<PGlite> {
-  return PGlite.create({ loadDataDir: await emptySnapshot(), startParams });
+export async function freshDatabase(extensions: readonly string[]): Promise<PGlite> {
+  return PGlite.create({
+    loadDataDir: await emptySnapshot(),
+    startParams,
+    extensions: await shippedExtensions(extensions),
+  });
 }
 
 /** A failed snapshot is forgotten, so the next load tries again instead of failing for good. */

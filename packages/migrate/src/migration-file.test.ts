@@ -195,4 +195,19 @@ describe("migration files", () => {
       line: 2,
     });
   });
+
+  test("may create extensions, which replaying them in PGlite loads", async () => {
+    const file = {
+      name: "20261025000000_emails.sql",
+      text: [
+        '-- ottersql:step kind=custom object="public.citext" phase=expand reversal=reversible lock="none"',
+        "create extension citext;",
+        '-- ottersql:step kind=createTable object="public.users" phase=expand reversal=lossy transaction=inside lock="none"',
+        "create table users (email citext);",
+      ].join("\n"),
+    };
+    await expect(
+      pendingChanges([file], "create extension citext; create table users (email citext);"),
+    ).resolves.toStrictEqual({ steps: [], manual: [] });
+  });
 });
