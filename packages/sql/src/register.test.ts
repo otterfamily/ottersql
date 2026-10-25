@@ -49,7 +49,7 @@ describe("importing .sql files in Node", () => {
       app,
     );
     expect(result).toStrictEqual({ stdout: '{"sum":3,"a":1}\n', stderr: "", code: 0 });
-  }, 30_000);
+  });
 
   test("exports a query whose name the generated module itself uses", async () => {
     const result = await runApp(
@@ -60,7 +60,7 @@ describe("importing .sql files in Node", () => {
       ),
     );
     expect(result).toStrictEqual({ stdout: '{"sum":3} function\n', stderr: "", code: 0 });
-  }, 30_000);
+  });
 
   test("fails to import a file with problems, naming where each one is", async () => {
     const result = await runApp("-- @name add\nselect $1 as sum", app);
@@ -71,5 +71,5 @@ describe("importing .sql files in Node", () => {
       code: 1,
       problem: "queries.sql:2:8 Use :name parameters instead of $1",
     });
-  }, 30_000);
+  });
 });

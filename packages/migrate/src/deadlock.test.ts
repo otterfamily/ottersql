@@ -57,5 +57,5 @@ describe("applyMigrations on Postgres", () => {
     } finally {
       await Promise.all([migrator.end(), writer.end()]);
     }
-  }, 30_000);
+  });
 });

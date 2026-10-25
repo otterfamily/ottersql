@@ -35,7 +35,7 @@ describe("applyMigrations building indexes concurrently", () => {
     } finally {
       await Promise.all([first.end(), second.end()]);
     }
-  }, 30_000);
+  });
 
   test("waits as long as it takes for a concurrent index build, which blocks no one meanwhile", async () => {
     const url = await postgresDatabase(`${users}; create table logs (id int8)`);
@@ -70,7 +70,7 @@ describe("applyMigrations building indexes concurrently", () => {
     } finally {
       await Promise.all([migrator.end(), holder.end(), writer.end()]);
     }
-  }, 30_000);
+  });
 
   test("keeps an index a run built but did not record, and records the step", async () => {
     const url = await postgresDatabase(`${users}; create index users_email on users (email)`);
@@ -96,7 +96,7 @@ describe("applyMigrations building indexes concurrently", () => {
     } finally {
       await client.end();
     }
-  }, 30_000);
+  });
 
   test("rebuilds an index a failed concurrent build left invalid", async () => {
     const url = await postgresDatabase(`${users}; insert into users values (1, 'a'), (2, 'a')`);
@@ -121,5 +121,5 @@ describe("applyMigrations building indexes concurrently", () => {
     } finally {
       await client.end();
     }
-  }, 30_000);
+  });
 });

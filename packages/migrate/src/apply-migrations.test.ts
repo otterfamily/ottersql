@@ -201,7 +201,7 @@ describe("applyMigrations on Postgres", () => {
     } finally {
       await Promise.all([migrator.end(), holder.end(), reader.end()]);
     }
-  }, 30_000);
+  });
 
   test("stops at a step that fails, and resumes there once the data is fixed", async () => {
     const url = await postgresDatabase(`${users}; insert into users values (1, null)`);
@@ -231,5 +231,5 @@ describe("applyMigrations on Postgres", () => {
     } finally {
       await client.end();
     }
-  }, 30_000);
+  });
 });
