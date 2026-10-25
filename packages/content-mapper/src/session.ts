@@ -1,9 +1,10 @@
 import type { PGlite } from "@electric-sql/pglite";
 import { findTable, openSchema, readRelations, readTypeRefs } from "@ottersql/catalog";
 import type { Catalog, Relation, TypeRef } from "@ottersql/catalog";
-import { fileOffset, offsetOfPosition, readQueryFile } from "@ottersql/sql";
-import type { Connection, Query, Span } from "@ottersql/sql";
+import type { Connection } from "@ottersql/sql";
 import { pgliteConnection } from "@ottersql/sql/pglite";
+import { fileOffset, offsetOfPosition, readQueryFile } from "@ottersql/sql/tooling";
+import type { Query, Span } from "@ottersql/sql/tooling";
 
 import { readBuiltInFacts } from "./built-in-functions.ts";
 import type { BuiltInFacts } from "./built-in-functions.ts";

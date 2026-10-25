@@ -1,6 +1,6 @@
 import { findDomain, findEnum, findRange } from "@ottersql/catalog";
 import type { Catalog, NamedTypeRef, TypeRef } from "@ottersql/catalog";
-import { baseCodecs, rangeSubtypes } from "@ottersql/sql";
+import { baseCodecs, rangeSubtypes } from "@ottersql/sql/tooling";
 
 /** Types the rendered module imports from `@ottersql/sql` when it uses them. */
 export type SqlTypeImport = "Interval" | "Json" | "Range";

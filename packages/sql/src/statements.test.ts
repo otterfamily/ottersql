@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { lineComments, splitStatements } from "./index.ts";
+import { lineComments, splitStatements } from "./tooling.ts";
 
 describe("splitStatements", () => {
   test("splits at semicolons outside strings, quoted names, dollar quotes and comments, saying where each starts", () => {

@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest";
 
-import { fileOffset, readQueryFile } from "./index.ts";
-import type { Query } from "./index.ts";
+import { fileOffset, readQueryFile } from "./tooling.ts";
+import type { Query } from "./tooling.ts";
 
 function onlyQuery(content: string): Query {
   const file = readQueryFile(content);

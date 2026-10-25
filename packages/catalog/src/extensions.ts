@@ -1,5 +1,5 @@
 import type { Extension } from "@electric-sql/pglite";
-import { splitStatements } from "@ottersql/sql";
+import { splitStatements } from "@ottersql/sql/tooling";
 
 /** A `CREATE EXTENSION` statement of the SQL ottersql runs in PGlite. */
 interface CreatedExtension {

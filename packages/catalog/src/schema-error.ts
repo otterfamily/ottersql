@@ -1,4 +1,4 @@
-import { lineAndColumn, offsetOfPosition } from "@ottersql/sql";
+import { lineAndColumn, offsetOfPosition } from "@ottersql/sql/tooling";
 
 /** Where in `schema.sql` Postgres reported an error, as `lineAndColumn` counts it. */
 export interface SchemaPosition {

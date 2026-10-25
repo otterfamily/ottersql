@@ -1,7 +1,7 @@
 import { findDomain, findTable, sameType } from "@ottersql/catalog";
 import type { Catalog, Column, Table, TypeRef } from "@ottersql/catalog";
-import { columnNamesProblem, isIdentifier } from "@ottersql/sql";
-import type { Span } from "@ottersql/sql";
+import { columnNamesProblem, isIdentifier } from "@ottersql/sql/tooling";
+import type { Span } from "@ottersql/sql/tooling";
 
 import type { DescribedColumn, DescribedFile, DescribedQuery, Problem } from "./session.ts";
 import { literalUnion, nullable, tsType } from "./typescript-types.ts";

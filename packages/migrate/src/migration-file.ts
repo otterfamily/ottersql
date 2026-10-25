@@ -1,5 +1,5 @@
-import { lineComments, splitStatements } from "@ottersql/sql";
-import type { Located } from "@ottersql/sql";
+import { lineComments, splitStatements } from "@ottersql/sql/tooling";
+import type { Located } from "@ottersql/sql/tooling";
 
 import { isMigrationFileName, migrationNameRule } from "./migration-name.ts";
 import type { MigrationFile } from "./migrations.ts";

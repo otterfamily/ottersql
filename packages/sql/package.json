@@ -8,7 +8,8 @@
     ".": "./src/index.ts",
     "./pg": "./src/pg.ts",
     "./pglite": "./src/pglite.ts",
-    "./register": "./src/register.ts"
+    "./register": "./src/register.ts",
+    "./tooling": "./src/tooling.ts"
   },
   "scripts": {
     "typecheck": "tsc -p .",

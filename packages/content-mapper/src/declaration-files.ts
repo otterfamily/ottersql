@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { basename, dirname, join } from "node:path";
 
-import { lineAndColumn } from "@ottersql/sql";
+import { lineAndColumn } from "@ottersql/sql/tooling";
 
 import { openQuerySession } from "./session.ts";
 import type { QuerySession } from "./session.ts";
