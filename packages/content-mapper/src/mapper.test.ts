@@ -76,7 +76,10 @@ describe("content mapper protocol", () => {
     }
   });
 
-  test("maps the schema file itself to an empty module", async () => {
+  test.for([
+    { label: "the schema file itself", file: "schema.sql" },
+    { label: "a migration next to it", file: join("migrations", "20261025000000_init.sql") },
+  ])("maps $label to an empty module, since it holds no queries", async ({ file }) => {
     const root = await mkdtemp(join(tmpdir(), "ottersql-mapper-"));
     const mapper = createMapper();
     try {
@@ -86,8 +89,8 @@ describe("content mapper protocol", () => {
         projectHandle: "p",
         configFileName: join(root, "tsconfig.json"),
       });
-      const schema = await transform(mapper, schemaPath, "create table t (id int);");
-      expect(schema).toStrictEqual({
+      const mapped = await transform(mapper, join(root, "db", file), "create table t (id int);");
+      expect(mapped).toStrictEqual({
         text: "export {};\n",
         extension: ".ts",
         mappings: [],

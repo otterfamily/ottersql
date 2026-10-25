@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import { SchemaError } from "@ottersql/catalog";
 import { ErrorCodes, ResponseError } from "vscode-jsonrpc/node";
@@ -18,6 +18,11 @@ interface Project {
 /** Where a project keeps its schema when its tsconfig gives no `schema` option, relative to the tsconfig. */
 export const defaultSchemaPath = "db/schema.sql";
 
+/** Where a project keeps its migrations: the `migrations` directory next to its schema (#27). */
+export function migrationsDirectory(schemaPath: string): string {
+  return join(dirname(schemaPath), "migrations");
+}
+
 /** Answers one request of TypeScript's content mapper protocol. */
 export type Handler = (method: string, params: unknown) => Promise<unknown>;
 
@@ -25,8 +30,8 @@ type Loaded = { readonly session: QuerySession } | { readonly error: string };
 
 /**
  * TypeScript's content mapper protocol for `.sql` files. A project names its schema with the
- * `schema` option (default `defaultSchemaPath`, relative to the tsconfig); that file maps to an empty
- * module, and every other `.sql` file is typed against it. Sessions are shared by every project
+ * `schema` option (default `defaultSchemaPath`, relative to the tsconfig); that file and the
+ * migrations next to it map to empty modules, and every other `.sql` file is typed against it. Sessions are shared by every project
  * with the same schema text and replaced when it changes.
  */
 export function createMapper(): Handler {
@@ -81,7 +86,7 @@ async function openProject(state: State, params: unknown): Promise<object> {
 async function transform(state: State, params: unknown): Promise<object> {
   const { projectHandle, fileName, content } = transformParams(params);
   const project = state.projects.get(projectHandle);
-  if (project !== undefined && resolve(fileName) === project.schemaPath) {
+  if (project !== undefined && holdsNoQueries(project, resolve(fileName))) {
     return transformed({ text: "export {};\n", mappings: [], diagnostics: [] });
   }
   const loaded = await (project === undefined ? undefined : state.sessions.get(project.schemaHash));
@@ -91,6 +96,10 @@ async function transform(state: State, params: unknown): Promise<object> {
   return transformed(
     "session" in loaded ? await loaded.session.renderFile(content) : schemaFailure(loaded.error),
   );
+}
+
+function holdsNoQueries(project: Project, file: string): boolean {
+  return file === project.schemaPath || dirname(file) === migrationsDirectory(project.schemaPath);
 }
 
 async function load(schemaText: string, schemaPath: string): Promise<Loaded> {

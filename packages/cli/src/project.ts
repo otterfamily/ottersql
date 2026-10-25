@@ -1,7 +1,7 @@
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
-import { defaultSchemaPath } from "@ottersql/content-mapper";
+import { defaultSchemaPath, migrationsDirectory } from "@ottersql/content-mapper";
 import { MigrationFileError, MigrationHistoryError } from "@ottersql/migrate";
 import type { MigrationFile } from "@ottersql/migrate";
 import { parse, printParseErrorCode } from "jsonc-parser";
@@ -22,7 +22,7 @@ const TSCONFIG = "tsconfig.json";
 
 /**
  * Finds schema.sql where the tsconfig's ottersql content mapper looks for it, so editor types and
- * migrations read the same file; migrations live next to it (#27).
+ * migrations read the same file, and the migrations where the content mapper leaves them untyped.
  */
 export async function locate(cwd: string, project: Project): Promise<Layout> {
   const tsconfig = resolve(cwd, project ?? TSCONFIG);
@@ -38,7 +38,7 @@ export async function locate(cwd: string, project: Project): Promise<Layout> {
   }
   const schema = text === null ? defaultSchemaPath : schemaOption(text, relative(cwd, tsconfig));
   const schemaFile = resolve(dirname(tsconfig), schema);
-  return { cwd, schemaFile, migrationsDirectory: join(dirname(schemaFile), "migrations") };
+  return { cwd, schemaFile, migrationsDirectory: migrationsDirectory(schemaFile) };
 }
 
 function schemaOption(text: string, file: string): string {
