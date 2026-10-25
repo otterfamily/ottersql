@@ -18,9 +18,13 @@ export function inOrder(files: readonly MigrationFile[]): MigrationFile[] {
 
 /** The schema `files` build when run in order on an empty database, replayed in PGlite. */
 async function replayedCatalog(files: readonly MigrationFile[]): Promise<Catalog> {
-  const statements = inOrder(files).flatMap((file) =>
-    readMigration(file).flatMap((step) => step.statements),
+  return replay(
+    inOrder(files).flatMap((file) => readMigration(file).flatMap(({ statements }) => statements)),
   );
+}
+
+/** The schema `statements` build when run in order on an empty database, in PGlite. */
+export async function replay(statements: readonly string[]): Promise<Catalog> {
   const schema = await openSchema("", { alsoRuns: statements });
   try {
     for (const sql of statements) {

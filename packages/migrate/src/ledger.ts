@@ -53,7 +53,7 @@ async function tryLock(connection: Connection): Promise<boolean> {
   return rows[0]?.[0] === "t";
 }
 
-export async function readLedger(connection: Connection): Promise<AppliedStep[]> {
+export async function createLedger(connection: Connection): Promise<void> {
   await connection.query("create schema if not exists ottersql", []);
   await connection.query(
     `create table if not exists ${ledger} (
@@ -63,6 +63,14 @@ export async function readLedger(connection: Connection): Promise<AppliedStep[]>
     )`,
     [],
   );
+}
+
+/** The steps that ran, or none when the database never ran any; it writes nothing. */
+export async function readLedger(connection: Connection): Promise<AppliedStep[]> {
+  const exists = await connection.query(`select to_regclass('${ledger}') is not null`, []);
+  if (exists.rows[0]?.[0] !== "t") {
+    return [];
+  }
   const { rows } = await connection.query(`select migration, step, hash from ${ledger}`, []);
   return rows.map(([migration, step, hash]) => ({
     migration: migration ?? "",

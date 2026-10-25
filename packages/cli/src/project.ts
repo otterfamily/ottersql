@@ -2,7 +2,8 @@ import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { defaultSchemaPath } from "@ottersql/content-mapper";
-import type { MigrationFile, MigrationFileError } from "@ottersql/migrate";
+import { MigrationFileError, MigrationHistoryError } from "@ottersql/migrate";
+import type { MigrationFile } from "@ottersql/migrate";
 import { parse, printParseErrorCode } from "jsonc-parser";
 import type { ParseError } from "jsonc-parser";
 
@@ -128,4 +129,23 @@ export async function writeMigration(layout: Layout, name: string, text: string)
   const path = join(layout.migrationsDirectory, name);
   await writeFile(path, text, { flag: "wx" });
   return shown(layout, path);
+}
+
+/**
+ * The refusal for what reading the migrations against a database threw: a file that cannot be
+ * read, or a history that disagrees with the files; anything else is returned as it was.
+ */
+export function historyRefusal(error: unknown, layout: Layout): unknown {
+  if (error instanceof MigrationFileError) {
+    return unreadableMigration(layout, error);
+  }
+  if (error instanceof MigrationHistoryError) {
+    return new CommandError({
+      kind: "invalid",
+      code: "migrate.history_mismatch",
+      why: error.message,
+      fix: "Leave applied migrations as they are, and put new changes in a new migration",
+    });
+  }
+  return error;
 }

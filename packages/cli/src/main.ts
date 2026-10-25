@@ -6,6 +6,7 @@ import type { Context } from "./context.ts";
 import { generate } from "./generate.ts";
 import { CommandError, exitCode, toJson, toText } from "./outcome.ts";
 import type { Failure, Outcome } from "./outcome.ts";
+import { status } from "./status.ts";
 
 /** Everything the CLI reads from and writes to its process, so that tests can stand in for it. */
 export interface Io extends Context {
@@ -68,6 +69,9 @@ async function runCommand(
   }
   if (command.name === "migrate check") {
     return check(context, command);
+  }
+  if (command.name === "migrate status") {
+    return status(context, command);
   }
   return apply(context, command);
 }

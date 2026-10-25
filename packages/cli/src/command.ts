@@ -13,6 +13,7 @@ export type Command =
       readonly empty: boolean;
     }
   | { readonly name: "migrate check"; readonly project: Project }
+  | { readonly name: "migrate status"; readonly project: Project }
   | {
       readonly name: "migrate apply";
       readonly project: Project;
@@ -33,6 +34,8 @@ export const usage = `Usage: ottersql <command> [options]
 Commands:
   ottersql migrate generate <name>   Write what schema.sql adds as the next migration
   ottersql migrate check             Check that the migrations build schema.sql
+  ottersql migrate status            List the steps applied to DATABASE_URL, and changes made
+                                     there outside the migrations
   ottersql migrate apply             Apply the pending migration steps to DATABASE_URL
 
 Options:
@@ -54,7 +57,8 @@ Exit codes:
   1  Ran and failed, such as a step the database rejected
   2  Nothing ran: the arguments, the files or the migration history are wrong
   3  Nothing ran: steps that cannot be undone need a person's approval
-  4  Ran and found something to fix, such as migrations that do not build schema.sql
+  4  Ran and found something to fix, such as migrations that do not build schema.sql, or a
+     database changed outside its migrations
 `;
 
 const options = {
@@ -112,7 +116,8 @@ function commandOf(name: string, rest: readonly string[], values: Values): Comma
     case "migrate generate": {
       return { name, migration: parseMigrationName(rest), project, empty: values.empty === true };
     }
-    case "migrate check": {
+    case "migrate check":
+    case "migrate status": {
       noMore(rest);
       return { name, project };
     }

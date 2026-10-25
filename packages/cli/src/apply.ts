@@ -1,11 +1,6 @@
 import { join } from "node:path";
 
-import {
-  applyMigrations,
-  ApprovalRequiredError,
-  MigrationFileError,
-  MigrationHistoryError,
-} from "@ottersql/migrate";
+import { applyMigrations, ApprovalRequiredError } from "@ottersql/migrate";
 import type { ApplyOptions, ApplyResult } from "@ottersql/migrate";
 
 import type { Command } from "./command.ts";
@@ -13,7 +8,7 @@ import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
 import { CommandError } from "./outcome.ts";
 import type { Outcome } from "./outcome.ts";
-import { locate, readMigrations, shown, unreadableMigration } from "./project.ts";
+import { historyRefusal, locate, readMigrations, shown } from "./project.ts";
 import type { Layout } from "./project.ts";
 
 type Apply = Extract<Command, { name: "migrate apply" }>;
@@ -49,21 +44,9 @@ function applyOptions({ phase, approve }: Apply): ApplyOptions {
 
 /** The refusal `error` stands for, or `error` itself when it is not one. */
 function refusal(error: unknown, layout: Layout, agent: string | null): unknown {
-  if (error instanceof MigrationFileError) {
-    return unreadableMigration(layout, error);
-  }
-  if (error instanceof MigrationHistoryError) {
-    return new CommandError({
-      kind: "invalid",
-      code: "migrate.history_mismatch",
-      why: error.message,
-      fix: "Leave applied migrations as they are, and put new changes in a new migration",
-    });
-  }
-  if (error instanceof ApprovalRequiredError) {
-    return approvalRequired(error, agent);
-  }
-  return error;
+  return error instanceof ApprovalRequiredError
+    ? approvalRequired(error, agent)
+    : historyRefusal(error, layout);
 }
 
 function approvalRequired(

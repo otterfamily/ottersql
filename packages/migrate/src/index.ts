@@ -1,4 +1,5 @@
-export { applyMigrations, MigrationHistoryError } from "./apply-migrations.ts";
+export { applyMigrations } from "./apply-migrations.ts";
+export { MigrationHistoryError } from "./history.ts";
 export type { ApplyOptions, ApplyResult, StepRef } from "./apply-migrations.ts";
 export { ApprovalRequiredError } from "./approval.ts";
 export type { IrreversibleStep } from "./approval.ts";
@@ -13,3 +14,5 @@ export { pendingChanges } from "./migrations.ts";
 export type { MigrationFile } from "./migrations.ts";
 export { planMigration } from "./plan-migration.ts";
 export type { Lock, ManualChange, Plan, Step, StepKind } from "./plan.ts";
+export { migrationStatus } from "./status.ts";
+export type { MigrationStatus, StepStatus } from "./status.ts";
