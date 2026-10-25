@@ -10,6 +10,7 @@
   "scripts": {
     "typecheck": "tsc -p .",
     "test": "vitest run",
+    "test:postgres": "vitest run postgres.test",
     "bench": "vitest bench"
   },
   "dependencies": {

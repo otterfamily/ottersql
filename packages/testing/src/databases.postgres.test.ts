@@ -1,6 +1,6 @@
 import { Client } from "pg";
 import type { QueryResultRow } from "pg";
-import { describe, expect, test } from "vitest";
+import { describe, expect, inject, test } from "vitest";
 
 import { createPostgresDatabase, pglite, postgresDatabase } from "./index.ts";
 
@@ -29,13 +29,13 @@ describe("pglite", () => {
 });
 
 describe("postgresDatabase", () => {
-  test("applies the schema to a fresh database on real Postgres", async () => {
+  test("applies the schema to a fresh database on the Postgres major the run asked for", async () => {
     const url = await postgresDatabase(schema);
     const rows = await queryOnce<{ name: string; major: number }>(
       url,
       "select name, current_setting('server_version_num')::int / 10000 as major from users",
     );
-    expect(rows).toStrictEqual([{ name: "alice", major: 18 }]);
+    expect(rows).toStrictEqual([{ name: "alice", major: inject("postgresMajor") }]);
   });
 
   test("gives each test its own database", async () => {

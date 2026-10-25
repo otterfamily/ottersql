@@ -267,6 +267,11 @@
       "rules": { "node/no-process-env": "off" },
     },
     {
+      "files": ["packages/testing/src/global-setup.ts"],
+      // CI picks the Postgres major of a run through the environment, before any test starts.
+      "rules": { "node/no-process-env": "off" },
+    },
+    {
       "files": ["**/*.bench.ts"],
       // A benchmark measures; it has nothing to assert.
       "rules": { "vitest/expect-expect": "off" },

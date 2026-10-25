@@ -8,6 +8,8 @@ declare module "vitest" {
   export interface ProvidedContext {
     /** Set by the global setup that starts the shared Postgres container. */
     postgresAdminUrl: string;
+    /** The major version that container runs. */
+    postgresMajor: number;
   }
 }
 
