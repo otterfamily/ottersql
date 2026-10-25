@@ -21,6 +21,7 @@ catalog:
   oxlint: ^1.89.0
   oxlint-tsgolint: ^7.0.2005
   pg: ^8.23.1
+  postgres: ^3.4.9
   simple-git-hooks: ^2.14.0
   std-env: ^4.3.0
   typescript: 7.1.0-beta

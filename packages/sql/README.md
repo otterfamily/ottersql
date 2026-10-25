@@ -17,3 +17,11 @@ Each `.sql` file becomes a module that exports its queries. Load it with:
 
   export default defineConfig({ plugins: [ottersql()] });
   ```
+
+## Connections
+
+Queries run on a `Connection`, made from the driver the application already uses:
+
+- node-postgres: `pgConnection(pool)` from `@ottersql/sql/pg`
+- postgres.js: `postgresConnection(sql)` from `@ottersql/sql/postgres`
+- PGlite: `pgliteConnection(db)` from `@ottersql/sql/pglite`

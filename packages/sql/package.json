@@ -19,6 +19,7 @@
     ".": "./src/index.ts",
     "./pg": "./src/pg.ts",
     "./pglite": "./src/pglite.ts",
+    "./postgres": "./src/postgres.ts",
     "./register": {
       "bun": "./src/register-bun.ts",
       "default": "./src/register.ts"
@@ -34,6 +35,7 @@
       ".": "./dist/index.js",
       "./pg": "./dist/pg.js",
       "./pglite": "./dist/pglite.js",
+      "./postgres": "./dist/postgres.js",
       "./register": {
         "bun": "./dist/register-bun.js",
         "default": "./dist/register.js"
@@ -55,19 +57,24 @@
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "pg": "catalog:",
+    "postgres": "catalog:",
     "typescript": "catalog:",
     "vite": "catalog:",
     "vitest": "catalog:"
   },
   "peerDependencies": {
     "@electric-sql/pglite": ">=0.5",
-    "pg": ">=8"
+    "pg": ">=8",
+    "postgres": ">=3.4"
   },
   "peerDependenciesMeta": {
     "@electric-sql/pglite": {
       "optional": true
     },
     "pg": {
+      "optional": true
+    },
+    "postgres": {
       "optional": true
     }
   },
