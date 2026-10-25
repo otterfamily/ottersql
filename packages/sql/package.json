@@ -17,6 +17,7 @@
   },
   "exports": {
     ".": "./src/index.ts",
+    "./bun-sql": "./src/bun-sql.ts",
     "./esbuild": "./src/esbuild.ts",
     "./pg": "./src/pg.ts",
     "./pglite": "./src/pglite.ts",
@@ -35,6 +36,7 @@
     },
     "exports": {
       ".": "./dist/index.js",
+      "./bun-sql": "./dist/bun-sql.js",
       "./esbuild": "./dist/esbuild.js",
       "./pg": "./dist/pg.js",
       "./pglite": "./dist/pglite.js",

@@ -27,4 +27,5 @@ Queries run on a `Connection`, made from the driver the application already uses
 
 - node-postgres: `pgConnection(pool)` from `@ottersql/sql/pg`
 - postgres.js: `postgresConnection(sql)` from `@ottersql/sql/postgres`
+- Bun.sql: `bunSqlConnection(sql)` from `@ottersql/sql/bun-sql`, for a client created with `{ prepare: false }` (Bun receives prepared statements' values of some types in binary)
 - PGlite: `pgliteConnection(db)` from `@ottersql/sql/pglite`
