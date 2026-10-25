@@ -1,13 +1,13 @@
 import { spawn } from "node:child_process";
 import { once } from "node:events";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { text } from "node:stream/consumers";
 
 import { describe, expect, test } from "vitest";
 
-import { writeDeclarationFiles } from "./index.ts";
+import { declarationFiles } from "./index.ts";
 
 const packages = resolve(import.meta.dirname, "../..");
 const tsc = resolve(import.meta.dirname, "../node_modules/.bin/tsc");
@@ -74,10 +74,14 @@ async function typeCheck(
       await writeFile(join(root, name), content);
     }
     if (delivery === "declaration files") {
-      await writeDeclarationFiles({
-        schemaPath: join(root, "schema.sql"),
-        queryFiles: [join(root, "queries.sql")],
-      });
+      const queryFile = join(root, "queries.sql");
+      const schema = await readFile(join(root, "schema.sql"), "utf8");
+      const declarations = await declarationFiles(schema, [
+        { path: queryFile, content: await readFile(queryFile, "utf8") },
+      ]);
+      for (const declaration of declarations) {
+        await writeFile(declaration.path, declaration.text);
+      }
     }
     const stdout = await runTsc(root);
     return stdout.split("\n").filter((line) => line.includes("error"));

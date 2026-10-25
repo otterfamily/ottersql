@@ -9,6 +9,7 @@ import { CommandError, exitCode, toJson, toText } from "./outcome.ts";
 import type { Failure, Outcome } from "./outcome.ts";
 import { push } from "./push.ts";
 import { status } from "./status.ts";
+import { types } from "./types.ts";
 
 /** Everything the CLI reads from and writes to its process, so that tests can stand in for it. */
 export interface Io extends Context {
@@ -66,12 +67,15 @@ async function runCommand(
   context: Context,
   command: Exclude<Command, { name: "help" }>,
 ): Promise<Outcome> {
-  return command.name === "push" ? push(context, command) : runMigrate(context, command);
+  if (command.name === "push") {
+    return push(context, command);
+  }
+  return command.name === "types" ? types(context, command) : runMigrate(context, command);
 }
 
 async function runMigrate(
   context: Context,
-  command: Exclude<Command, { name: "help" | "push" }>,
+  command: Exclude<Command, { name: "help" | "push" | "types" }>,
 ): Promise<Outcome> {
   if (command.name === "migrate generate") {
     return generate(context, command);

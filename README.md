@@ -37,6 +37,7 @@ npm install @ottersql/sql
 
 - Node.js 26 or later, for the global `Temporal`.
 - TypeScript 7.1 or later for typed `.sql` files. The types they get use the global `Temporal`, so `lib` in `tsconfig.json` needs `esnext.temporal` (or `esnext`).
+- Tools that cannot run TypeScript 7.1 content mappers, such as older TypeScript, typescript-eslint or Deno, can read the types from declaration files instead: `ottersql types` writes `queries.d.sql.ts` next to each `queries.sql`, and they need `allowArbitraryExtensions` in `tsconfig.json`. Nothing is written unless you run it.
 
 ## License
 

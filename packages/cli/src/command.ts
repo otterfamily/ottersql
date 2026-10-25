@@ -22,6 +22,12 @@ export type Command =
     }
   | { readonly name: "push"; readonly project: Project; readonly approve: string | null }
   | {
+      readonly name: "types";
+      readonly project: Project;
+      /** Reports declaration files that are missing or out of date instead of writing them. */
+      readonly check: boolean;
+    }
+  | {
       readonly name: "migrate apply";
       readonly project: Project;
       readonly phase: "expand" | "contract" | null;
@@ -50,6 +56,10 @@ Commands:
   ottersql push                      Bring the database at DATABASE_URL, on this machine only, to
                                      schema.sql directly, without migrations
 
+  ottersql types                     Write queries.d.sql.ts next to each .sql query file, for
+                                     tools that cannot run TypeScript 7.1 content mappers; they
+                                     need "allowArbitraryExtensions" in tsconfig.json
+
 Options:
   --json                Print one JSON object on stdout: { ok, command, result } or
                         { ok: false, command, code, why, fix, where?, result? }
@@ -60,6 +70,7 @@ Options:
   --approve <approval>  apply, push: run steps that cannot be undone; the approval comes from the
                         refusal that listed them, and only a person can give it
   --empty               generate: write a file for steps written by hand, such as moving data
+  --check               types: report declaration files that are missing or out of date
   -h, --help            Show this help
 
 Migrations live in the migrations/ directory next to schema.sql.
@@ -79,6 +90,7 @@ const options = {
   phase: { type: "string" },
   approve: { type: "string" },
   empty: { type: "boolean" },
+  check: { type: "boolean" },
   help: { type: "boolean", short: "h" },
 } as const;
 
@@ -98,25 +110,37 @@ export function parseCommand(args: readonly string[]): Command {
   if (values.help === true) {
     return { name: "help" };
   }
-  const [group, ...afterGroup] = positionals;
-  const [verb, ...rest] = group === "push" ? ["", ...afterGroup] : afterGroup;
-  if (group === undefined || verb === undefined) {
-    throw new UsageError("Name a command; run `ottersql --help` for the list");
-  }
-  const name = group === "push" ? group : `${group} ${verb}`;
+  const { name, rest } = commandName(positionals);
   refuseOtherOptions(name, values);
   return commandOf(name, rest, values);
 }
+
+/** The command's name, one word or a group and a verb, and the arguments after it. */
+function commandName(positionals: readonly string[]): { name: string; rest: readonly string[] } {
+  const [group, ...afterGroup] = positionals;
+  if (group !== undefined && singleWord.has(group)) {
+    return { name: group, rest: afterGroup };
+  }
+  const [verb, ...rest] = afterGroup;
+  if (group === undefined || verb === undefined) {
+    throw new UsageError("Name a command; run `ottersql --help` for the list");
+  }
+  return { name: `${group} ${verb}`, rest };
+}
+
+/** Commands of one word; the others are a group and a verb. */
+const singleWord: ReadonlySet<string> = new Set(["push", "types"]);
 
 /** The options only some commands take. */
 const optionCommands = {
   phase: ["migrate apply"],
   approve: ["migrate apply", "push"],
   empty: ["migrate generate"],
+  check: ["types"],
 } as const satisfies Record<string, readonly string[]>;
 
 function refuseOtherOptions(name: string, values: Values): void {
-  for (const option of ["phase", "approve", "empty"] as const) {
+  for (const option of ["phase", "approve", "empty", "check"] as const) {
     const takers: readonly string[] = optionCommands[option];
     if (!takers.includes(name) && values[option] !== undefined) {
       throw new UsageError(`${name} takes no --${option}`);
@@ -147,11 +171,23 @@ function commandOf(name: string, rest: readonly string[], values: Values): Comma
         project,
       };
     }
+    case "migrate apply": {
+      return { name, project, phase: parsePhase(values.phase), approve: values.approve ?? null };
+    }
+    default: {
+      return singleWordCommandOf(name, values);
+    }
+  }
+}
+
+function singleWordCommandOf(name: string, values: Values): Command {
+  const project = values.project ?? null;
+  switch (name) {
     case "push": {
       return { name, project, approve: values.approve ?? null };
     }
-    case "migrate apply": {
-      return { name, project, phase: parsePhase(values.phase), approve: values.approve ?? null };
+    case "types": {
+      return { name, project, check: values.check === true };
     }
     default: {
       throw new UsageError(`Unknown command: ${name}; run \`ottersql --help\` for the list`);

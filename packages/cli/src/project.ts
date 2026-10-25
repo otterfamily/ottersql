@@ -13,6 +13,8 @@ import { CommandError } from "./outcome.ts";
 /** Where a project keeps its schema and migrations, as absolute paths. */
 export interface Layout {
   readonly cwd: string;
+  /** The tsconfig's directory, under which `types` looks for query files. */
+  readonly projectDirectory: string;
   readonly schemaFile: string;
   readonly migrationsDirectory: string;
 }
@@ -38,7 +40,12 @@ export async function locate(cwd: string, project: Project): Promise<Layout> {
   }
   const schema = text === null ? defaultSchemaPath : schemaOption(text, relative(cwd, tsconfig));
   const schemaFile = resolve(dirname(tsconfig), schema);
-  return { cwd, schemaFile, migrationsDirectory: migrationsDirectory(schemaFile) };
+  return {
+    cwd,
+    projectDirectory: dirname(tsconfig),
+    schemaFile,
+    migrationsDirectory: migrationsDirectory(schemaFile),
+  };
 }
 
 function schemaOption(text: string, file: string): string {
