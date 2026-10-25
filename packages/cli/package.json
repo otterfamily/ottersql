@@ -1,6 +1,6 @@
 {
   "name": "ottersql",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "The ottersql command: generates, checks and applies migrations, with JSON output for agents",
   "license": "Apache-2.0",
   "repository": {
