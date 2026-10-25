@@ -2,6 +2,7 @@ export { applyMigrations } from "./apply-migrations.ts";
 export { MigrationHistoryError } from "./history.ts";
 export type { ApplyOptions, ApplyResult, StepRef } from "./apply-migrations.ts";
 export { ApprovalRequiredError } from "./approval.ts";
+export { baselineMigrations, planBaseline } from "./baseline.ts";
 export type { IrreversibleStep } from "./approval.ts";
 export {
   emptyMigration,

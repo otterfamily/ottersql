@@ -15,6 +15,12 @@ export type Command =
   | { readonly name: "migrate check"; readonly project: Project }
   | { readonly name: "migrate status"; readonly project: Project }
   | {
+      readonly name: "migrate baseline";
+      /** The first migration's name, needed only while there are no migrations. */
+      readonly migration: string | null;
+      readonly project: Project;
+    }
+  | {
       readonly name: "migrate apply";
       readonly project: Project;
       readonly phase: "expand" | "contract" | null;
@@ -37,6 +43,8 @@ Commands:
   ottersql migrate status            List the steps applied to DATABASE_URL, and changes made
                                      there outside the migrations
   ottersql migrate apply             Apply the pending migration steps to DATABASE_URL
+  ottersql migrate baseline [<name>] Start from the existing database at DATABASE_URL: write its
+                                     schema as the first migration and record it as applied
 
 Options:
   --json                Print one JSON object on stdout: { ok, command, result } or
@@ -120,6 +128,13 @@ function commandOf(name: string, rest: readonly string[], values: Values): Comma
     case "migrate status": {
       noMore(rest);
       return { name, project };
+    }
+    case "migrate baseline": {
+      return {
+        name,
+        migration: rest.length === 0 ? null : parseMigrationName(rest),
+        project,
+      };
     }
     case "migrate apply": {
       noMore(rest);

@@ -91,3 +91,21 @@ export async function record(connection: Connection, pending: PendingStep): Prom
     ],
   );
 }
+
+/** Records `steps` as applied without running them, all of them or, when one fails, none. */
+export async function recordAll(
+  connection: Connection,
+  steps: readonly PendingStep[],
+): Promise<void> {
+  await createLedger(connection);
+  await connection.query("begin", []);
+  try {
+    for (const step of steps) {
+      await record(connection, step);
+    }
+    await connection.query("commit", []);
+  } catch (error) {
+    await connection.query("rollback", []);
+    throw error;
+  }
+}

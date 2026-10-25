@@ -1,4 +1,5 @@
 import { apply } from "./apply.ts";
+import { baseline } from "./baseline.ts";
 import { check } from "./check.ts";
 import { parseCommand, usage, UsageError, wantsJson } from "./command.ts";
 import type { Command } from "./command.ts";
@@ -72,6 +73,9 @@ async function runCommand(
   }
   if (command.name === "migrate status") {
     return status(context, command);
+  }
+  if (command.name === "migrate baseline") {
+    return baseline(context, command);
   }
   return apply(context, command);
 }
