@@ -69,9 +69,12 @@ async function startDatabase(
 ): Promise<{ readonly database: PGlite; readonly key: string | null; readonly restored: boolean }> {
   const key = cache ? await schemaSnapshotKey(sources) : null;
   const cached = key === null ? null : await cachedSchemaSnapshot(key);
-  return cached === null
+  // A snapshot removed or replaced while it was being read only costs running the schema again.
+  const restored =
+    cached === null ? null : await restoredDatabase(cached, shipped).catch(() => null);
+  return restored === null
     ? { database: await freshDatabase(shipped), key, restored: false }
-    : { database: await restoredDatabase(cached, shipped), key, restored: true };
+    : { database: restored, key, restored: true };
 }
 
 /** Runs the schema in a fresh database, and keeps the result under `key` when there is one. */

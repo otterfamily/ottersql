@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { once } from "node:events";
+import { openAsBlob } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
@@ -16,12 +17,26 @@ import { fileURLToPath } from "node:url";
  */
 export async function cachedEmptySnapshot(): Promise<Blob> {
   const file = join(cacheDirectory(), `pglite-empty-${await pgliteBuild()}.tar`);
-  const cached = await readFile(file).catch(() => null);
-  if (cached === null) {
-    await mkdir(dirname(file), { recursive: true });
-    await makeSnapshot(file);
+  const cached = await fileBlob(file);
+  if (cached !== null) {
+    return cached;
   }
-  return new Blob([cached ?? (await readFile(file))]);
+  await mkdir(dirname(file), { recursive: true });
+  await makeSnapshot(file);
+  return openAsBlob(file);
+}
+
+/**
+ * A blob read from `file` only when PGlite reads it, or `null` when there is no such file; reading
+ * the file into a buffer first would hold the snapshot in memory twice while PGlite starts.
+ */
+async function fileBlob(file: string): Promise<Blob | null> {
+  try {
+    // A missing file makes openAsBlob throw, rather than reject.
+    return await openAsBlob(file);
+  } catch {
+    return null;
+  }
 }
 
 async function makeSnapshot(file: string): Promise<void> {
@@ -56,13 +71,13 @@ function schemaSnapshotFile(key: string): string {
 /** The database saved under `key`, or `null`; reading it marks it as recently used. */
 export async function cachedSchemaSnapshot(key: string): Promise<Blob | null> {
   const file = schemaSnapshotFile(key);
-  const cached = await readFile(file).catch(() => null);
-  if (cached === null) {
-    return null;
-  }
+  // Marked first: a blob of a file stops being readable once the file's modification time changes.
   const now = new Date();
-  await utimes(file, now, now).catch(() => null);
-  return new Blob([cached]);
+  const found = await utimes(file, now, now).then(
+    () => true,
+    () => false,
+  );
+  return found ? fileBlob(file) : null;
 }
 
 /**
