@@ -62,3 +62,10 @@ Install pnpm 11 or later; it fetches the pinned pnpm and Node.js versions from `
 - For now changes go straight to `main`. Every push must pass CI. Never rewrite pushed history.
 - This repository is public. Never commit secrets, `.env` files, keys, personal data, or paths and names from other private projects.
 - Code, commit messages, the README, ADRs and other docs in this repository are in English. GitHub issues, milestones and the roadmap project are in Japanese, the maintainer's working language.
+
+## Releases
+
+- Every package under `packages/` that is not private is published, all at one version, so users never have to work out which versions go together.
+- Before 1.0, a release that breaks users moves the minor version (0.1.x to 0.2.0), since `^0.1.0` takes patches only; every other release is a patch. Hold breaking changes back and release them together. The release notes come from the commits, so a breaking change says so with `!` or a `BREAKING CHANGE:` footer.
+- `pnpm release <patch|minor|major>` commits the new version on `main` and tags it; `git push --follow-tags` sends both, and `.github/workflows/release.yml` publishes to npm and writes the GitHub release. Publishing a release needs the maintainer's go-ahead.
+- Only that workflow publishes, through npm trusted publishing: no npm tokens exist, and npm records where each version was built (provenance).

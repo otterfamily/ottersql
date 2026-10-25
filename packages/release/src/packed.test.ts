@@ -1,82 +1,40 @@
-import { spawn } from "node:child_process";
-import { once } from "node:events";
-import { cp, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import { text } from "node:stream/consumers";
 import { fileURLToPath } from "node:url";
 
 import { test as base, describe, expect } from "vitest";
+
+import { run, succeeded } from "./command.ts";
+import { publishedPackages, stringAt, versionIn } from "./workspace.ts";
 
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const playground = join(root, "examples", "playground");
 // The editor settings and the code that is wrong on purpose are not part of what is checked.
 const left = new Set(["node_modules", ".vscode", "mistakes"]);
 
-interface Run {
-  readonly exitCode: number;
-  readonly stdout: string;
-  readonly stderr: string;
-}
-
-async function run(command: string, args: readonly string[], cwd: string): Promise<Run> {
-  const child = spawn(command, args, { cwd });
-  const [stdout, stderr, exit] = await Promise.all([
-    text(child.stdout),
-    text(child.stderr),
-    once(child, "exit"),
-  ]);
-  const code: unknown = exit[0];
-  return { exitCode: typeof code === "number" ? code : 1, stdout, stderr };
-}
-
-async function succeeded(command: string, args: readonly string[], cwd: string): Promise<string> {
-  const result = await run(command, args, cwd);
-  if (result.exitCode !== 0) {
-    throw new Error(`${command} ${args.join(" ")} failed:\n${result.stdout}${result.stderr}`);
-  }
-  return result.stdout;
-}
-
 /** The string at `key` of parsed JSON. */
-function stringAt(value: unknown, key: string): string {
-  const found: unknown =
+function stringOf(value: unknown, key: string): string {
+  const found =
     typeof value === "object" && value !== null
-      ? Object.entries(value).find(([name]) => name === key)?.[1]
-      : undefined;
-  if (typeof found !== "string") {
+      ? stringAt(Object.fromEntries(Object.entries(value)), key)
+      : null;
+  if (found === null) {
     throw new TypeError(`expected a string at ${key} in ${JSON.stringify(value)}`);
   }
   return found;
-}
-
-async function manifestOf(directory: string): Promise<unknown> {
-  return JSON.parse(await readFile(join(directory, "package.json"), "utf8"));
-}
-
-/** The directories of the packages published to npm: those under packages/ not marked private. */
-async function publishedPackages(): Promise<string[]> {
-  const names = await readdir(join(root, "packages"));
-  const directories = names.map((name) => join(root, "packages", name));
-  const published = await Promise.all(
-    directories.map(async (directory) => {
-      const manifest = await manifestOf(directory);
-      return typeof manifest === "object" && manifest !== null && !("private" in manifest);
-    }),
-  );
-  return directories.filter((_directory, index) => published[index] === true);
 }
 
 /** The package's name and the tarball `pnpm pack` writes for it to `destination`. */
 async function pack(directory: string, destination: string): Promise<[string, string]> {
   const args = ["pack", "--json", "--pack-destination", destination];
   const packed: unknown = JSON.parse(await succeeded("pnpm", args, directory));
-  return [stringAt(packed, "name"), stringAt(packed, "filename")];
+  return [stringOf(packed, "name"), stringOf(packed, "filename")];
 }
 
 /** The version of `name` the playground has in the workspace, which its copy gets too. */
 async function versionOf(name: string): Promise<string> {
-  return stringAt(await manifestOf(join(playground, "node_modules", name)), "version");
+  return versionIn(join(playground, "node_modules", name));
 }
 
 /**
@@ -85,9 +43,9 @@ async function versionOf(name: string): Promise<string> {
  */
 async function installedPlayground(directory: string): Promise<string> {
   await succeeded("pnpm", ["build"], root);
-  const sources = await publishedPackages();
+  const sources = await publishedPackages(root);
   const tarballs: Record<string, string> = Object.fromEntries(
-    await Promise.all(sources.map(async (source) => pack(source, directory))),
+    await Promise.all(sources.map(async ({ directory: source }) => pack(source, directory))),
   );
   const project = join(directory, "project");
   await cp(playground, project, { recursive: true, filter: (path) => !left.has(basename(path)) });

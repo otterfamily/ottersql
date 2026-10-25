@@ -2,7 +2,7 @@
   "name": "@ottersql/release",
   "version": "0.0.0",
   "private": true,
-  "description": "Checks ottersql's packages as npm installs them",
+  "description": "Releases ottersql: the next version, release notes, and the packages checked as npm installs them",
   "type": "module",
   "scripts": {
     "typecheck": "tsc -p .",

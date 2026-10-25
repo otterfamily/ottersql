@@ -12,7 +12,8 @@
     "test": "pnpm -r --no-bail --workspace-concurrency=1 test",
     "test:postgres": "pnpm -r --no-bail --workspace-concurrency=1 test:postgres",
     "verify": "pnpm format:check && pnpm lint && pnpm knip && pnpm typecheck && pnpm test",
-    "postinstall": "simple-git-hooks"
+    "postinstall": "simple-git-hooks",
+    "release": "node packages/release/src/cli.ts bump"
   },
   "devDependencies": {
     "@types/node": "catalog:",

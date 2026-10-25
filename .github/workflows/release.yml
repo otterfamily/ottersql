@@ -1,0 +1,62 @@
+name: Release
+
+# `pnpm release <patch|minor|major>` commits the next version and tags it; pushing the tag lands here.
+on:
+  push:
+    tags: ["v*"]
+
+permissions: {}
+
+jobs:
+  publish:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    # npm trusts this workflow in this environment to publish, with no token (trusted publishing).
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write # proves to npm that this workflow publishes, in place of a token
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No cache: what is published must not be built from a cache another workflow could write.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm verify
+      - name: Check that the tag names the packages' version
+        env:
+          TAG: ${{ github.ref_name }}
+        run: test "v$(node --print 'require("./packages/sql/package.json").version')" = "$TAG"
+      - run: pnpm build
+      # A tag checks out no branch, which git checks would refuse. Packages already on npm are
+      # skipped, so a failed run can run again.
+      - run: pnpm --recursive publish --access public --no-git-checks
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions:
+      contents: write # creates the GitHub release
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The notes list the commits since the previous tag.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: false
+      # Installs the Node.js version devEngines pins, which runs the notes script's TypeScript.
+      - run: pnpm install --frozen-lockfile
+      - name: Publish the release notes
+        env:
+          TAG: ${{ github.ref_name }}
+          REPOSITORY: ${{ github.server_url }}/${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          pnpm --silent exec node packages/release/src/cli.ts notes "$TAG" "$REPOSITORY" > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-file "$RUNNER_TEMP/notes.md"
