@@ -238,7 +238,11 @@ function isNotNullColumn(
   }
   const name = relation.columns.get(attnum);
   const table = findTable(catalog, relation.schema, relation.name);
-  return table?.columns.find((column) => column.name === name)?.notNull ?? false;
+  return (
+    table !== undefined &&
+    (table.columns.some((column) => column.name === name && column.notNull) ||
+      table.checks.some((check) => name !== undefined && check.notNullColumns.includes(name)))
+  );
 }
 
 function origin(relation: Relation | undefined, attnum: number): DescribedColumn["origin"] {

@@ -102,6 +102,11 @@ export interface Check {
    * narrow it to a union.
    */
   readonly allowedValues: { readonly column: string; readonly values: readonly string[] } | null;
+  /**
+   * Columns a validated, enforced check proves non-null, by requiring `IS NOT NULL` of them alone
+   * or as a term of a top-level AND, the way NOT NULL does.
+   */
+  readonly notNullColumns: readonly string[];
   readonly enforcement: Enforcement;
 }
 

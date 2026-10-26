@@ -13,6 +13,14 @@ const schemaSql = `
     status text not null check (status in ('draft', 'published'))
   );
   create view post_titles as select id, title from posts;
+  create table legacy (
+    id int8 primary key,
+    code text check (code is not null),
+    pair text,
+    other text,
+    check (pair is not null and other <> '')
+  );
+  alter table legacy add column note text, add constraint note_present check (note is not null) not valid;
   create table spans (id int8 primary key, r int4range not null, a int[] not null);
   create function maybe(i int) returns text language sql as 'select null';
   create type wrapped as (v text);
@@ -93,6 +101,10 @@ describe("nullability (ADR 0009)", () => {
     {
       sql: "select u.name, p.title from users u left join posts p on p.author_id = u.id",
       expected: { name: false, title: true },
+    },
+    {
+      sql: "select code, pair, other, note from legacy",
+      expected: { code: false, pair: false, other: true, note: true },
     },
     {
       sql: "select u.name, p.title from users u join posts p on p.author_id = u.id",

@@ -85,7 +85,68 @@ export function parseTableCheck(row: TableCheckRow): Check {
     ...parseCheckBase(row),
     columns: row.columns,
     allowedValues: column === undefined || values === null ? null : { column, values },
+    notNullColumns: notNullColumns(row),
   };
+}
+
+/** The columns a check proves non-null; none unless it holds for every row (ADR 0002). */
+function notNullColumns(row: TableCheckRow): string[] {
+  if (parseEnforcement(row) !== "validated") {
+    return [];
+  }
+  const columns = new Map(row.quotedColumns.map((quoted, index) => [quoted, row.columns[index]]));
+  return conjuncts(row.expression).flatMap((term) => {
+    const quoted = /^\((?<column>.+) IS NOT NULL\)$/v.exec(term)?.groups?.["column"];
+    const column = quoted === undefined ? undefined : columns.get(quoted);
+    return column === undefined ? [] : [column];
+  });
+}
+
+/**
+ * The terms of a top-level AND as Postgres prints it, `((a IS NOT NULL) AND (b > 0))`, or the
+ * expression itself. Only the parentheses and quotes Postgres prints are read (ADR 0001).
+ */
+function conjuncts(expression: string): string[] {
+  const enclosed = expression.startsWith("(") && tokenEnd(expression, 0) === expression.length;
+  const terms = enclosed ? topLevelTerms(expression.slice(1, -1), " AND ") : [];
+  return terms.length > 1 ? terms : [expression];
+}
+
+/** `text` split at each `separator` outside parentheses and quotes, or `[text]` if one is open. */
+function topLevelTerms(text: string, separator: string): string[] {
+  const terms: string[] = [];
+  let start = 0;
+  let index = 0;
+  while (index !== -1 && index < text.length) {
+    if (text.startsWith(separator, index)) {
+      terms.push(text.slice(start, index));
+      index += separator.length;
+      start = index;
+    } else {
+      index = tokenEnd(text, index);
+    }
+  }
+  return index === -1 ? [text] : [...terms, text.slice(start)];
+}
+
+/**
+ * Where the token at `index` ends: after quoted text, after a parenthesised group with what it
+ * holds, or after one character; -1 when a quote or parenthesis is never closed.
+ */
+function tokenEnd(text: string, index: number): number {
+  const character = text.charAt(index);
+  if (character === "'" || character === '"') {
+    const close = text.indexOf(character, index + 1);
+    return close === -1 ? -1 : close + 1;
+  }
+  if (character !== "(") {
+    return index + 1;
+  }
+  let end = index + 1;
+  while (end !== -1 && end < text.length && text.charAt(end) !== ")") {
+    end = tokenEnd(text, end);
+  }
+  return end === -1 || end >= text.length ? -1 : end + 1;
 }
 
 export function parseDomainCheck(row: CheckBaseRow): DomainCheck {

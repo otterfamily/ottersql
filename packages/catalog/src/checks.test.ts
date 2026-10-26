@@ -15,6 +15,7 @@ describe("check constraints", () => {
         expression: "(a < b)",
         columns: ["a", "b"],
         allowedValues: null,
+        notNullColumns: [],
         enforcement: "validated",
       },
       {
@@ -22,6 +23,7 @@ describe("check constraints", () => {
         expression: "(a > 0)",
         columns: ["a"],
         allowedValues: null,
+        notNullColumns: [],
         enforcement: "not valid",
       },
     ]);
@@ -60,5 +62,29 @@ describe("check constraints", () => {
       { name: "t_a_check", allowedValues: null },
       { name: "t_b_check", allowedValues: null },
     ]);
+  });
+
+  test.each([
+    { check: "a is not null", columns: ["a"] },
+    { check: `"A b" is not null`, columns: ["A b"] },
+    { check: "a is not null and b > 0", columns: ["a"] },
+    { check: "a is not null and b is not null", columns: ["a", "b"] },
+    { check: "a is not null and (b > 0 or c = ' AND (c IS NOT NULL)')", columns: ["a"] },
+    { check: "a is not null or b is not null", columns: [] },
+    { check: "(a + b) is not null", columns: [] },
+    { check: "not (a is null)", columns: [] },
+  ])("proves $columns non-null by check ($check)", async ({ check, columns }) => {
+    const catalog = await loadCatalog(
+      `create table t (a int, "A b" int, b int, c text, check (${check}));`,
+    );
+    expect(table(catalog, "t").checks[0]?.notNullColumns).toStrictEqual(columns);
+  });
+
+  test("proves no column non-null by a check that does not hold for every row", async () => {
+    const catalog = await loadCatalog(`
+      create table t (a int, b int check (b is not null) not enforced);
+      alter table t add constraint t_a check (a is not null) not valid;
+    `);
+    expect(table(catalog, "t").checks.flatMap((check) => check.notNullColumns)).toStrictEqual([]);
   });
 });
