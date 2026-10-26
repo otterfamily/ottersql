@@ -3,6 +3,7 @@ import { dirname, join, relative, resolve } from "node:path";
 
 import { defaultSchemaPath, migrationsDirectory } from "../content-mapper/index.ts";
 import {
+  LockWaitTimeoutError,
   MigrationFileError,
   MigrationHistoryError,
   SessionChangedError,
@@ -107,8 +108,8 @@ export async function writeMigration(layout: Layout, name: string, text: string)
 
 /**
  * The refusal for what running the migrations against a database threw: a file that cannot be
- * read, a history that disagrees with the files, or a connection that changed session; anything
- * else is returned as it was.
+ * read, a history that disagrees with the files, a lock another run kept too long, or a connection
+ * that changed session; anything else is returned as it was.
  */
 export function migrationRefusal(error: unknown, layout: Layout): unknown {
   if (error instanceof MigrationFileError) {
@@ -120,6 +121,18 @@ export function migrationRefusal(error: unknown, layout: Layout): unknown {
       code: "migrate.history_mismatch",
       why: error.message,
       fix: "Leave applied migrations as they are, and put new changes in a new migration",
+    });
+  }
+  if (error instanceof LockWaitTimeoutError) {
+    return new CommandError({
+      kind: "failed",
+      code: "migrate.lock_busy",
+      why: error.message,
+      fix:
+        error.holder === null
+          ? "Run again; the other run has just finished"
+          : `Wait for the other run to finish, or, if it is stuck, end its session with \`select pg_terminate_backend(${String(error.holder)})\``,
+      result: { holder: error.holder },
     });
   }
   if (error instanceof SessionChangedError) {

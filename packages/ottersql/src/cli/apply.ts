@@ -35,8 +35,12 @@ export async function apply(context: Context, command: Apply): Promise<Outcome> 
   }
 }
 
-function applyOptions({ phase, approve }: Apply): ApplyOptions {
-  return { ...(phase === null ? {} : { phase }), ...(approve === null ? {} : { approve }) };
+function applyOptions({ phase, approve, lockWait }: Apply): ApplyOptions {
+  return {
+    ...(phase === null ? {} : { phase }),
+    ...(approve === null ? {} : { approve }),
+    ...(lockWait === null ? {} : { waitForOtherRuns: lockWait }),
+  };
 }
 
 /** The refusal `error` stands for, or `error` itself when it is not one. */

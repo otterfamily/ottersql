@@ -1,11 +1,12 @@
 import { readCatalog } from "../catalog/index.ts";
 import type { Connection } from "../sql/index.ts";
 import { deployOrder, MigrationHistoryError } from "./history.ts";
-import { exclusively, readLedger, recordAll } from "./ledger.ts";
+import { readLedger, recordAll } from "./ledger.ts";
 import { replay } from "./migrations.ts";
 import type { MigrationFile } from "./migrations.ts";
 import { planMigration } from "./plan-migration.ts";
 import type { Plan } from "./plan.ts";
+import { exclusively } from "./run-lock.ts";
 
 /**
  * The steps that build the database `connection` reaches from an empty one: the first migration

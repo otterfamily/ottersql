@@ -1,10 +1,11 @@
 import type { Connection } from "../sql/index.ts";
 import { checkApproval } from "./approval.ts";
 import { deployOrder, notYetApplied } from "./history.ts";
-import { createLedger, exclusively, readLedger, record } from "./ledger.ts";
+import { createLedger, readLedger, record } from "./ledger.ts";
 import type { PendingStep } from "./ledger.ts";
 import type { MigrationFile } from "./migrations.ts";
 import type { Step } from "./plan.ts";
+import { exclusively } from "./run-lock.ts";
 import { runStep } from "./run-step.ts";
 import type { RunOptions, StepFailure } from "./run-step.ts";
 
@@ -20,6 +21,11 @@ export interface ApplyOptions extends RunOptions {
    * it covers exactly the pending steps that error saw.
    */
   readonly approve?: string;
+  /**
+   * How long to wait for another run that is applying migrations to the same database, in
+   * milliseconds, before throwing a `LockWaitTimeoutError`: by default 10 minutes.
+   */
+  readonly waitForOtherRuns?: number;
 }
 
 /** A step of a migration file, by the file's name and the step's index in it. */
@@ -41,35 +47,39 @@ export interface ApplyResult {
  * `pg` Client or PoolClient, or PGlite) so that a transaction's statements share it. Steps run in
  * deploy order: file by file, a file's expand steps and then its contract steps. Each step is
  * recorded with a hash of what it does, so running again resumes after the last step that
- * succeeded, and a run started while another is applying waits for it to finish. Throws a
- * `MigrationHistoryError` before running anything when a step changed after it was applied, or
- * when a step that has not run comes before one that has, as a new file older than applied ones
- * does; and an `ApprovalRequiredError` when a pending step cannot be undone and `options.approve`
- * does not cover the pending steps.
+ * succeeded, and a run started while another is applying waits for it to finish, up to
+ * `options.waitForOtherRuns`. Throws a `MigrationHistoryError` before running anything when a
+ * step changed after it was applied, or when a step that has not run comes before one that has,
+ * as a new file older than applied ones does; and an `ApprovalRequiredError` when a pending step
+ * cannot be undone and `options.approve` does not cover the pending steps.
  */
 export async function applyMigrations(
   connection: Connection,
   files: readonly MigrationFile[],
   options: ApplyOptions = {},
 ): Promise<ApplyResult> {
-  return exclusively(connection, async () => {
-    await createLedger(connection);
-    const history = await readLedger(connection);
-    const unapplied = notYetApplied(deployOrder(files), history);
-    const phase = options.phase ?? null;
-    const end = unapplied.findIndex(({ step }) => phase !== null && step.phase !== phase);
-    const pending = end === -1 ? unapplied : unapplied.slice(0, end);
-    checkApproval(pending, options.approve);
-    const result = await runInOrder(connection, pending, options);
-    const next = end === -1 || result.failed !== null ? undefined : unapplied[end];
-    return {
-      ...result,
-      waiting:
-        next === undefined
-          ? null
-          : { migration: next.migration, step: next.index, phase: next.step.phase },
-    };
-  });
+  return exclusively(
+    connection,
+    async () => {
+      await createLedger(connection);
+      const history = await readLedger(connection);
+      const unapplied = notYetApplied(deployOrder(files), history);
+      const phase = options.phase ?? null;
+      const end = unapplied.findIndex(({ step }) => phase !== null && step.phase !== phase);
+      const pending = end === -1 ? unapplied : unapplied.slice(0, end);
+      checkApproval(pending, options.approve);
+      const result = await runInOrder(connection, pending, options);
+      const next = end === -1 || result.failed !== null ? undefined : unapplied[end];
+      return {
+        ...result,
+        waiting:
+          next === undefined
+            ? null
+            : { migration: next.migration, step: next.index, phase: next.step.phase },
+      };
+    },
+    options.waitForOtherRuns,
+  );
 }
 
 /** Runs steps until one fails. */

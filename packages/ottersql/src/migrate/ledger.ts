@@ -1,5 +1,3 @@
-import { setTimeout as sleep } from "node:timers/promises";
-
 import { rawQuery } from "../sql/driver.ts";
 import type { Connection, Transaction } from "../sql/index.ts";
 import type { Step } from "./plan.ts";
@@ -20,102 +18,6 @@ export interface PendingStep {
   readonly hash: string;
   readonly index: number;
   readonly step: Step;
-}
-
-// One name for every run on a database, hashed to the bigint key advisory locks take.
-const LOCK_NAME = "ottersql.applied_steps";
-const LOCK_POLL_INTERVAL = 200;
-
-/**
- * The connection moved to another database session while a run held the ledger's lock, as a pool
- * or a pooler in transaction mode does, so the lock no longer kept other runs out. The lock stays
- * with the first session until that session ends.
- */
-export class SessionChangedError extends Error {
-  override readonly name = "SessionChangedError";
-
-  constructor() {
-    super(
-      "The connection moved to another database session while it held the migration lock; migrations need one session for the whole run",
-    );
-  }
-}
-
-/**
- * Runs `use` while holding the session's advisory lock on the ledger, so that runs started
- * together apply each step once: the second waits, then reads what the first recorded. It throws
- * a `SessionChangedError`, before `use` runs where it can tell, when the connection does not keep
- * one session; an error from `use` is thrown as it was.
- */
-export async function exclusively<Result>(
-  connection: Connection,
-  use: () => Promise<Result>,
-): Promise<Result> {
-  const session = await lock(connection);
-  const result = await unlockingOnError(connection, session, async () => {
-    await expectSession(connection, session);
-    return use();
-  });
-  if (!(await unlock(connection, session))) {
-    throw new SessionChangedError();
-  }
-  return result;
-}
-
-/** Runs `run`, giving the lock up before throwing what it throws. */
-async function unlockingOnError<Result>(
-  connection: Connection,
-  session: string,
-  run: () => Promise<Result>,
-): Promise<Result> {
-  try {
-    return await run();
-  } catch (error) {
-    try {
-      await unlock(connection, session);
-    } catch {
-      // The error from run says better what went wrong.
-    }
-    throw error;
-  }
-}
-
-/** Takes the lock, and returns the backend pid of the session that holds it. */
-async function lock(connection: Connection): Promise<string> {
-  // Not pg_advisory_lock: waiting in it keeps a statement open, and CREATE INDEX CONCURRENTLY in
-  // the run that holds the lock waits for every open statement to end, so the two would deadlock.
-  for (;;) {
-    const { rows } = await rawQuery(
-      connection,
-      "select pg_try_advisory_lock(hashtextextended($1, 0)), pg_backend_pid()",
-      [LOCK_NAME],
-    );
-    const [taken, session] = rows[0] ?? [];
-    if (taken === "t" && session !== undefined && session !== null) {
-      return session;
-    }
-    await sleep(LOCK_POLL_INTERVAL);
-  }
-}
-
-async function expectSession(connection: Connection, session: string): Promise<void> {
-  const { rows } = await rawQuery(connection, "select pg_backend_pid()", []);
-  if (rows[0]?.[0] !== session) {
-    throw new SessionChangedError();
-  }
-}
-
-/** Gives the lock up if the connection is still on `session`, and says whether it did. */
-async function unlock(connection: Connection, session: string): Promise<boolean> {
-  // Only from the session that took it: another session's unlock could free a lock held by a
-  // different run that shares the pooler's backend. CASE, not AND, which may run either side first.
-  const { rows } = await rawQuery(
-    connection,
-    `select case when pg_backend_pid() = $2::int4
-       then pg_advisory_unlock(hashtextextended($1, 0)) else false end`,
-    [LOCK_NAME, session],
-  );
-  return rows[0]?.[0] === "t";
 }
 
 export async function createLedger(connection: Connection): Promise<void> {

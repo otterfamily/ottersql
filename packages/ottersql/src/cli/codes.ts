@@ -17,6 +17,7 @@ export type FailureCode =
   | "migrate.drift"
   | "migrate.file_invalid"
   | "migrate.history_mismatch"
+  | "migrate.lock_busy"
   | "migrate.out_of_date"
   | "migrate.step_failed"
   | "project.peer_missing"

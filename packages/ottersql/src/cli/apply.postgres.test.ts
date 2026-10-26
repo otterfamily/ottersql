@@ -187,6 +187,47 @@ describe("ottersql migrate apply", () => {
     });
   });
 
+  test("gives up after --lock-wait seconds while another run holds the lock, with exit code 1", async () => {
+    const url = await postgresDatabase();
+    const root = await project({ "db/schema.sql": users });
+    await ottersql(root, ["migrate", "generate", "add_users"]);
+    const holder = new Client({ connectionString: url });
+    await holder.connect();
+    try {
+      await holder.query("select pg_advisory_lock(hashtextextended('ottersql.applied_steps', 0))");
+      const { exitCode, json } = await ottersqlJson(
+        root,
+        ["migrate", "apply", "--lock-wait", "0.3"],
+        {
+          env: { DATABASE_URL: url },
+        },
+      );
+      expect({ exitCode, code: at(json, "code") }).toStrictEqual({
+        exitCode: 1,
+        code: "migrate.lock_busy",
+      });
+    } finally {
+      await holder.end();
+    }
+  });
+
+  test.for(["soon", "-1", ""])(
+    "refuses --lock-wait %j, which is no number of seconds",
+    async (wait) => {
+      const root = await project({ "db/schema.sql": users });
+      const { exitCode, json } = await ottersqlJson(root, [
+        "migrate",
+        "apply",
+        "--lock-wait",
+        wait,
+      ]);
+      expect({ exitCode, code: at(json, "code") }).toStrictEqual({
+        exitCode: 2,
+        code: "usage.invalid",
+      });
+    },
+  );
+
   test("refuses a migration edited after it was applied, with exit code 2", async () => {
     const url = await postgresDatabase();
     const root = await project({ "db/schema.sql": users });

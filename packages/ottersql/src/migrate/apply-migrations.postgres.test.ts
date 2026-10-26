@@ -5,7 +5,7 @@ import { describe, expect, test } from "vitest";
 
 import type { PgClient } from "../sql/pg-driver.ts";
 import { pgConnection } from "../sql/pg.ts";
-import { applyMigrations, SessionChangedError } from "./index.ts";
+import { applyMigrations, LockWaitTimeoutError, SessionChangedError } from "./index.ts";
 import { connect, migrationFrom, step, users } from "./test-migrate.ts";
 
 /** A client whose statements take turns on two sessions, as a pooler in transaction mode may send them. */
@@ -50,6 +50,22 @@ describe("applyMigrations on Postgres", () => {
       });
     } finally {
       await Promise.all([migrator.end(), holder.end(), reader.end()]);
+    }
+  });
+
+  test("gives up waiting for another run's lock after waitForOtherRuns, naming the session that holds it", async () => {
+    const url = await postgresDatabase(users);
+    const [migrator, holder] = await Promise.all([connect(url), connect(url)]);
+    try {
+      const { rows } = await holder.query<{ pid: number }>(
+        "select pg_backend_pid() as pid, pg_advisory_lock(hashtextextended('ottersql.applied_steps', 0))",
+      );
+      const file = await migrationFrom(users, `${users}; alter table users add column name text`);
+      const waiting = applyMigrations(pgConnection(migrator), [file], { waitForOtherRuns: 300 });
+      await expect(waiting).rejects.toThrow(LockWaitTimeoutError);
+      await expect(waiting).rejects.toMatchObject({ holder: rows[0]?.pid });
+    } finally {
+      await Promise.all([migrator.end(), holder.end()]);
     }
   });
 

@@ -33,6 +33,8 @@ export type Command =
       readonly project: Project;
       readonly phase: "expand" | "contract" | null;
       readonly approve: string | null;
+      /** Milliseconds to wait for another run that holds the migration lock; `null` for the default. */
+      readonly lockWait: number | null;
     };
 
 /** The tsconfig to read the schema's place from; `null` for `tsconfig.json` if there is one. */
@@ -70,6 +72,8 @@ Options:
                         "contract" steps (after it)
   --approve <approval>  apply, push: run steps that cannot be undone; the approval comes from the
                         refusal that listed them, and only a person can give it
+  --lock-wait <seconds> apply: how long to wait for another run applying migrations to the same
+                        database (default: 600)
   --empty               generate: write a file for steps written by hand, such as moving data
   --check               types: report declaration files that are missing or out of date
   -h, --help            Show this help
@@ -90,6 +94,7 @@ const options = {
   project: { type: "string" },
   phase: { type: "string" },
   approve: { type: "string" },
+  "lock-wait": { type: "string" },
   empty: { type: "boolean" },
   check: { type: "boolean" },
   help: { type: "boolean", short: "h" },
@@ -143,12 +148,13 @@ const singleWord: ReadonlySet<string> = new Set(["push", "types"]);
 const optionCommands = {
   phase: ["migrate apply"],
   approve: ["migrate apply", "push"],
+  "lock-wait": ["migrate apply"],
   empty: ["migrate generate"],
   check: ["types"],
 } as const satisfies Record<string, readonly string[]>;
 
 function refuseOtherOptions(name: string, values: Values): void {
-  for (const option of ["phase", "approve", "empty", "check"] as const) {
+  for (const option of ["phase", "approve", "lock-wait", "empty", "check"] as const) {
     const takers: readonly string[] = optionCommands[option];
     if (!takers.includes(name) && values[option] !== undefined) {
       throw new UsageError(`${name} takes no --${option}`);
@@ -180,7 +186,13 @@ function commandOf(name: string, rest: readonly string[], values: Values): Comma
       };
     }
     case "migrate apply": {
-      return { name, project, phase: parsePhase(values.phase), approve: values.approve ?? null };
+      return {
+        name,
+        project,
+        phase: parsePhase(values.phase),
+        approve: values.approve ?? null,
+        lockWait: parseLockWait(values["lock-wait"]),
+      };
     }
     default: {
       return singleWordCommandOf(name, values);
@@ -236,6 +248,19 @@ function parsePhase(phase: string | undefined): "expand" | "contract" | null {
     return phase;
   }
   throw new UsageError(`--phase is expand or contract, not ${JSON.stringify(phase)}`);
+}
+
+const MILLISECONDS_PER_SECOND = 1000;
+
+function parseLockWait(seconds: string | undefined): number | null {
+  if (seconds === undefined) {
+    return null;
+  }
+  const value = seconds.trim() === "" ? Number.NaN : Number(seconds);
+  if (!Number.isFinite(value) || value < 0) {
+    throw new UsageError(`--lock-wait is a number of seconds, not ${JSON.stringify(seconds)}`);
+  }
+  return value * MILLISECONDS_PER_SECOND;
 }
 
 function noMore(rest: readonly string[]): void {
