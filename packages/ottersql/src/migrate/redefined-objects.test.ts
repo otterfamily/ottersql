@@ -228,3 +228,56 @@ describe("planMigration of NO INHERIT and ON DELETE SET NULL (columns)", () => {
     });
   });
 });
+
+describe("planMigration of identity settings, column storage and table storage", () => {
+  const settings = `create unlogged table t (
+      id int8 generated always as identity (start with 100 increment by 5),
+      b text storage external compression pglz
+    ) with (fillfactor = 70);
+    create index t_b on t (b) with (fillfactor = 50)`;
+
+  test("writes them for a new table", async () => {
+    const plan = planMigration(await loadCatalog(""), await loadCatalog(settings));
+    expect(plan.steps.map((step) => step.statements)).toStrictEqual([
+      [
+        'CREATE UNLOGGED TABLE "public"."t" ("id" bigint GENERATED ALWAYS AS IDENTITY (SEQUENCE NAME "public"."t_id_seq" INCREMENT BY 5 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 100 CACHE 1 NO CYCLE) NOT NULL, "b" text STORAGE EXTERNAL COMPRESSION pglz) WITH (fillfactor=70)',
+        'CREATE INDEX "t_b" ON "public"."t" USING btree ("b") WITH (fillfactor=50)',
+      ],
+    ]);
+  });
+
+  const plainTable = "create table t (id int8 generated always as identity, b text)";
+
+  test.for([
+    {
+      change: "an identity's settings",
+      to: "create table t (id int8 generated always as identity (increment by 5), b text)",
+      object: "public.t.id",
+      reason: "ottersql does not plan changes to serial, identity or generated columns yet",
+    },
+    {
+      change: "a column's compression",
+      to: "create table t (id int8 generated always as identity, b text compression pglz)",
+      object: "public.t.b",
+      reason:
+        "ottersql does not plan changes to a column's storage or compression yet; write this change by hand",
+    },
+    {
+      change: "a table becoming unlogged",
+      to: "create unlogged table t (id int8 generated always as identity, b text)",
+      object: "public.t",
+      reason:
+        "ottersql does not plan changes to whether a table is logged, or to its storage parameters, yet; write this change by hand",
+    },
+    {
+      change: "a table's storage parameters",
+      to: `${plainTable} with (fillfactor = 70)`,
+      object: "public.t",
+      reason:
+        "ottersql does not plan changes to whether a table is logged, or to its storage parameters, yet; write this change by hand",
+    },
+  ])("leaves $change on a table with rows to a person", async ({ to, object, reason }) => {
+    const plan = planMigration(await loadCatalog(plainTable), await loadCatalog(to));
+    expect(plan).toStrictEqual({ steps: [], manual: [{ object, reason }] });
+  });
+});

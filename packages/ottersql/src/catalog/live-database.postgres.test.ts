@@ -23,6 +23,11 @@ const schemaSql = `${benchmarkSchemaSql};
   create table app.item (tenant int, owner_id int,
     foreign key (tenant, owner_id) references app.owner on delete set null (owner_id),
     constraint item_positive check (owner_id > 0) no inherit);
+  create unlogged table app.scratch (
+    id int8 generated always as identity (start with 100 increment by 5),
+    body text storage external compression pglz
+  ) with (fillfactor = 70);
+  create index scratch_body on app.scratch (body) with (fillfactor = 50);
   create table app.notes (id int8 primary key, body text collate "C", owner text);
   create function app.touch() returns trigger language plpgsql as 'begin return new; end';
   create function app.twice(n int) returns int language sql immutable return n * 2;

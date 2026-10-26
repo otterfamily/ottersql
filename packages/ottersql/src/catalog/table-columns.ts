@@ -1,4 +1,11 @@
-import { boolean, fields, nullable, qualifiedName, string } from "./catalog-json.ts";
+import {
+  boolean,
+  CatalogShapeError,
+  fields,
+  nullable,
+  qualifiedName,
+  string,
+} from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
 import { collationJson, columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
@@ -12,6 +19,8 @@ export interface TableColumnRow extends ColumnBaseRow {
   readonly notNull: boolean;
   readonly notNullNoInherit: boolean;
   readonly collation: QualifiedName | null;
+  readonly storage: string | null;
+  readonly compression: string | null;
   readonly identity: string;
   readonly generated: string;
   readonly expression: string | null;
@@ -20,8 +29,8 @@ export interface TableColumnRow extends ColumnBaseRow {
 }
 
 // A NOT VALID not-null constraint still sets attnotnull, but existing rows may hold NULL.
-// A sequence counts as the column's only when the column owns it (an 'a' dependency, as serial
-// makes; identity's are 'i') and the default is nothing but its nextval.
+// A sequence counts as the column's when an identity column owns it (an 'i' dependency), or when
+// a column owns it as serial makes it (an 'a' one) and the default is nothing but its nextval.
 const columnFields = `
   ${collationJson},
   'notNull', col_attr.attnotnull and not exists (
@@ -34,6 +43,11 @@ const columnFields = `
     where col_no_inherit.conrelid = col_attr.attrelid and col_no_inherit.contype = 'n'
       and col_no_inherit.conkey[1] = col_attr.attnum and col_no_inherit.connoinherit
   ),
+  'storage', (
+    select nullif(col_attr.attstorage, col_storage_type.typstorage)
+    from pg_type col_storage_type where col_storage_type.oid = col_attr.atttypid
+  ),
+  'compression', nullif(col_attr.attcompression, ''),
   'identity', col_attr.attidentity,
   'generated', col_attr.attgenerated,
   'expression', pg_get_expr(col_default.adbin, col_default.adrelid),
@@ -47,9 +61,11 @@ const columnFields = `
     where col_seq_dep.classid = 'pg_class'::regclass
       and col_seq_dep.refclassid = 'pg_class'::regclass
       and col_seq_dep.refobjid = col_attr.attrelid and col_seq_dep.refobjsubid = col_attr.attnum
-      and col_seq_dep.deptype = 'a' and col_seq_class.relkind = 'S'
-      and pg_get_expr(col_default.adbin, col_default.adrelid)
-        = format('nextval(%L::regclass)', col_seq_class.oid::regclass::text)
+      and col_seq_class.relkind = 'S'
+      and (col_seq_dep.deptype = 'i' or (
+        col_seq_dep.deptype = 'a' and pg_get_expr(col_default.adbin, col_default.adrelid)
+          = format('nextval(%L::regclass)', col_seq_class.oid::regclass::text)
+      ))
   )`;
 
 /** Selects the columns of the table `relationOid` as `parseTableColumn` reads them. */
@@ -64,6 +80,8 @@ export const tableColumnRow: Shape<TableColumnRow> = (value, path) => {
     notNull: field("notNull", boolean),
     notNullNoInherit: field("notNullNoInherit", boolean),
     collation: field("collation", nullable(qualifiedName)),
+    storage: field("storage", nullable(string)),
+    compression: field("compression", nullable(string)),
     identity: field("identity", string),
     generated: field("generated", string),
     expression: field("expression", nullable(string)),
@@ -72,12 +90,20 @@ export const tableColumnRow: Shape<TableColumnRow> = (value, path) => {
   };
 };
 
+const storages = { e: "external", m: "main", p: "plain", x: "extended" } as const;
+const compressions = { l: "lz4", p: "pglz" } as const;
+
 export function parseTableColumn(row: TableColumnRow): Column {
   return {
     ...parseColumnBase(row),
     notNull: row.notNull,
     notNullNoInherit: row.notNullNoInherit,
     collation: row.collation,
+    storage: row.storage === null ? null : decode(storages, row.storage, "pg_attribute.attstorage"),
+    compression:
+      row.compression === null
+        ? null
+        : decode(compressions, row.compression, "pg_attribute.attcompression"),
     value: parseColumnValue(row),
   };
 }
@@ -85,10 +111,17 @@ export function parseTableColumn(row: TableColumnRow): Column {
 const identityGenerations = { a: "always", d: "by default" } as const;
 const generatedStorages = { s: "stored", v: "virtual" } as const;
 
+function identityValue(row: TableColumnRow): ColumnValue {
+  const generation = decode(identityGenerations, row.identity, "pg_attribute.attidentity");
+  if (row.sequence === null) {
+    throw new CatalogShapeError(`identity column ${row.name} has no sequence`);
+  }
+  return { kind: "identity", generation, sequence: row.sequence };
+}
+
 function parseColumnValue(row: TableColumnRow): ColumnValue {
   if (row.identity !== "") {
-    const generation = decode(identityGenerations, row.identity, "pg_attribute.attidentity");
-    return { kind: "identity", generation };
+    return identityValue(row);
   }
   if (row.expression === null) {
     return { kind: "none" };

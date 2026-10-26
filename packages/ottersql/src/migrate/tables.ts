@@ -15,8 +15,19 @@ import {
   identifier,
   literal,
   qualified,
+  storageParameters,
 } from "./sql-text.ts";
-import { combine, manual, matchByName, objectName, only, outsideStep, step } from "./steps.ts";
+import {
+  combine,
+  manual,
+  matchByName,
+  noChanges,
+  notPlanned,
+  objectName,
+  only,
+  outsideStep,
+  step,
+} from "./steps.ts";
 import type { Changes } from "./steps.ts";
 import { hierarchyTables } from "./table-hierarchies.ts";
 import { uniqueChanges } from "./unique-keys.ts";
@@ -78,7 +89,7 @@ function createTable(table: Table): Changes {
       object: `${table.schema}.${table.name}`,
       statements: [
         ...sequences.map((sequence) => createSequence(sequence)),
-        `CREATE TABLE ${qualified(table.schema, table.name)} (${definitions.join(", ")})`,
+        `CREATE ${table.unlogged ? "UNLOGGED " : ""}TABLE ${qualified(table.schema, table.name)} (${definitions.join(", ")})${storageParameters(table.options)}`,
         ...sequences.map(
           (sequence) =>
             `ALTER SEQUENCE ${qualified(sequence.schema, sequence.name)} OWNED BY ${columnSqlName(table, sequence.column)}`,
@@ -145,7 +156,15 @@ function changeTable(
   after: Table,
   { from, to }: { readonly from: Catalog; readonly to: Catalog },
 ): Changes {
+  const storageChanged =
+    before.unlogged !== after.unlogged || !isDeepStrictEqual(before.options, after.options);
   return combine([
+    storageChanged
+      ? manual(
+          `${after.schema}.${after.name}`,
+          notPlanned("whether a table is logged, or to its storage parameters,"),
+        )
+      : noChanges,
     columnChanges(before, after, to),
     constraintChanges(before, after),
     uniqueChanges(before, after, from),

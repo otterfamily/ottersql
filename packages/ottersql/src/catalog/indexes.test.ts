@@ -44,6 +44,7 @@ describe("indexes", () => {
         ],
         include: ["d"],
         predicate: "(a > 0)",
+        options: [],
       },
     ]);
   });

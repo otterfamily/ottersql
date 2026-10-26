@@ -152,6 +152,9 @@ function changeColumn(change: ColumnChange, to: Catalog): Changes {
   if (type.manual.length > 0) {
     return type;
   }
+  if (before.storage !== after.storage || before.compression !== after.compression) {
+    return manual(objectName(table, after.name), notPlanned("a column's storage or compression"));
+  }
   return combine([
     type,
     valueChange(table, before, after),

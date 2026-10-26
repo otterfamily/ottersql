@@ -48,10 +48,12 @@ function foreignKeyColumnList(names: readonly string[], period: boolean): string
 
 export function columnDefinition(column: Column): string {
   const value = valueClause(column.value);
-  const { collation } = column;
+  const { collation, storage, compression } = column;
   return [
     identifier(column.name),
     column.typeSql,
+    ...(storage === null ? [] : [`STORAGE ${storage.toUpperCase()}`]),
+    ...(compression === null ? [] : [`COMPRESSION ${compression}`]),
     ...(collation === null ? [] : [`COLLATE ${qualified(collation.schema, collation.name)}`]),
     ...(value === null ? [] : [value]),
     ...(column.notNull ? [column.notNullNoInherit ? "NOT NULL NO INHERIT" : "NOT NULL"] : []),
@@ -71,21 +73,31 @@ function valueClause(value: Column["value"]): string | null {
     return `DEFAULT nextval(${literal(qualified(value.sequence.schema, value.sequence.name))}::regclass)`;
   }
   if (value.kind === "identity") {
-    return `GENERATED ${value.generation.toUpperCase()} AS IDENTITY`;
+    const { sequence } = value;
+    return `GENERATED ${value.generation.toUpperCase()} AS IDENTITY (SEQUENCE NAME ${qualified(sequence.schema, sequence.name)} ${sequenceSettings(sequence)})`;
   }
   return value.kind === "generated"
     ? `GENERATED ALWAYS AS (${value.expression}) ${value.storage.toUpperCase()}`
     : null;
 }
 
-/** The sequence a `serial` column numbers its rows from, with every setting spelled out. */
-export function createSequence(sequence: Sequence): string {
+/** A sequence's settings, every one spelled out, as CREATE SEQUENCE and identity columns take them. */
+function sequenceSettings(sequence: Sequence): string {
   return [
-    `CREATE SEQUENCE ${qualified(sequence.schema, sequence.name)} AS ${sequence.dataType}`,
-    ` INCREMENT BY ${sequence.increment} MINVALUE ${sequence.minimum}`,
+    `INCREMENT BY ${sequence.increment} MINVALUE ${sequence.minimum}`,
     ` MAXVALUE ${sequence.maximum} START WITH ${sequence.start} CACHE ${sequence.cache}`,
     sequence.cycle ? " CYCLE" : " NO CYCLE",
   ].join("");
+}
+
+/** The sequence a `serial` column numbers its rows from, with every setting spelled out. */
+export function createSequence(sequence: Sequence): string {
+  return `CREATE SEQUENCE ${qualified(sequence.schema, sequence.name)} AS ${sequence.dataType} ${sequenceSettings(sequence)}`;
+}
+
+/** A `WITH (...)` clause of storage parameters, or nothing when there are none. */
+export function storageParameters(options: readonly string[]): string {
+  return options.length > 0 ? ` WITH (${options.join(", ")})` : "";
 }
 
 export function deferral(value: Deferral): string {
@@ -132,6 +144,7 @@ export function createIndex(table: QualifiedName, index: Index, concurrently: bo
     ` (${index.keys.map((key) => indexKey(key)).join(", ")})`,
     index.include.length > 0 ? ` INCLUDE ${columnList(index.include)}` : "",
     index.nullsNotDistinct ? " NULLS NOT DISTINCT" : "",
+    storageParameters(index.options),
     index.predicate === null ? "" : ` WHERE ${index.predicate}`,
   ].join("");
 }

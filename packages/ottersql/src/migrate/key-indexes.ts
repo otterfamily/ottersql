@@ -23,6 +23,7 @@ export function keyIndex(key: PrimaryKey | UniqueConstraint): Index {
     })),
     include: key.include,
     predicate: null,
+    options: [],
   };
 }
 

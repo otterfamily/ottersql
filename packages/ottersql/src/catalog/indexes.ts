@@ -41,7 +41,8 @@ export function indexesJson(relationOid: string): string {
         "idx.indrelid",
         "(idx.indkey::int2[])[idx.indnkeyatts : idx.indnatts - 1]",
       )},
-      'predicate', pg_get_expr(idx.indpred, idx.indrelid)
+      'predicate', pg_get_expr(idx.indpred, idx.indrelid),
+      'options', coalesce(idx_class.reloptions, '{}')
     ) order by idx_class.relname)
     from pg_index idx
     join pg_class idx_class on idx_class.oid = idx.indexrelid
@@ -62,6 +63,7 @@ export interface IndexRow {
   readonly keys: readonly IndexKeyRow[];
   readonly include: readonly string[];
   readonly predicate: string | null;
+  readonly options: readonly string[];
 }
 
 interface IndexKeyRow {
@@ -95,6 +97,7 @@ export const indexRow: Shape<IndexRow> = (value, path) => {
     keys: field("keys", array(indexKeyRow)),
     include: field("include", array(string)),
     predicate: field("predicate", nullable(string)),
+    options: field("options", array(string)),
   };
 };
 
@@ -107,6 +110,7 @@ export function parseIndex(row: IndexRow): Index {
     keys: row.keys.map((key) => parseIndexKey(key)),
     include: row.include,
     predicate: row.predicate,
+    options: row.options,
   };
 }
 

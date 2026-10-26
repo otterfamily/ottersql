@@ -46,6 +46,10 @@ export interface Table {
   readonly partitionOf: Partition | null;
   /** The tables it inherits from with INHERITS, in order; a partition's parent is `partitionOf`. */
   readonly inherits: readonly QualifiedName[];
+  /** UNLOGGED: not written to the write-ahead log, so emptied after a crash and not replicated. */
+  readonly unlogged: boolean;
+  /** Storage parameters as Postgres prints them, such as `fillfactor=70`. */
+  readonly options: readonly string[];
   readonly comment: Comment | null;
 }
 
@@ -59,6 +63,10 @@ export interface Column {
   readonly notNullNoInherit: boolean;
   /** The column's collation, when it is not the one its type has. */
   readonly collation: QualifiedName | null;
+  /** How values are stored (`STORAGE`), when it is not the way its type has. */
+  readonly storage: "plain" | "external" | "extended" | "main" | null;
+  /** How long values are compressed (`COMPRESSION`), when it is not the server's default. */
+  readonly compression: "pglz" | "lz4" | null;
   readonly value: ColumnValue;
   readonly comment: Comment | null;
 }
@@ -74,7 +82,12 @@ export interface DefaultValue {
 export type ColumnValue =
   | { readonly kind: "none" }
   | ({ readonly kind: "default" } & DefaultValue)
-  | { readonly kind: "identity"; readonly generation: "always" | "by default" }
+  | {
+      readonly kind: "identity";
+      readonly generation: "always" | "by default";
+      /** The sequence it numbers rows from, with its settings. */
+      readonly sequence: Sequence;
+    }
   /** Numbered from a sequence the column owns, as `serial` makes it: `DEFAULT nextval(...)`. */
   | { readonly kind: "sequence"; readonly sequence: Sequence }
   | {
@@ -168,6 +181,8 @@ export interface Index {
   readonly include: readonly string[];
   /** The `WHERE` condition of a partial index. */
   readonly predicate: string | null;
+  /** Storage parameters as Postgres prints them, such as `fillfactor=50`. */
+  readonly options: readonly string[];
 }
 
 export type IndexKey = (

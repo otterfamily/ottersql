@@ -1,4 +1,4 @@
-import { array, nullable, qualifiedName, string } from "./catalog-json.ts";
+import { array, boolean, nullable, qualifiedName, string } from "./catalog-json.ts";
 import type { Field } from "./catalog-json.ts";
 import type { QualifiedName, Table } from "./model.ts";
 import { inheritsJson, partitionedByJson, partitionOfJson, partitionRow } from "./partitions.ts";
@@ -11,6 +11,8 @@ export interface TableSettingsRow {
   readonly partitionedBy: string | null;
   readonly partitionOf: Partition | null;
   readonly inherits: readonly QualifiedName[];
+  readonly unlogged: boolean;
+  readonly options: readonly string[];
   readonly rowSecurity: string;
   readonly policies: readonly Policy[];
 }
@@ -20,6 +22,8 @@ export function tableSettingsRow(field: Field): TableSettingsRow {
     partitionedBy: field("partitionedBy", nullable(string)),
     partitionOf: field("partitionOf", nullable(partitionRow)),
     inherits: field("inherits", array(qualifiedName)),
+    unlogged: field("unlogged", boolean),
+    options: field("options", array(string)),
     rowSecurity: field("rowSecurity", string),
     policies: field("policies", array(policyRow)),
   };
@@ -30,17 +34,24 @@ export function tableSettingsJson(): string {
   return `${partitionedByJson()} as "partitionedBy",
         ${partitionOfJson()} as "partitionOf",
         ${inheritsJson()} as inherits,
+        c.relpersistence = 'u' as unlogged,
+        coalesce(c.reloptions, '{}') as options,
         ${rowSecurityJson()} as "rowSecurity",
         ${policiesJson("c.oid")} as policies`;
 }
 
 export function parseTableSettings(
   row: TableSettingsRow,
-): Pick<Table, "partitionedBy" | "partitionOf" | "inherits" | "rowSecurity" | "policies"> {
+): Pick<
+  Table,
+  "partitionedBy" | "partitionOf" | "inherits" | "unlogged" | "options" | "rowSecurity" | "policies"
+> {
   return {
     partitionedBy: row.partitionedBy,
     partitionOf: row.partitionOf,
     inherits: row.inherits,
+    unlogged: row.unlogged,
+    options: row.options,
     rowSecurity: parseRowSecurity(row.rowSecurity),
     policies: row.policies,
   };
