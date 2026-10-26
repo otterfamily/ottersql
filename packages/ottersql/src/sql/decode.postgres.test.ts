@@ -21,6 +21,11 @@ function errorChainText(error: unknown): string {
   return messages.join("\n");
 }
 
+/** `value` in hex when it holds bytes, for comparing large ones quickly. */
+function hexOf(value: unknown): string | null {
+  return value instanceof Uint8Array ? value.toHex() : null;
+}
+
 async function selectOne(connection: Connection, expression: string): Promise<unknown> {
   const row = await defineQuery(`select ${expression} as v`, []).one(connection);
   return row["v"];
@@ -111,6 +116,11 @@ describe("decoding values (ADR 0008)", () => {
       },
     ],
     ["int2vector, as its text", "'1 2'::int2vector", "1 2"],
+    [
+      "box[], whose elements Postgres separates with semicolons",
+      "array['(1,1),(0,0)'::box, '(2,2),(1,1)'::box]",
+      ["(1,1),(0,0)", "(2,2),(1,1)"],
+    ],
     ["null", "null::int4", null],
   ])("%s", async ([, expression, expected], { drivers }) => {
     for (const connection of drivers) {
@@ -135,6 +145,29 @@ describe("decoding values (ADR 0008)", () => {
     },
   );
 
+  test("reads intervals in the iso_8601 style as in the postgres style, signs included", async () => {
+    const db = await PGlite.create();
+    try {
+      const values = [
+        "'-4 hours -5 minutes -6 seconds'::interval",
+        "'-1 hour -0.5 second'::interval",
+        "'1 year -2 mons 3 days -4 hours 5 minutes -6.25 seconds'::interval",
+        "'0.000001 second'::interval",
+      ];
+      const inPostgresStyle = await Promise.all(
+        values.map(async (value) => selectOne(pgliteConnection(db), value)),
+      );
+      await db.exec("set intervalstyle = iso_8601");
+      for (const [index, value] of values.entries()) {
+        await expect(selectOne(pgliteConnection(db), value)).resolves.toStrictEqual(
+          inPostgresStyle[index],
+        );
+      }
+    } finally {
+      await db.close();
+    }
+  });
+
   test("rejects an interval in a style it does not read, saying which styles it reads", async () => {
     const db = await PGlite.create();
     try {
@@ -148,6 +181,17 @@ describe("decoding values (ADR 0008)", () => {
       );
     } finally {
       await db.close();
+    }
+  });
+
+  test("decodes and encodes bytea of several megabytes", async ({ drivers }) => {
+    // Three megabytes: above the two where a regular expression over the text ran out of stack.
+    const bytes = new Uint8Array(3 * 1024 * 1024).map((_byte, index) => index % 251);
+    const roundTrip = defineQuery("select $1::bytea as v", ["v"]);
+    for (const connection of drivers) {
+      const { v } = await roundTrip.one(connection, { v: bytes });
+      // Compared as hex: a deep comparison of millions of elements takes seconds.
+      expect(hexOf(v)).toBe(bytes.toHex());
     }
   });
 

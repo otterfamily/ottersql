@@ -1,7 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2025",
-    "lib": ["es2025", "esnext.temporal"],
+    "lib": ["es2025", "esnext.temporal", "esnext.typedarrays"],
     "module": "nodenext",
     "types": ["node"],
     "strict": true,

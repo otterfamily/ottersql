@@ -14,19 +14,23 @@ export type RangeText =
       readonly upperInclusive: boolean;
     };
 
-/** Reads Postgres's array output (`array_out`), such as `{1,NULL,"a,b"}` or `[0:1]={1,2}`. */
-export function parseArrayLiteral(text: string): ArrayItems {
-  return new LiteralReader(text, text.startsWith("[") ? text.indexOf("=") + 1 : 0).array();
+/**
+ * Reads Postgres's array output (`array_out`), such as `{1,NULL,"a,b"}` or `[0:1]={1,2}`, whose
+ * elements are separated by their type's delimiter: a comma for every type but `box`'s semicolon.
+ */
+export function parseArrayLiteral(text: string, delimiter: string): ArrayItems {
+  const start = text.startsWith("[") ? text.indexOf("=") + 1 : 0;
+  return new LiteralReader(text, start, delimiter).array();
 }
 
 /** Reads Postgres's range output (`range_out`), such as `[1,5)`, `(,"a b"]` or `empty`. */
 export function parseRangeLiteral(text: string): RangeText {
-  return text === "empty" ? "empty" : new LiteralReader(text, 0).range();
+  return text === "empty" ? "empty" : new LiteralReader(text, 0, ",").range();
 }
 
 /** Reads Postgres's multirange output, such as `{[1,3),[5,7)}`. */
 export function parseMultirangeLiteral(text: string): RangeText[] {
-  return new LiteralReader(text, 0).ranges();
+  return new LiteralReader(text, 0, ",").ranges();
 }
 
 /** Writes an array literal Postgres reads back as the same elements. */
@@ -97,13 +101,17 @@ function parseIsoInterval(groups: Readonly<Record<string, string | undefined>>):
   return {
     months: Number(groups["years"] ?? 0) * MONTHS_PER_YEAR + Number(groups["months"] ?? 0),
     days: Number(groups["days"] ?? 0),
-    microseconds: clockMicroseconds({
-      negative: groups["seconds"]?.startsWith("-") === true,
-      hours: groups["hours"],
-      minutes: groups["minutes"],
-      seconds: groups["seconds"]?.replace("-", ""),
-      fraction: groups["fraction"],
-    }),
+    // Each of hours, minutes and seconds carries its own sign, and seconds' covers the fraction.
+    microseconds:
+      BigInt(groups["hours"] ?? 0) * SECONDS_PER_HOUR * MICROSECONDS_PER_SECOND +
+      BigInt(groups["minutes"] ?? 0) * SECONDS_PER_MINUTE * MICROSECONDS_PER_SECOND +
+      clockMicroseconds({
+        negative: groups["seconds"]?.startsWith("-") === true,
+        hours: undefined,
+        minutes: undefined,
+        seconds: groups["seconds"]?.replace("-", ""),
+        fraction: groups["fraction"],
+      }),
   };
 }
 
@@ -165,11 +173,14 @@ export function intervalLiteral(interval: Interval): string {
 /** Reads array, range and multirange literals one character at a time, without backtracking. */
 class LiteralReader {
   readonly #text: string;
+  /** What separates array elements; ranges always use a comma. */
+  readonly #delimiter: string;
   #position: number;
 
-  constructor(text: string, position: number) {
+  constructor(text: string, position: number, delimiter: string) {
     this.#text = text;
     this.#position = position;
+    this.#delimiter = delimiter;
   }
 
   array(): ArrayItems {
@@ -177,7 +188,7 @@ class LiteralReader {
     const items: (string | null | ArrayItems)[] = [];
     while (this.#peek() !== "}") {
       items.push(this.#peek() === "{" ? this.array() : this.#element());
-      this.#skip(",");
+      this.#skip(this.#delimiter);
     }
     this.#position += 1;
     return items;
@@ -230,7 +241,7 @@ class LiteralReader {
     if (this.#peek() === '"') {
       return this.#quoted();
     }
-    const text = this.#unquoted(",}");
+    const text = this.#unquoted(`${this.#delimiter}}`);
     return text === "NULL" ? null : text;
   }
 

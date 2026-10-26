@@ -56,7 +56,7 @@ const asText: Decode = (text) => text;
 function valueDecoder(type: TypeInfo): Decode {
   if (type.kind === "array") {
     const element = valueDecoder(type.element);
-    return (text) => decodeArray(parseArrayLiteral(text), element);
+    return (text) => decodeArray(parseArrayLiteral(text, type.delimiter), element);
   }
   if (type.kind === "range" || type.kind === "multirange") {
     const bound = valueDecoder(type.subtype);

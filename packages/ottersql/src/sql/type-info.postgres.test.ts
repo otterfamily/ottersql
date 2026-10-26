@@ -16,7 +16,7 @@ function expectedTypeInfo([typtype, name, element, subtype]: readonly (
   | undefined
 )[]): TypeInfo {
   if (element !== null && element !== undefined) {
-    return { kind: "array", element: { kind: "base", name: element } };
+    return { kind: "array", element: { kind: "base", name: element }, delimiter: "," };
   }
   if (typtype === "r" || typtype === "m") {
     const kind = typtype === "r" ? "range" : "multirange";

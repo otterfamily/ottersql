@@ -6,7 +6,8 @@ export type TypeInfo =
   | { readonly kind: "base"; readonly name: string }
   /** Enums, composites and types without a codec arrive as Postgres's text. */
   | { readonly kind: "text" }
-  | { readonly kind: "array"; readonly element: TypeInfo }
+  /** `delimiter` separates elements in the text: a comma for every type but `box`'s semicolon. */
+  | { readonly kind: "array"; readonly element: TypeInfo; readonly delimiter: string }
   | { readonly kind: "range"; readonly subtype: TypeInfo }
   | { readonly kind: "multirange"; readonly subtype: TypeInfo };
 
@@ -98,7 +99,7 @@ const builtIns: ReadonlyMap<number, TypeInfo> = new Map([
   ]),
   ...Object.entries(builtInArrayOids).map(([name, oid]): [number, TypeInfo] => [
     oid,
-    { kind: "array", element: { kind: "base", name } },
+    { kind: "array", element: { kind: "base", name }, delimiter: "," },
   ]),
   ...Object.values(builtInRanges).flatMap((range): [number, TypeInfo][] => [
     [range.oid, { kind: "range", subtype: { kind: "base", name: range.subtype } }],
@@ -116,6 +117,8 @@ interface PgTypeRow {
   readonly element: number;
   readonly subtype: number;
   readonly base: number;
+  /** The delimiter of the element type, for an array type. */
+  readonly delimiter: string;
 }
 
 const knownByConnection = new WeakMap<object, Map<number, PgTypeRow>>();
@@ -163,7 +166,7 @@ function typeInfo(oid: number, known: ReadonlyMap<number, PgTypeRow>): TypeInfo 
 
 function typeInfoOf(row: PgTypeRow, known: ReadonlyMap<number, PgTypeRow>): TypeInfo {
   if (row.element !== 0) {
-    return { kind: "array", element: typeInfo(row.element, known) };
+    return { kind: "array", element: typeInfo(row.element, known), delimiter: row.delimiter };
   }
   if (row.typtype === "d") {
     return typeInfo(row.base, known);
@@ -187,16 +190,17 @@ async function readPgTypes(
     connection,
     `select t.oid, n.nspname, t.typname, t.typtype,
        case when t.typinput = 'array_in'::regproc then t.typelem else 0 end,
-       coalesce(r.rngsubtype, multi.rngsubtype, 0), t.typbasetype
+       coalesce(r.rngsubtype, multi.rngsubtype, 0), t.typbasetype, coalesce(element.typdelim, ',')
      from pg_type t
      join pg_namespace n on n.oid = t.typnamespace
+     left join pg_type element on element.oid = t.typelem
      left join pg_range r on r.rngtypid = t.oid
      left join pg_range multi on multi.rngmultitypid = t.oid
      where t.oid = any($1::oid[])`,
     [`{${oids.join(",")}}`],
   );
   return new Map(
-    rows.map(([oid, schema, name, typtype, element, subtype, base]) => [
+    rows.map(([oid, schema, name, typtype, element, subtype, base, delimiter]) => [
       Number(oid),
       {
         schema: schema ?? "",
@@ -205,6 +209,7 @@ async function readPgTypes(
         element: Number(element),
         subtype: Number(subtype),
         base: Number(base),
+        delimiter: delimiter ?? ",",
       },
     ]),
   );
