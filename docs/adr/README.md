@@ -1,6 +1,6 @@
 # Architecture decision records
 
-Each record states one decision, why it was made, and what follows from it. Records are never rewritten; a changed decision gets a new record, and the old one is marked superseded. The research behind them is kept in a private notes repository and summarised in each record.
+Each record states one decision, why it was made, and what follows from it. Records are never rewritten; a changed decision gets a new record, and the old one is marked superseded. Edits that leave the decision as it was, such as the status line, typos and broken links, are allowed. The research behind them is kept in a private notes repository and summarised in each record.
 
 | ADR                                                             | Decision                                         | Status   |
 | --------------------------------------------------------------- | ------------------------------------------------ | -------- |
@@ -14,3 +14,4 @@ Each record states one decision, why it was made, and what follows from it. Reco
 | [0008](0008-ottersql-decodes-values-from-text.md)               | ottersql decodes values from text                | Accepted |
 | [0009](0009-prove-non-null-from-the-analyzed-query.md)          | Prove non-null from the analyzed query           | Accepted |
 | [0010](0010-supported-postgres-versions.md)                     | Supported Postgres versions                      | Accepted |
+| [0011](0011-leave-no-session-state-behind.md)                   | Leave no session state behind                    | Accepted |
