@@ -13,7 +13,7 @@ import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
 import { CommandError } from "./outcome.ts";
 import type { Outcome } from "./outcome.ts";
-import { historyRefusal, locate, readMigrations, writeMigration } from "./project.ts";
+import { migrationRefusal, locate, readMigrations, writeMigration } from "./project.ts";
 import type { Layout } from "./project.ts";
 
 type Baseline = Extract<Command, { name: "migrate baseline" }>;
@@ -43,7 +43,7 @@ export async function baseline(context: Context, command: Baseline): Promise<Out
       return reported(written?.path ?? null, files, difference);
     });
   } catch (error) {
-    throw historyRefusal(error, layout);
+    throw migrationRefusal(error, layout);
   }
 }
 

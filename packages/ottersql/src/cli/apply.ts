@@ -9,7 +9,7 @@ import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
 import type { Outcome } from "./outcome.ts";
 import { sqlstateNote } from "./outcome.ts";
-import { historyRefusal, locate, readMigrations, shown } from "./project.ts";
+import { migrationRefusal, locate, readMigrations, shown } from "./project.ts";
 import type { Layout } from "./project.ts";
 
 type Apply = Extract<Command, { name: "migrate apply" }>;
@@ -42,7 +42,7 @@ function applyOptions({ phase, approve }: Apply): ApplyOptions {
 function refusal(error: unknown, layout: Layout, agent: string | null): unknown {
   return error instanceof ApprovalRequiredError
     ? approvalRequired(error, agent, applying)
-    : historyRefusal(error, layout);
+    : migrationRefusal(error, layout);
 }
 
 function reported(layout: Layout, { applied, failed, waiting }: ApplyResult): Outcome {

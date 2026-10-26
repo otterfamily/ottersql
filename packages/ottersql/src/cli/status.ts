@@ -5,7 +5,7 @@ import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
 import type { Outcome } from "./outcome.ts";
-import { historyRefusal, locate, readMigrations } from "./project.ts";
+import { migrationRefusal, locate, readMigrations } from "./project.ts";
 
 /** Lists which migration steps ran on DATABASE_URL, and what was changed there by hand. */
 export async function status(
@@ -19,7 +19,7 @@ export async function status(
       await withSession(context.env, async (connection) => migrationStatus(connection, files)),
     );
   } catch (error) {
-    throw historyRefusal(error, layout);
+    throw migrationRefusal(error, layout);
   }
 }
 

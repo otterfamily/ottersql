@@ -2,7 +2,11 @@ import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { defaultSchemaPath, migrationsDirectory } from "../content-mapper/index.ts";
-import { MigrationFileError, MigrationHistoryError } from "../migrate/index.ts";
+import {
+  MigrationFileError,
+  MigrationHistoryError,
+  SessionChangedError,
+} from "../migrate/index.ts";
 import type { MigrationFile } from "../migrate/index.ts";
 import type { Project } from "./command.ts";
 import { CommandError } from "./outcome.ts";
@@ -102,10 +106,11 @@ export async function writeMigration(layout: Layout, name: string, text: string)
 }
 
 /**
- * The refusal for what reading the migrations against a database threw: a file that cannot be
- * read, or a history that disagrees with the files; anything else is returned as it was.
+ * The refusal for what running the migrations against a database threw: a file that cannot be
+ * read, a history that disagrees with the files, or a connection that changed session; anything
+ * else is returned as it was.
  */
-export function historyRefusal(error: unknown, layout: Layout): unknown {
+export function migrationRefusal(error: unknown, layout: Layout): unknown {
   if (error instanceof MigrationFileError) {
     return unreadableMigration(layout, error);
   }
@@ -115,6 +120,14 @@ export function historyRefusal(error: unknown, layout: Layout): unknown {
       code: "migrate.history_mismatch",
       why: error.message,
       fix: "Leave applied migrations as they are, and put new changes in a new migration",
+    });
+  }
+  if (error instanceof SessionChangedError) {
+    return new CommandError({
+      kind: "failed",
+      code: "database.session_changed",
+      why: error.message,
+      fix: "Connect to Postgres directly or through a pooler in session mode, not one in transaction mode; until the first session ends, other runs wait for its lock",
     });
   }
   return error;

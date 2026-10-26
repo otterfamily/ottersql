@@ -1,5 +1,6 @@
 export { applyMigrations } from "./apply-migrations.ts";
 export { MigrationHistoryError } from "./history.ts";
+export { SessionChangedError } from "./ledger.ts";
 export type { ApplyOptions, ApplyResult, StepRef } from "./apply-migrations.ts";
 export { ApprovalRequiredError } from "./approval.ts";
 export { baselineMigrations, planBaseline } from "./baseline.ts";

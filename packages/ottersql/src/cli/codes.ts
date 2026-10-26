@@ -6,6 +6,7 @@ export type FailureCode =
   | "database.connection_failed"
   | "database.driver_missing"
   | "database.query_failed"
+  | "database.session_changed"
   | "database.url_missing"
   | "internal"
   | "migrate.approval_by_agent"

@@ -3,9 +3,22 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { postgresDatabase } from "@ottersql/testing";
 import { describe, expect, test } from "vitest";
 
+import type { PgClient } from "../sql/pg-driver.ts";
 import { pgConnection } from "../sql/pg.ts";
-import { applyMigrations } from "./index.ts";
+import { applyMigrations, SessionChangedError } from "./index.ts";
 import { connect, migrationFrom, step, users } from "./test-migrate.ts";
+
+/** A client whose statements take turns on two sessions, as a pooler in transaction mode may send them. */
+function alternating(first: PgClient, second: PgClient): PgClient {
+  let sent = 0;
+  return {
+    query: async (config) => {
+      sent += 1;
+      const session = sent % 2 === 1 ? first : second;
+      return session.query(config);
+    },
+  };
+}
 
 describe("applyMigrations on Postgres", () => {
   test("gives up a lock it waits for, so queries queued behind it go on, and retries until it gets it", async () => {
@@ -37,6 +50,22 @@ describe("applyMigrations on Postgres", () => {
       });
     } finally {
       await Promise.all([migrator.end(), holder.end(), reader.end()]);
+    }
+  });
+
+  test("refuses to run when the connection changes session after taking the lock, as through a transaction-mode pooler", async () => {
+    const url = await postgresDatabase(users);
+    const [first, second] = await Promise.all([connect(url), connect(url)]);
+    try {
+      const file = await migrationFrom(users, `${users}; alter table users add column name text`);
+      const connection = pgConnection(alternating(first, second));
+      await expect(applyMigrations(connection, [file])).rejects.toThrow(SessionChangedError);
+      const { rows } = await first.query(
+        "select count(*)::int as columns from information_schema.columns where table_name = 'users'",
+      );
+      expect(rows).toStrictEqual([{ columns: 2 }]);
+    } finally {
+      await Promise.all([first.end(), second.end()]);
     }
   });
 
