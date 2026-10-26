@@ -15,14 +15,23 @@ import { readViews } from "./views.ts";
  * not have the shape ottersql reads.
  */
 export async function readCatalog(connection: Connection): Promise<Catalog> {
-  const features = await readFeatures(connection);
-  return {
-    capabilities: await readCapabilities(connection),
-    tables: await readTables(connection, features),
-    enums: await readEnums(connection),
-    ranges: await readRanges(connection),
-    domains: await readDomains(connection, features),
-    views: await readViews(connection),
-    routines: await readRoutines(connection),
-  };
+  // Postgres prints a type or a name in an expression without its schema when the search_path
+  // finds it, so the session's search_path, which schema.sql may set, would decide what migrations
+  // say; with public alone, everything outside public is named with its schema. Repeatable read
+  // gives every query the same snapshot, so a change made meanwhile cannot show half-way.
+  return connection.transaction(
+    async (transaction) => {
+      const features = await readFeatures(transaction);
+      return {
+        capabilities: await readCapabilities(transaction),
+        tables: await readTables(transaction, features),
+        enums: await readEnums(transaction),
+        ranges: await readRanges(transaction),
+        domains: await readDomains(transaction, features),
+        views: await readViews(transaction),
+        routines: await readRoutines(transaction),
+      };
+    },
+    { isolation: "repeatable read", readOnly: true, settings: { search_path: "public" } },
+  );
 }

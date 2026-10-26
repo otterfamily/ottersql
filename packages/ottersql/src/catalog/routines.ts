@@ -1,4 +1,4 @@
-import type { Connection } from "../sql/index.ts";
+import type { Transaction } from "../sql/index.ts";
 import { array, boolean, fields, nullable, number, queryRows, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
@@ -54,8 +54,8 @@ const routineRow: Shape<RoutineRow> = (value, path) => {
   };
 };
 
-export async function readRoutines(connection: Connection): Promise<Routine[]> {
-  const rows = await queryRows(connection, {
+export async function readRoutines(transaction: Transaction): Promise<Routine[]> {
+  const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, p.proname as name, p.prokind as kind,
         p.provolatile as volatility, p.proretset as "setOf",
         ${typeRefJson("p.prorettype")} as "resultType",

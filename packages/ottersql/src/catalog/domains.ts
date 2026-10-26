@@ -1,4 +1,4 @@
-import type { Connection } from "../sql/index.ts";
+import type { Transaction } from "../sql/index.ts";
 import { array, boolean, fields, nullable, queryRows, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { checkBaseRow, domainChecksJson, parseDomainCheck } from "./checks.ts";
@@ -39,10 +39,10 @@ const domainRow: Shape<DomainRow> = (value, path) => {
 };
 
 export async function readDomains(
-  connection: Connection,
+  transaction: Transaction,
   features: CatalogFeatures,
 ): Promise<Domain[]> {
-  const rows = await queryRows(connection, {
+  const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, t.typname as name,
         ${typeRefJson("t.typbasetype")} as "baseType",
         format_type(t.typbasetype, t.typtypmod) as "baseTypeSql",

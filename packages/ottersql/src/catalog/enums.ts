@@ -1,4 +1,4 @@
-import type { Connection } from "../sql/index.ts";
+import type { Transaction } from "../sql/index.ts";
 import { array, fields, nullable, queryRows, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
@@ -15,8 +15,8 @@ const enumRow: Shape<EnumRow> = (value, path) => {
   };
 };
 
-export async function readEnums(connection: Connection): Promise<Enum[]> {
-  const rows = await queryRows(connection, {
+export async function readEnums(transaction: Transaction): Promise<Enum[]> {
+  const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, t.typname as name,
         array(select e.enumlabel from pg_enum e where e.enumtypid = t.oid order by e.enumsortorder)
           as values,

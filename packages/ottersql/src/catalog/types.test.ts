@@ -116,3 +116,24 @@ describe("domains", () => {
     expect(catalog.domains).toStrictEqual([]);
   });
 });
+
+describe("search_path", () => {
+  test("names what lies outside public with its schema, whatever search_path schema.sql sets", async () => {
+    const catalog = await loadCatalog(`
+      create schema app;
+      set search_path = app;
+      create type mood as enum ('sad', 'ok');
+      create table t (m mood default 'ok' check (m <> 'sad'), n int4);
+    `);
+    const moods = table(catalog, "t", "app");
+    expect({
+      types: moods.columns.map((column) => column.typeSql),
+      value: moods.columns[0]?.value,
+      check: moods.checks[0]?.expression,
+    }).toStrictEqual({
+      types: ["app.mood", "integer"],
+      value: { kind: "default", expression: "'ok'::app.mood", volatile: false },
+      check: "(m <> 'sad'::app.mood)",
+    });
+  });
+});

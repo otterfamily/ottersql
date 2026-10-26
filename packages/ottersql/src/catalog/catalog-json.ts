@@ -1,5 +1,5 @@
 import { rawQuery } from "../sql/driver.ts";
-import type { Connection } from "../sql/index.ts";
+import type { Connection, Transaction } from "../sql/index.ts";
 
 /**
  * Reads a JSON value the catalog queries return as a `Value`, or throws saying where it is not one.
@@ -71,7 +71,7 @@ export interface CatalogQuery<Row> {
  * where Postgres keeps it, not into a subquery, where it usually does.
  */
 export async function queryRows<Row>(
-  connection: Connection,
+  connection: Connection | Transaction,
   query: CatalogQuery<Row>,
 ): Promise<readonly Row[]> {
   const { rows } = await rawQuery(

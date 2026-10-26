@@ -1,4 +1,4 @@
-import type { Connection } from "../sql/index.ts";
+import type { Transaction } from "../sql/index.ts";
 import { array, boolean, fields, nullable, queryRows, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
@@ -26,8 +26,8 @@ const viewRow: Shape<ViewRow> = (value, path) => {
   };
 };
 
-export async function readViews(connection: Connection): Promise<View[]> {
-  const rows = await queryRows(connection, {
+export async function readViews(transaction: Transaction): Promise<View[]> {
+  const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, c.relname as name, c.relkind = 'm' as materialized,
         ${columnsJson("c.oid")} as columns,
         obj_description(c.oid, 'pg_class') as comment

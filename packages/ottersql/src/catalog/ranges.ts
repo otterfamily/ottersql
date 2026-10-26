@@ -1,4 +1,4 @@
-import type { Connection } from "../sql/index.ts";
+import type { Transaction } from "../sql/index.ts";
 import { fields, nullable, queryRows, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
@@ -26,8 +26,8 @@ const rangeRow: Shape<RangeRow> = (value, path) => {
   };
 };
 
-export async function readRanges(connection: Connection): Promise<RangeType[]> {
-  const rows = await queryRows(connection, {
+export async function readRanges(transaction: Transaction): Promise<RangeType[]> {
+  const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, t.typname as name, m.typname as multirange,
         ${typeRefJson("r.rngsubtype")} as subtype,
         obj_description(t.oid, 'pg_type') as comment

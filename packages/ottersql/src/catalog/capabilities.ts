@@ -1,12 +1,12 @@
-import type { Connection } from "../sql/index.ts";
+import type { Transaction } from "../sql/index.ts";
 import { fields, number, queryRows } from "./catalog-json.ts";
 import type { Capabilities } from "./model.ts";
 
 // Since Postgres 10, server_version_num is major * 10000 + minor.
 const SERVER_VERSION_NUM_PER_MAJOR = 10_000;
 
-export async function readCapabilities(connection: Connection): Promise<Capabilities> {
-  const [versionNum] = await queryRows(connection, {
+export async function readCapabilities(transaction: Transaction): Promise<Capabilities> {
+  const [versionNum] = await queryRows(transaction, {
     select: "select current_setting('server_version_num')::int as \"versionNum\"",
     row: (value, path) => fields(value, path)("versionNum", number),
     label: "capabilities",

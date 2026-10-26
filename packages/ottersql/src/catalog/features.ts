@@ -1,4 +1,4 @@
-import type { Connection } from "../sql/index.ts";
+import type { Transaction } from "../sql/index.ts";
 import { boolean, fields, queryRows } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 
@@ -16,8 +16,8 @@ const featuresRow: Shape<CatalogFeatures> = (value, path) => {
   return { enforcedFlag: field("enforcedFlag", boolean) };
 };
 
-export async function readFeatures(connection: Connection): Promise<CatalogFeatures> {
-  const [features] = await queryRows(connection, {
+export async function readFeatures(transaction: Transaction): Promise<CatalogFeatures> {
+  const [features] = await queryRows(transaction, {
     select: `select exists (
         select from pg_attribute
         where attrelid = 'pg_catalog.pg_constraint'::regclass and attname = 'conenforced'

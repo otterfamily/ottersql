@@ -1,4 +1,4 @@
-import type { Connection } from "../sql/index.ts";
+import type { Transaction } from "../sql/index.ts";
 import { queryRows } from "./catalog-json.ts";
 import type { CatalogFeatures } from "./features.ts";
 import type { Table } from "./model.ts";
@@ -6,10 +6,10 @@ import { userObject } from "./scope.ts";
 import { parseTable, tableRow, tablePartsJson } from "./table-parts.ts";
 
 export async function readTables(
-  connection: Connection,
+  transaction: Transaction,
   features: CatalogFeatures,
 ): Promise<Table[]> {
-  const rows = await queryRows(connection, {
+  const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, c.relname as name,
         ${tablePartsJson(features)}
       from pg_class c join pg_namespace n on n.oid = c.relnamespace
