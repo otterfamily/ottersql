@@ -10,7 +10,7 @@ import { readBuiltInFacts } from "./built-in-functions.ts";
 import type { BuiltInFacts } from "./built-in-functions.ts";
 import { nodesOfType, scalar } from "./node-tree.ts";
 import type { NodeObject } from "./node-tree.ts";
-import { NODE_FORMAT_MAJOR, nullableColumns } from "./nullability.ts";
+import { NODE_FORMAT_MAJOR, nonNullParameters, nullableColumns } from "./nullability.ts";
 import { renderFile } from "./render.ts";
 import type { RenderedFile } from "./render.ts";
 import { describeStatement } from "./statement.ts";
@@ -40,7 +40,12 @@ export interface Problem {
 export interface DescribedQuery {
   readonly query: Query;
   readonly name: string;
-  readonly parameters: readonly { readonly name: string; readonly type: TypeRef }[];
+  readonly parameters: readonly {
+    readonly name: string;
+    readonly type: TypeRef;
+    /** `false` only when the statement writes it straight into a NOT NULL column. */
+    readonly nullable: boolean;
+  }[];
   readonly columns: readonly DescribedColumn[];
 }
 
@@ -61,6 +66,8 @@ export interface DescribedColumn {
 interface DescribedStatement {
   readonly kind: "described";
   readonly parameterTypes: readonly TypeRef[];
+  /** The `$n` numbers of parameters that may not be null. */
+  readonly nonNullParameters: ReadonlySet<number>;
   readonly columns: readonly DescribedColumn[];
 }
 
@@ -138,6 +145,7 @@ async function describeFile(context: Context, content: string): Promise<Describe
         parameters: query.parameters.map((parameter, index) => ({
           name: parameter.name,
           type: knownType(statement.parameterTypes[index]),
+          nullable: !statement.nonNullParameters.has(index + 1),
         })),
         columns: statement.columns,
       });
@@ -163,17 +171,16 @@ async function analyze(
     [...tableOids, ...relationOids(tree)],
     async (oids) => readRelations(context.connection, oids),
   );
-  const nullable =
-    tree === null
-      ? []
-      : nullableColumns(tree, {
-          isNotNullColumn: (relationOid, attnum) =>
-            isNotNullColumn(context.catalog, relations.get(relationOid), attnum),
-          ...context.builtIns,
-        });
+  const facts = {
+    isNotNullColumn: (relationOid: number, attnum: number) =>
+      isNotNullColumn(context.catalog, relations.get(relationOid), attnum),
+    ...context.builtIns,
+  };
+  const nullable = tree === null ? [] : nullableColumns(tree, facts);
   return {
     kind: "described",
     parameterTypes: parameterTypes.map((oid) => knownType(types.get(oid), oid)),
+    nonNullParameters: tree === null ? new Set() : nonNullParameters(tree, facts),
     columns: fields.map((column, index) => ({
       name: column.name,
       type: knownType(types.get(column.dataTypeID), column.dataTypeID),

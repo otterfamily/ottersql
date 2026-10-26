@@ -131,7 +131,9 @@ function renderParameters(
       return [
         { text: "readonly " },
         name,
-        { text: `: ${nullable(tsType(parameter.type, context))}; ` },
+        {
+          text: `: ${parameter.nullable ? nullable(tsType(parameter.type, context)) : tsType(parameter.type, context)}; `,
+        },
       ];
     }),
     { text: "}\n" },

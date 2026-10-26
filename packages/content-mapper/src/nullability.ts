@@ -20,10 +20,13 @@ export const NODE_FORMAT_MAJOR = 18;
 
 // Node field values from Postgres 18 (parsenodes.h, primnodes.h).
 const COMMAND_SELECT = "1";
+const COMMAND_UPDATE = "2";
+const COMMAND_INSERT = "3";
 const COMMAND_MERGE = "5";
 const RTE_RELATION = "0";
 const RTE_SUBQUERY = "1";
 const RTE_JOIN = "2";
+const RTE_VALUES = "5";
 const RTE_CTE = "6";
 const RETURNING_OLD = "1";
 const COERCE_EXPLICIT_CAST = "1";
@@ -147,9 +150,8 @@ const rules: Readonly<Record<string, (node: NodeObject, scope: Scope) => boolean
 
 function provesFunction(node: NodeObject, scope: Scope): boolean {
   const oid = scalar(node, "funcid") ?? "";
-  const format = scalar(node, "funcformat");
-  if (format === COERCE_EXPLICIT_CAST || format === COERCE_IMPLICIT_CAST) {
-    return scope.facts.nonNullCasts.has(oid) && provesNonNull(list(field(node, "args"))[0], scope);
+  if (isCast(node)) {
+    return isBuiltInCast(node, scope.facts) && provesNonNull(list(field(node, "args"))[0], scope);
   }
   // A VARIADIC array argument may itself be null, which makes even `concat` return null.
   const neverNull = scope.facts.neverNull.has(oid) && scalar(node, "funcvariadic") !== "true";
@@ -204,4 +206,90 @@ function provesCteColumn(owner: Scope, entry: NodeObject, attnum: number): boole
   }
   const visiting = new Set([...owner.visiting, name]);
   return provesColumn({ query, parent: definer, facts: owner.facts, visiting }, attnum);
+}
+
+function isCast(node: NodeObject): boolean {
+  const format = scalar(node, "funcformat");
+  return format === COERCE_EXPLICIT_CAST || format === COERCE_IMPLICIT_CAST;
+}
+
+/** A built-in cast is strict and never turns a value into null; a user-defined one may do either. */
+function isBuiltInCast(node: NodeObject, facts: Pick<NullabilityFacts, "nonNullCasts">): boolean {
+  return isCast(node) && facts.nonNullCasts.has(scalar(node, "funcid") ?? "");
+}
+
+/**
+ * The parameters (`$n` numbers) an INSERT or UPDATE writes straight into NOT NULL columns of the
+ * table it changes, through its values, VALUES rows, SELECT list, SET or ON CONFLICT DO UPDATE
+ * SET. Postgres rejects null for those whenever the statement writes a row, so they are typed
+ * without it. A parameter anywhere else, such as in a
+ * comparison where null only matches no rows, or inside an expression, may stay null.
+ */
+export function nonNullParameters(
+  query: NodeObject,
+  facts: Pick<NullabilityFacts, "isNotNullColumn" | "nonNullCasts">,
+): ReadonlySet<number> {
+  const command = scalar(query, "commandType");
+  const rtable = list(field(query, "rtable"));
+  const target = rtable[Number(scalar(query, "resultRelation")) - 1];
+  if (
+    (command !== COMMAND_INSERT && command !== COMMAND_UPDATE) ||
+    !isNode(target, "RANGETBLENTRY")
+  ) {
+    return new Set();
+  }
+  const relation = Number(scalar(target, "relid"));
+  const onConflict = field(query, "onConflict");
+  const entries = [
+    ...list(field(query, "targetList")),
+    ...(isNode(onConflict, "ONCONFLICTEXPR") ? list(field(onConflict, "onConflictSet")) : []),
+  ];
+  return new Set(
+    entries.flatMap((entry) =>
+      isNode(entry, "TARGETENTRY") &&
+      facts.isNotNullColumn(relation, Number(scalar(entry, "resno")))
+        ? written(field(entry, "expr"), rtable, facts)
+        : [],
+    ),
+  );
+}
+
+/** The parameters `expression` writes as they are: a parameter, a cast of one, or a VALUES column. */
+function written(
+  expression: NodeValue | undefined,
+  rtable: readonly NodeValue[],
+  facts: Pick<NullabilityFacts, "nonNullCasts">,
+): number[] {
+  const value = uncast(expression, facts);
+  if (isNode(value, "PARAM")) {
+    return [Number(scalar(value, "paramid"))];
+  }
+  if (!isNode(value, "VAR")) {
+    return [];
+  }
+  const entry = rtable[Number(scalar(value, "varno")) - 1];
+  if (!isNode(entry, "RANGETBLENTRY") || scalar(entry, "rtekind") !== RTE_VALUES) {
+    return [];
+  }
+  const column = Number(scalar(value, "varattno")) - 1;
+  return list(field(entry, "values_lists")).flatMap((row) =>
+    written(list(row)[column], rtable, facts),
+  );
+}
+
+/**
+ * `expression` without the casts around it that pass null through: relabelling, I/O conversion
+ * and built-in cast functions, which are strict. A user-defined cast may turn null into a value.
+ */
+function uncast(
+  expression: NodeValue | undefined,
+  facts: Pick<NullabilityFacts, "nonNullCasts">,
+): NodeValue | undefined {
+  if (isNode(expression, "RELABELTYPE") || isNode(expression, "COERCEVIAIO")) {
+    return uncast(field(expression, "arg"), facts);
+  }
+  if (isNode(expression, "FUNCEXPR") && isBuiltInCast(expression, facts)) {
+    return uncast(list(field(expression, "args"))[0], facts);
+  }
+  return expression;
 }
