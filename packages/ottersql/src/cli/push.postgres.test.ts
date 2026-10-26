@@ -1,7 +1,7 @@
 import { postgresDatabase } from "@ottersql/testing";
 import { describe, expect, onTestFinished, test, vi } from "vitest";
 
-import { at, ottersqlJson, project } from "./test-cli.ts";
+import { at, ottersqlJson, project, writeFiles } from "./test-cli.ts";
 
 const users = "create table users (id int8 primary key, email text);\n";
 const withName = "create table users (id int8 primary key, email text, name text);\n";
@@ -130,6 +130,18 @@ describe("ottersql push", () => {
     expect({ exitCode, code: at(json, "code") }).toStrictEqual({
       exitCode: 3,
       code: "push.approval_by_agent",
+    });
+  });
+
+  test("refuses a database that migrations keep, with exit code 2", async () => {
+    const env = { DATABASE_URL: await postgresDatabase(users) };
+    const root = await project({ "db/schema.sql": users });
+    await ottersqlJson(root, ["migrate", "apply"], { env });
+    await writeFiles(root, { "db/schema.sql": withName });
+    const { exitCode, json } = await ottersqlJson(root, ["push"], { env });
+    expect({ exitCode, code: at(json, "code") }).toStrictEqual({
+      exitCode: 2,
+      code: "push.migrated_database",
     });
   });
 });

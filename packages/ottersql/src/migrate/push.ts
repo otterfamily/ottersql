@@ -2,11 +2,12 @@ import { loadCatalog, readCatalog } from "../catalog/index.ts";
 import type { Connection } from "../sql/index.ts";
 import type { ApplyOptions } from "./apply-migrations.ts";
 import { checkApproval } from "./approval.ts";
-import { stepHash } from "./history.ts";
+import { MigrationHistoryError, stepHash } from "./history.ts";
 import type { PendingStep } from "./ledger.ts";
-import { migratedObjects } from "./ledger.ts";
+import { hasLedger, migratedObjects } from "./ledger.ts";
 import { planMigration } from "./plan-migration.ts";
 import type { ManualChange, Step } from "./plan.ts";
+import { exclusively } from "./run-lock.ts";
 import { runStep } from "./run-step.ts";
 import type { StepFailure } from "./run-step.ts";
 
@@ -25,12 +26,32 @@ export interface PushResult {
  * steps directly and recording none of them: for a database to try things on, never one that
  * migrations keep. Runs nothing while the plan leaves a change to a person, so the database is
  * never left half way; throws an `ApprovalRequiredError` when a step cannot be undone and
- * `options.approve` does not cover the plan.
+ * `options.approve` does not cover the plan, and a `MigrationHistoryError` for a database that
+ * migrations keep. It holds the migrations' lock meanwhile, so it never runs beside them.
  */
 export async function pushSchema(
   connection: Connection,
   schemaSql: string,
   options: PushOptions = {},
+): Promise<PushResult> {
+  return exclusively(
+    connection,
+    async () => {
+      if (await hasLedger(connection)) {
+        throw new MigrationHistoryError(
+          "Migrations keep this database, so a push would leave it differing from them; write the change as a migration",
+        );
+      }
+      return pushPlanned(connection, schemaSql, options);
+    },
+    options.waitForOtherRuns,
+  );
+}
+
+async function pushPlanned(
+  connection: Connection,
+  schemaSql: string,
+  options: PushOptions,
 ): Promise<PushResult> {
   const plan = planMigration(
     await readCatalog(connection, migratedObjects),

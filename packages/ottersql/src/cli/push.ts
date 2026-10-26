@@ -1,4 +1,4 @@
-import { ApprovalRequiredError, pushSchema } from "../migrate/index.ts";
+import { ApprovalRequiredError, MigrationHistoryError, pushSchema } from "../migrate/index.ts";
 import type { PushResult } from "../migrate/index.ts";
 import { approvalRequired, refuseApprovalByAgent } from "./approval.ts";
 import type { Approvable } from "./approval.ts";
@@ -6,8 +6,10 @@ import { schemaRefusal } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
+import { CommandError } from "./outcome.ts";
 import type { Outcome } from "./outcome.ts";
 import { locate, readSchema } from "./project.ts";
+import type { Layout } from "./project.ts";
 import { failedPushJson, manualJson, plannedStepJson } from "./results.ts";
 
 type Push = Extract<Command, { name: "push" }>;
@@ -35,10 +37,23 @@ export async function push(context: Context, command: Push): Promise<Outcome> {
     );
     return reported(result);
   } catch (error) {
-    throw error instanceof ApprovalRequiredError
-      ? approvalRequired(error, context.agent, pushing)
-      : schemaRefusal(layout, error);
+    throw refusal(error, layout, context.agent);
   }
+}
+
+/** The refusal `error` stands for, or `error` itself when it is not one. */
+function refusal(error: unknown, layout: Layout, agent: string | null): unknown {
+  if (error instanceof ApprovalRequiredError) {
+    return approvalRequired(error, agent, pushing);
+  }
+  return error instanceof MigrationHistoryError
+    ? new CommandError({
+        kind: "invalid",
+        code: "push.migrated_database",
+        why: error.message,
+        fix: "Write the change as a migration with `ottersql migrate generate`, and apply it",
+      })
+    : schemaRefusal(layout, error);
 }
 
 function reported({ applied, failed, manual }: PushResult): Outcome {

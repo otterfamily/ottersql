@@ -2,7 +2,7 @@ import { postgresDatabase } from "@ottersql/testing";
 import { describe, expect, test } from "vitest";
 
 import { pgConnection } from "../sql/pg.ts";
-import { pushSchema } from "./index.ts";
+import { applyMigrations, MigrationHistoryError, pushSchema } from "./index.ts";
 import { approvalRequired, connect, users } from "./test-migrate.ts";
 
 const withName = "create table users (id int8 primary key, email text, name text)";
@@ -70,6 +70,19 @@ describe("pushSchema", () => {
         approved: ["dropColumn"],
         columns: ["id", "email"],
       });
+    } finally {
+      await client.end();
+    }
+  });
+
+  test("refuses a database that migrations keep, changing nothing", async () => {
+    const client = await connect(await postgresDatabase(users));
+    try {
+      await applyMigrations(pgConnection(client), []);
+      await expect(pushSchema(pgConnection(client), withName)).rejects.toThrow(
+        MigrationHistoryError,
+      );
+      await expect(columns(client)).resolves.toStrictEqual(["id", "email"]);
     } finally {
       await client.end();
     }

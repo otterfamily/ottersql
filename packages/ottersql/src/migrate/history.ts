@@ -7,7 +7,10 @@ import type { MigrationFile } from "./migrations.ts";
 import { phases } from "./plan.ts";
 import type { Step } from "./plan.ts";
 
-/** The migration history and the files disagree, so applying them could leave an unknown schema. */
+/**
+ * The migration history and the files disagree, so applying them could leave an unknown schema; or
+ * a change made outside the migrations would make them disagree, as pushing to a database they keep.
+ */
 export class MigrationHistoryError extends Error {
   override readonly name = "MigrationHistoryError";
 }

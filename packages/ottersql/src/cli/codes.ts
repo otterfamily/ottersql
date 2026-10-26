@@ -26,6 +26,7 @@ export type FailureCode =
   | "push.approval_by_agent"
   | "push.approval_required"
   | "push.manual"
+  | "push.migrated_database"
   | "push.not_local"
   | "push.step_failed"
   | "schema.invalid"

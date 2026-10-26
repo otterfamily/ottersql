@@ -40,10 +40,15 @@ export async function createLedger(connection: Connection): Promise<void> {
   );
 }
 
+/** Whether migrations keep the database: it has the ledger, even with no step in it yet. */
+export async function hasLedger(connection: Connection): Promise<boolean> {
+  const { rows } = await rawQuery(connection, `select to_regclass('${ledger}') is not null`, []);
+  return rows[0]?.[0] === "t";
+}
+
 /** The steps that ran, in file and step order, or none when the database never ran any; it writes nothing. */
 export async function readLedger(connection: Connection): Promise<AppliedStep[]> {
-  const exists = await rawQuery(connection, `select to_regclass('${ledger}') is not null`, []);
-  if (exists.rows[0]?.[0] !== "t") {
+  if (!(await hasLedger(connection))) {
     return [];
   }
   const { rows } = await rawQuery(
