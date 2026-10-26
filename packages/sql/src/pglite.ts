@@ -3,6 +3,7 @@ import type { PGliteInterface, Transaction } from "@electric-sql/pglite";
 import { clientConnection } from "./connection.ts";
 import type { Connection, Driver, DriverQuery } from "./connection.ts";
 import { databaseErrorFields, reportingQueryErrors } from "./query-error.ts";
+import { transactionModeSql } from "./transaction.ts";
 
 type Passthrough = (value: string) => string;
 
@@ -52,10 +53,18 @@ function textDriver(db: PGliteInterface): Driver {
       }, databaseErrorFields);
   return {
     query: queryOn(db),
-    // PGlite's own transaction holds its lock, so no other query runs inside it meanwhile.
-    transaction: async (run) =>
+    // PGlite's own transaction holds its lock, so no other query runs inside it meanwhile. It
+    // begins with no mode, so the mode is set first thing; no pooler stands between.
+    transaction: async (run, mode) =>
       reportingQueryErrors(
-        async () => db.transaction(async (tx) => run(queryOn(tx))),
+        async () =>
+          db.transaction(async (tx) => {
+            const modes = transactionModeSql(mode);
+            if (modes !== "") {
+              await tx.query(`set transaction ${modes}`);
+            }
+            return run(queryOn(tx));
+          }),
         databaseErrorFields,
       ),
   };

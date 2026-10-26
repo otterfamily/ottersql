@@ -4,6 +4,7 @@ import { clientConnection } from "./connection.ts";
 import type { Connection, Driver, DriverQuery } from "./connection.ts";
 import { errorField, reportingQueryErrors } from "./query-error.ts";
 import type { QueryErrorFields } from "./query-error.ts";
+import { transactionModeSql } from "./transaction.ts";
 
 /**
  * A `Connection` over postgres.js, receiving every value as text. The same client gives the same
@@ -25,9 +26,10 @@ function textDriver(sql: Sql): Driver {
   return {
     query: queryOn(sql),
     // Wrapped, because postgres.js awaits every element of an array a transaction resolves with.
-    transaction: async (run) => {
+    transaction: async (run, mode) => {
       const { result } = await reportingQueryErrors(
-        async () => sql.begin(async (tx) => ({ result: await run(queryOn(tx)) })),
+        async () =>
+          sql.begin(transactionModeSql(mode), async (tx) => ({ result: await run(queryOn(tx)) })),
         postgresErrorFields,
       );
       return result;

@@ -76,13 +76,23 @@ describe("transactions", () => {
     }
   });
 
-  test("run at the isolation level and access mode they ask for", async ({ drivers }) => {
+  test("run at the isolation level, access mode and deferrability they ask for", async ({
+    drivers,
+  }) => {
     for (const db of drivers) {
       await notes(db);
-      const isolation = await db.transaction(async (tx) => setting(tx, "transaction_isolation"), {
-        isolation: "serializable",
-      });
-      expect(isolation).toBe("serializable");
+      const mode = await db.transaction(
+        async (tx) =>
+          Promise.all(
+            ["transaction_isolation", "transaction_read_only", "transaction_deferrable"].map(
+              async (name) => setting(tx, name),
+            ),
+          ),
+        { isolation: "serializable", readOnly: true, deferrable: true },
+      );
+      expect(mode).toStrictEqual(["serializable", "on", "on"]);
+      const defaults = await db.transaction(async (tx) => setting(tx, "transaction_isolation"));
+      expect(defaults).toBe("read committed");
       const write = db.transaction(async (tx) => note(tx, "nope"), { readOnly: true });
       await expect(write).rejects.toMatchObject({ code: "25006" });
     }

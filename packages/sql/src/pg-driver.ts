@@ -1,5 +1,7 @@
 import type { Driver, DriverQuery } from "./connection.ts";
 import { databaseErrorFields, reportingQueryErrors } from "./query-error.ts";
+import { transactionModeSql } from "./transaction.ts";
+import type { TransactionMode } from "./transaction.ts";
 
 const asText = (value: string): string => value;
 
@@ -61,21 +63,19 @@ export function pgQuery(query: (config: PgQueryConfig) => Promise<PgResult>): Dr
 export function pgDriver(pg: PgClient | PgPool): Driver {
   const query = pgQuery(async (config) => pg.query(config));
   if (!isPool(pg)) {
-    return { query, transaction: async (run) => inTransaction(query, run) };
+    return { query, transaction: async (run, mode) => inTransaction({ query, mode }, run) };
   }
   return {
     query,
-    transaction: async (run) => {
+    transaction: async (run, mode) => {
       const client = await pg.connect();
       let broken = false;
       try {
-        return await inTransaction(
-          pgQuery(async (config) => client.query(config)),
-          run,
-          () => {
-            broken = true;
-          },
-        );
+        const rollbackFailed = (): void => {
+          broken = true;
+        };
+        const onClient = pgQuery(async (config) => client.query(config));
+        return await inTransaction({ query: onClient, mode, rollbackFailed }, run);
       } finally {
         // A client whose rollback failed may still be in the transaction, so the pool drops it.
         client.release(broken);
@@ -90,11 +90,18 @@ function isPool(pg: PgClient | PgPool): pg is PgPool {
 
 /** Runs `run` between BEGIN and COMMIT on `query`'s connection, rolling back when it rejects. */
 async function inTransaction<Result>(
-  query: DriverQuery,
+  {
+    query,
+    mode,
+    rollbackFailed,
+  }: {
+    readonly query: DriverQuery;
+    readonly mode: TransactionMode;
+    readonly rollbackFailed?: () => void;
+  },
   run: (query: DriverQuery) => Promise<Result>,
-  rollbackFailed?: () => void,
 ): Promise<Result> {
-  await query("begin", []);
+  await query(`begin ${transactionModeSql(mode)}`, []);
   try {
     const result = await run(query);
     await query("commit", []);

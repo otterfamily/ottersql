@@ -45,30 +45,36 @@ const isolationLevels: ReadonlySet<string> = new Set<IsolationLevel>([
   "serializable",
 ]);
 
-/** Applies `options` at the start of a transaction, before any other statement. */
-export async function startTransaction(
-  query: DriverQuery,
-  options: TransactionOptions,
-): Promise<void> {
-  const modes = transactionModes(options);
-  if (modes.length > 0) {
-    await query(`set transaction ${modes.join(", ")}`, []);
-  }
-  if (options.settings !== undefined && Object.keys(options.settings).length > 0) {
-    // One statement for any number of settings; set_config's third argument makes them local.
-    await query("select set_config(key, value, true) from json_each_text($1)", [
-      JSON.stringify(options.settings),
-    ]);
-  }
+/**
+ * How a transaction runs, checked by ottersql, for a driver to start it with: what is left out
+ * follows the database's defaults.
+ */
+export interface TransactionMode {
+  readonly isolation: IsolationLevel | undefined;
+  readonly readOnly: boolean | undefined;
+  readonly deferrable: boolean | undefined;
 }
 
-function transactionModes({ isolation, readOnly, deferrable }: TransactionOptions): string[] {
+/** The mode `options` ask for, checked, since it is spliced into SQL. */
+export function transactionMode({
+  isolation,
+  readOnly,
+  deferrable,
+}: TransactionOptions): TransactionMode {
+  if (isolation !== undefined && !isolationLevels.has(isolation)) {
+    throw new TypeError(`unknown isolation level: ${isolation}`);
+  }
+  return { isolation, readOnly, deferrable };
+}
+
+/**
+ * `mode` as BEGIN and SET TRANSACTION take it, such as `isolation level serializable read only`,
+ * or `""` for the defaults. Separated by spaces, which Postgres accepts like commas, since
+ * postgres.js strips everything but letters and spaces from its begin options.
+ */
+export function transactionModeSql({ isolation, readOnly, deferrable }: TransactionMode): string {
   const modes: string[] = [];
   if (isolation !== undefined) {
-    // Spliced into SQL, so checked here for callers the types do not reach.
-    if (!isolationLevels.has(isolation)) {
-      throw new TypeError(`unknown isolation level: ${isolation}`);
-    }
     modes.push(`isolation level ${isolation}`);
   }
   if (readOnly !== undefined) {
@@ -77,7 +83,20 @@ function transactionModes({ isolation, readOnly, deferrable }: TransactionOption
   if (deferrable !== undefined) {
     modes.push(deferrable ? "deferrable" : "not deferrable");
   }
-  return modes;
+  return modes.join(" ");
+}
+
+/** Applies `settings` for the rest of the transaction, before any other statement. */
+export async function applySettings(
+  query: DriverQuery,
+  settings: TransactionOptions["settings"],
+): Promise<void> {
+  if (settings !== undefined && Object.keys(settings).length > 0) {
+    // One statement for any number of settings; set_config's third argument makes them local.
+    await query("select set_config(key, value, true) from json_each_text($1)", [
+      JSON.stringify(settings),
+    ]);
+  }
 }
 
 /** SQLSTATEs after which running the whole transaction again can succeed. */

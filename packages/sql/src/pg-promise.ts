@@ -4,6 +4,7 @@ import { clientConnection } from "./connection.ts";
 import type { Connection } from "./connection.ts";
 import { pgQuery } from "./pg-driver.ts";
 import { databaseErrorFields, reportingQueryErrors } from "./query-error.ts";
+import type { TransactionMode } from "./transaction.ts";
 
 /**
  * A `Connection` over a pg-promise database object, receiving every value as text. Transactions
@@ -26,10 +27,28 @@ export function pgPromiseConnection(db: IDatabase<unknown>): Connection {
     );
   return clientConnection(db, () => ({
     query: queryOn(db),
-    transaction: async (run) =>
+    transaction: async (run, mode) =>
       reportingQueryErrors(
-        async () => db.tx(async (task) => run(queryOn(task))),
+        async () => db.tx({ mode: pgPromiseMode(db, mode) }, async (task) => run(queryOn(task))),
         databaseErrorFields,
       ),
   }));
+}
+
+/** `mode` as pg-promise takes it, which writes the same BEGIN as `transactionModeSql`. */
+function pgPromiseMode(
+  db: IDatabase<unknown>,
+  { isolation, readOnly, deferrable }: TransactionMode,
+): InstanceType<IDatabase<unknown>["$config"]["pgp"]["txMode"]["TransactionMode"]> {
+  const { TransactionMode, isolationLevel } = db.$config.pgp.txMode;
+  const levels = {
+    "read committed": isolationLevel.readCommitted,
+    "repeatable read": isolationLevel.repeatableRead,
+    serializable: isolationLevel.serializable,
+  };
+  return new TransactionMode({
+    tiLevel: isolation === undefined ? isolationLevel.none : levels[isolation],
+    ...(readOnly === undefined ? {} : { readOnly }),
+    ...(deferrable === undefined ? {} : { deferrable }),
+  });
 }

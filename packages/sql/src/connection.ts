@@ -1,5 +1,5 @@
-import { retrying, startTransaction } from "./transaction.ts";
-import type { TransactionOptions } from "./transaction.ts";
+import { applySettings, retrying, transactionMode } from "./transaction.ts";
+import type { TransactionMode, TransactionOptions } from "./transaction.ts";
 
 /** One statement's result as a driver returns it to ottersql. */
 export interface QueryResult {
@@ -28,11 +28,16 @@ export type DriverQuery = (
 export interface Driver {
   readonly query: DriverQuery;
   /**
-   * Runs `run` in a transaction on one connection the driver holds for it: `BEGIN`, then `COMMIT`
-   * once `run` resolves or `ROLLBACK` when it rejects, resolving or rejecting as `run` does. Every
-   * query `run` makes goes through the `query` it is given, on that connection.
+   * Runs `run` in a transaction on one connection the driver holds for it: `BEGIN` with `mode`
+   * (`transactionModeSql` writes it), then `COMMIT` once `run` resolves or `ROLLBACK` when it
+   * rejects, resolving or rejecting as `run` does. Every query `run` makes goes through the
+   * `query` it is given, on that connection. The mode belongs in BEGIN rather than a SET
+   * statement, which makes poolers such as RDS Proxy pin the connection.
    */
-  readonly transaction: <Result>(run: (query: DriverQuery) => Promise<Result>) => Promise<Result>;
+  readonly transaction: <Result>(
+    run: (query: DriverQuery) => Promise<Result>,
+    mode: TransactionMode,
+  ) => Promise<Result>;
 }
 
 // From the global registry: a bundle can hold its own copy of this module beside the one an
@@ -77,18 +82,20 @@ export interface Transaction {
 export function driverConnection(driver: Driver): Connection {
   return {
     [state]: { query: driver.query, cacheKey: driver },
-    transaction: async (run, options = {}) =>
-      retrying(options.retry, async () =>
+    transaction: async (run, options = {}) => {
+      const mode = transactionMode(options);
+      return retrying(options.retry, async () =>
         driver.transaction(async (query) => {
           const tx = openTransaction(query, driver, 1);
           try {
-            await startTransaction(query, options);
+            await applySettings(query, options.settings);
             return await run(tx.transaction);
           } finally {
             tx.end();
           }
-        }),
-      ),
+        }, mode),
+      );
+    },
   };
 }
 

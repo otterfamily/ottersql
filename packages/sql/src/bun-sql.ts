@@ -2,6 +2,7 @@ import { clientConnection } from "./connection.ts";
 import type { Connection, DriverQuery } from "./connection.ts";
 import { errorField, reportingQueryErrors } from "./query-error.ts";
 import type { QueryErrorFields } from "./query-error.ts";
+import { transactionModeSql } from "./transaction.ts";
 
 /** The part of a Bun `SQL` transaction this file uses. */
 interface BunSqlTransaction {
@@ -21,7 +22,10 @@ interface BunSqlTransaction {
 /** The part of a Bun `SQL` client this file uses; ottersql does not depend on Bun's types. */
 export interface BunSql extends BunSqlTransaction {
   readonly options: { readonly prepare?: boolean };
-  readonly begin: <Result>(run: (tx: BunSqlTransaction) => Promise<Result>) => Promise<Result>;
+  readonly begin: <Result>(
+    options: string,
+    run: (tx: BunSqlTransaction) => Promise<Result>,
+  ) => Promise<Result>;
 }
 
 const text = new TextDecoder();
@@ -40,9 +44,10 @@ export function bunSqlConnection(sql: BunSql): Connection {
   return clientConnection(sql, () => ({
     query: queryOn(sql),
     // Wrapped, because Bun takes an array a transaction resolves with for queries to run.
-    transaction: async (run) => {
+    transaction: async (run, mode) => {
       const { result } = await reportingQueryErrors(
-        async () => sql.begin(async (tx) => ({ result: await run(queryOn(tx)) })),
+        async () =>
+          sql.begin(transactionModeSql(mode), async (tx) => ({ result: await run(queryOn(tx)) })),
         bunErrorFields,
       );
       return result;
