@@ -1,11 +1,11 @@
 import type { Catalog } from "../catalog/index.ts";
 import { compositeChanges } from "./composites.ts";
 import { enumChanges } from "./enums.ts";
-import { partitionChanges } from "./partitions.ts";
 import { phases } from "./plan.ts";
 import type { Plan, Step } from "./plan.ts";
 import { schemaChanges } from "./schemas.ts";
 import { combine } from "./steps.ts";
+import { hierarchyChanges } from "./table-hierarchies.ts";
 import { tableRuleChanges } from "./table-rules.ts";
 import { tableChanges } from "./tables.ts";
 import { unplannedChanges } from "./unplanned-objects.ts";
@@ -65,7 +65,7 @@ export function planMigration(from: Catalog, to: Catalog): Plan {
     compositeChanges(from, to),
     tableChanges(from, to),
     tableRuleChanges(from, to),
-    partitionChanges(from, to),
+    hierarchyChanges(from, to),
     unplannedChanges(from, to),
   ]);
   return { steps: steps.toSorted((left, right) => rank(left) - rank(right)), manual };

@@ -16,6 +16,8 @@ const schemaSql = `${benchmarkSchemaSql};
   create extension citext;
   create sequence app.tickets increment by 2;
   create type app.pair as (left_side int4, label text collate "C");
+  create table app.base (id int8);
+  create table app.child (note text) inherits (app.base);
   create table app.notes (id int8 primary key, body text collate "C", owner text);
   create function app.touch() returns trigger language plpgsql as 'begin return new; end';
   create function app.twice(n int) returns int language sql immutable return n * 2;

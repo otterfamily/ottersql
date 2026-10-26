@@ -5,7 +5,6 @@ import { columnChanges } from "./columns.ts";
 import { commentChange } from "./comments.ts";
 import { constraintChanges, dropConstraint } from "./constraints.ts";
 import { inlineConstraints, newTableConstraints } from "./new-table-constraints.ts";
-import { isPartitioned } from "./partitions.ts";
 import {
   columnDefinition,
   columnSqlName,
@@ -19,21 +18,18 @@ import {
 } from "./sql-text.ts";
 import { combine, manual, matchByName, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
+import { hierarchyTables } from "./table-hierarchies.ts";
 import { uniqueChanges } from "./unique-keys.ts";
 
 function withKey(tables: readonly Table[]): { readonly name: string; readonly table: Table }[] {
   return tables.map((table) => ({ name: `${table.schema}.${table.name}`, table }));
 }
 
-/** Changes to tables that are neither partitioned nor partitions on either side; partitions.ts lists those. */
+/** Changes to tables in no hierarchy on either side; table-hierarchies.ts lists those. */
 export function tableChanges(from: Catalog, to: Catalog): Changes {
-  const partitioned = new Set(
-    withKey([...from.tables, ...to.tables].filter((table) => isPartitioned(table))).map(
-      ({ name }) => name,
-    ),
-  );
+  const inHierarchy = hierarchyTables(from, to);
   const plain = (catalog: Catalog): { readonly name: string; readonly table: Table }[] =>
-    withKey(catalog.tables).filter(({ name }) => !partitioned.has(name));
+    withKey(catalog.tables).filter(({ name }) => !inHierarchy.has(name));
   const { added, removed, kept } = matchByName(plain(from), plain(to));
   const created = added.filter(
     ({ table }) => !removed.some((old) => sameColumns(old.table, table)),

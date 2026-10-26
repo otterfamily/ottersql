@@ -42,6 +42,8 @@ export interface Table {
   /** The partition key of a partitioned table as Postgres prints it, such as `RANGE (at)`. */
   readonly partitionedBy: string | null;
   readonly partitionOf: Partition | null;
+  /** The tables it inherits from with INHERITS, in order; a partition's parent is `partitionOf`. */
+  readonly inherits: readonly QualifiedName[];
   readonly comment: Comment | null;
 }
 

@@ -10,6 +10,11 @@ function partitioned(columns: string): string {
     create table events_2026 partition of events for values from ('2026-01-01') to ('2027-01-01')`;
 }
 
+/** A table, and one that inherits from it with `columns` added. */
+function inheriting(columns: string): string {
+  return `create table base (id int8); create table child (note text${columns}) inherits (base)`;
+}
+
 /** The users table, and posts whose foreign key to it is on `column`. */
 function postsReferringBy(column: string): string {
   return `${users};
@@ -34,6 +39,34 @@ describe("planMigration of changed constraints and partitioned tables", () => {
       ],
     });
   });
+
+  test.for([
+    { change: "creating", from: "", to: inheriting(""), changed: ["public.base", "public.child"] },
+    {
+      change: "changing",
+      from: inheriting(""),
+      to: inheriting(", extra int4"),
+      changed: ["public.child"],
+    },
+    { change: "dropping", from: inheriting(""), to: "", changed: ["public.base", "public.child"] },
+    {
+      change: "inheriting from an unchanged table",
+      from: "create table base (id int8)",
+      to: inheriting(""),
+      changed: ["public.child"],
+    },
+  ])(
+    "leaves $change tables that inherit from others, or are inherited from, to a person",
+    async ({ from, to, changed }) => {
+      const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
+      const reason =
+        "ottersql does not plan tables that inherit from others or are inherited from (INHERITS) yet; write this change by hand";
+      expect(plan).toStrictEqual({
+        steps: [],
+        manual: changed.map((object) => ({ object, reason })),
+      });
+    },
+  );
 
   test("leaves a foreign key that now refers to other columns to be changed by hand", async () => {
     const plan = planMigration(

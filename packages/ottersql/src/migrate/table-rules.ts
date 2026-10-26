@@ -1,9 +1,9 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Catalog, Table } from "../catalog/index.ts";
-import { isPartitioned } from "./partitions.ts";
 import { combine, manual, matchByName, noChanges, notPlanned, objectName } from "./steps.ts";
 import type { Changes } from "./steps.ts";
+import { hierarchyTables } from "./table-hierarchies.ts";
 
 /** The names of the items only one side has, or that differ between the sides. */
 function differing<Item extends { readonly name: string }>(
@@ -37,18 +37,18 @@ function rulesOf(before: Table | null, after: Table): Changes {
 
 /**
  * The triggers, row-level security and policies of tables that are new or kept, which the plan
- * leaves to a person; a dropped table takes its own with it. Partitioned tables are left to a person
- * whole, in partitions.ts.
+ * leaves to a person; a dropped table takes its own with it. Tables in a hierarchy are left to a
+ * person whole, in table-hierarchies.ts.
  */
 export function tableRuleChanges(from: Catalog, to: Catalog): Changes {
   const before = new Map(from.tables.map((table) => [qualifiedName(table), table]));
+  const inHierarchy = hierarchyTables(from, to);
   return combine(
-    to.tables.flatMap((table) => {
-      const old = before.get(qualifiedName(table)) ?? null;
-      return isPartitioned(table) || (old !== null && isPartitioned(old))
+    to.tables.flatMap((table) =>
+      inHierarchy.has(qualifiedName(table))
         ? []
-        : [rulesOf(old, table)];
-    }),
+        : [rulesOf(before.get(qualifiedName(table)) ?? null, table)],
+    ),
   );
 }
 

@@ -22,6 +22,20 @@ export function partitionedByJson(): string {
   return "case when c.relkind = 'p' then pg_get_partkeydef(c.oid) end";
 }
 
+/**
+ * The tables the pg_class row `c` inherits from (INHERITS), in the order it names them; a
+ * partition's parent is in `partitionOfJson` instead.
+ */
+export function inheritsJson(): string {
+  return `case when c.relispartition then '[]'::json else coalesce((
+      select json_agg(json_build_object('schema', pn.nspname, 'name', p.relname) order by i.inhseqno)
+      from pg_inherits i
+      join pg_class p on p.oid = i.inhparent
+      join pg_namespace pn on pn.oid = p.relnamespace
+      where i.inhrelid = c.oid
+    ), '[]') end`;
+}
+
 /** The table the pg_class row `c` is a partition of, with its bound, or null for one that is not. */
 export function partitionOfJson(): string {
   return `case when c.relispartition then (

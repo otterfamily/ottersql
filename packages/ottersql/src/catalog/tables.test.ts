@@ -53,6 +53,27 @@ describe("tables", () => {
     ]);
   });
 
+  test("reads the tables a table inherits from, in order, leaving partitions to partitionOf", async () => {
+    const catalog = await loadCatalog(`
+      create schema app;
+      create table app.base (id int8);
+      create table stamped (at date);
+      create table child (note text) inherits (app.base, stamped);
+      create table events (id int8, at date) partition by range (at);
+      create table events_2026 partition of events for values from ('2026-01-01') to ('2027-01-01');
+    `);
+    expect(
+      ["child", "stamped", "events_2026"].map((name) => table(catalog, name).inherits),
+    ).toStrictEqual([
+      [
+        { schema: "app", name: "base" },
+        { schema: "public", name: "stamped" },
+      ],
+      [],
+      [],
+    ]);
+  });
+
   test("starts every load from an empty database", async () => {
     await loadCatalog(`create table left_behind (a int);`);
     const catalog = await loadCatalog(`create table fresh (a int);`);
