@@ -131,6 +131,25 @@ describe("connections over Bun.sql", () => {
     await expect(runInBun(bunScript(url, body), tmpdir())).resolves.toBe("[2,0]\n");
   });
 
+  test("decode values into Temporal and the other values ottersql gives on Node", async () => {
+    const url = await postgresDatabase();
+    const body = `const sql = new SQL(URL, { prepare: false });
+      const { defineQuery } = await import(${JSON.stringify(fileURLToPath(import.meta.resolve("./query.ts")))});
+      const row = await defineQuery(
+        "select date '2026-10-26' as day, timestamptz '2026-10-26 01:02:03.456789+00' as at, 9007199254740993::int8 as big",
+        [],
+      ).one(bunSqlConnection(sql));
+      await sql.end();
+      console.log(JSON.stringify({
+        day: row.day instanceof Temporal.PlainDate && row.day.toString(),
+        at: row.at instanceof Temporal.Instant && row.at.toString(),
+        big: row.big,
+      }));`;
+    await expect(runInBun(bunScript(url, body), tmpdir())).resolves.toBe(
+      '{"day":"2026-10-26","at":"2026-10-26T01:02:03.456789Z","big":"9007199254740993"}\n',
+    );
+  });
+
   test("refuse a client that prepares statements, whose values may arrive in binary", async () => {
     const url = await postgresDatabase();
     const body = `const sql = new SQL(URL);

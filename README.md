@@ -35,7 +35,8 @@ npm install @ottersql/sql
 
 ## Requirements
 
-- Node.js 26 or later, for the global `Temporal`.
+- Node.js 26 or later, or Bun 1.4 or later: dates and times come back as values of the global `Temporal`. Other runtimes need it too, or a polyfill.
+- A Postgres driver the application already uses: node-postgres, postgres.js, Bun.sql, PGlite, pg-promise or Neon's serverless driver. [`@ottersql/sql`](packages/sql) says how to connect each, and how to import `.sql` files in Node, Bun, Vite, esbuild, webpack and Next.js.
 - TypeScript 7.1 or later for typed `.sql` files. The types they get use the global `Temporal`, so `lib` in `tsconfig.json` needs `esnext.temporal` (or `esnext`).
 - Tools that cannot run TypeScript 7.1 content mappers, such as older TypeScript, typescript-eslint or Deno, can read the types from declaration files instead: `ottersql types` writes `queries.d.sql.ts` next to each `queries.sql`, and they need `allowArbitraryExtensions` in `tsconfig.json`. Nothing is written unless you run it.
 
