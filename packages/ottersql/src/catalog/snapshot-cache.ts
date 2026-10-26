@@ -5,7 +5,7 @@ import { openAsBlob } from "node:fs";
 import { mkdir, readdir, readFile, rename, rm, stat, utimes, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { homedir } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { env, execPath, pid, platform } from "node:process";
 import { fileURLToPath } from "node:url";
 
@@ -16,14 +16,26 @@ import { fileURLToPath } from "node:url";
  * compressed: decompressing it took a third of the time PGlite needs to start from it.
  */
 export async function cachedEmptySnapshot(): Promise<Blob> {
-  const file = join(cacheDirectory(), `pglite-empty-${await pgliteBuild()}.tar`);
+  const file = await emptySnapshotFile();
   const cached = await fileBlob(file);
   if (cached !== null) {
     return cached;
   }
   await mkdir(dirname(file), { recursive: true });
   await makeSnapshot(file);
+  try {
+    await pruneCache();
+  } catch {
+    // Leaves the files to the next prune, which runs whenever a schema is saved.
+  }
   return openAsBlob(file);
+}
+
+const EMPTY_PREFIX = "pglite-empty-";
+
+/** Where the empty database of the installed PGlite build is kept. */
+export async function emptySnapshotFile(): Promise<string> {
+  return join(cacheDirectory(), `${EMPTY_PREFIX}${await pgliteBuild()}.tar`);
 }
 
 /**
@@ -91,24 +103,38 @@ export async function saveSchemaSnapshot(key: string, snapshot: Blob): Promise<v
     await mkdir(dirname(file), { recursive: true });
     await writeFile(temporary, new Uint8Array(await snapshot.arrayBuffer()));
     await rename(temporary, file);
-    await pruneSchemaSnapshots();
+    await pruneCache();
   } catch {
     await rm(temporary, { force: true });
   }
 }
 
-async function pruneSchemaSnapshots(): Promise<void> {
+/**
+ * Removes the snapshots nothing will read again: other PGlite builds' empty databases, the
+ * compressed `.tar.gz` ones earlier versions made, and all but the most recently used schemas.
+ * Temporary files are left to the processes writing them.
+ */
+async function pruneCache(): Promise<void> {
   const directory = cacheDirectory();
   const entries = await readdir(directory);
-  const names = entries.filter((name) => name.startsWith(SCHEMA_PREFIX) && name.endsWith(".tar"));
+  const empty = basename(await emptySnapshotFile());
+  const stale = entries.filter(
+    (name) => (name.startsWith(EMPTY_PREFIX) && name !== empty) || name.endsWith(".tar.gz"),
+  );
+  const schemas = entries.filter((name) => name.startsWith(SCHEMA_PREFIX) && name.endsWith(".tar"));
   const used = await Promise.all(
-    names.map(async (name) => {
+    schemas.map(async (name) => {
       const { mtimeMs } = await stat(join(directory, name));
       return { name, time: mtimeMs };
     }),
   );
-  const old = used.toSorted((left, right) => right.time - left.time).slice(KEPT_SCHEMA_SNAPSHOTS);
-  await Promise.all(old.map(async ({ name }) => rm(join(directory, name), { force: true })));
+  const old = used
+    .toSorted((left, right) => right.time - left.time)
+    .slice(KEPT_SCHEMA_SNAPSHOTS)
+    .map(({ name }) => name);
+  await Promise.all(
+    [...stale, ...old].map(async (name) => rm(join(directory, name), { force: true })),
+  );
 }
 
 /** The per-user cache directory each platform documents for applications. */
@@ -124,8 +150,16 @@ function cacheDirectory(): string {
 
 const BUILD_ID_LENGTH = 16;
 
+// The installed PGlite does not change while the process runs, so its binary is hashed once.
+let build: Promise<string> | null = null;
+
 /** Identifies the PGlite build by its WebAssembly binary, since a snapshot fits only its own build. */
 async function pgliteBuild(): Promise<string> {
+  build ??= hashOfWasm();
+  return build;
+}
+
+async function hashOfWasm(): Promise<string> {
   const entry = createRequire(import.meta.url).resolve("@electric-sql/pglite");
   const wasm = await readFile(join(dirname(entry), "pglite.wasm"));
   return createHash("sha256").update(wasm).digest("hex").slice(0, BUILD_ID_LENGTH);
