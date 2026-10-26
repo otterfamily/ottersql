@@ -30,6 +30,7 @@ export type {
   RoutineArgument,
   RoutineColumn,
   RoutineResult,
+  Sequence,
   Table,
   Trigger,
   TriggerEvent,

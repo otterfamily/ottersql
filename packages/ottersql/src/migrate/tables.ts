@@ -9,6 +9,7 @@ import {
   columnDefinition,
   columnSqlName,
   createIndex,
+  createSequence,
   dropIndexStatement,
   exceedsNameLimit,
   identifier,
@@ -63,12 +64,20 @@ function createTable(table: Table): Changes {
     ...table.columns.map((column) => columnDefinition(column)),
     ...inlineConstraints(table),
   ];
+  const sequences = table.columns.flatMap((column) =>
+    column.value.kind === "sequence" ? [{ column: column.name, ...column.value.sequence }] : [],
+  );
   return only(
     step({
       kind: "createTable",
       object: `${table.schema}.${table.name}`,
       statements: [
+        ...sequences.map((sequence) => createSequence(sequence)),
         `CREATE TABLE ${qualified(table.schema, table.name)} (${definitions.join(", ")})`,
+        ...sequences.map(
+          (sequence) =>
+            `ALTER SEQUENCE ${qualified(sequence.schema, sequence.name)} OWNED BY ${columnSqlName(table, sequence.column)}`,
+        ),
         ...table.indexes.map((index) => createIndex(table, index, false)),
         ...comments(table),
       ],

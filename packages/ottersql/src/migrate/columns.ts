@@ -56,6 +56,9 @@ function valueRewriteReason(value: Column["value"]): string | null {
   if (value.kind === "identity") {
     return "Adding an identity column rewrites the table under an exclusive lock to number every row; add a nullable column, backfill it in batches, then make it an identity";
   }
+  if (value.kind === "sequence") {
+    return "Adding a serial column rewrites the table under an exclusive lock to number every row; add a nullable column, backfill it in batches, then set its default to the sequence";
+  }
   if (value.kind === "default" && value.volatile) {
     return "A volatile default is computed for every existing row, which rewrites the table under an exclusive lock; add the column without a default, set the default, and backfill in batches";
   }
@@ -157,7 +160,7 @@ function valueChange(table: Table, before: Column, after: Column): Changes {
   if (isDeepStrictEqual(old, current)) {
     return noChanges;
   }
-  if (current.kind === "default" && old.kind !== "identity" && old.kind !== "generated") {
+  if (current.kind === "default" && (old.kind === "none" || old.kind === "default")) {
     return defaultChange(table, after.name, `SET DEFAULT ${current.expression}`);
   }
   if (current.kind === "none" && old.kind === "default") {
@@ -165,7 +168,7 @@ function valueChange(table: Table, before: Column, after: Column): Changes {
   }
   return manual(
     objectName(table, after.name),
-    "ottersql does not plan changes to identity or generated columns yet",
+    "ottersql does not plan changes to serial, identity or generated columns yet",
   );
 }
 

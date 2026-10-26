@@ -56,11 +56,27 @@ export type ColumnValue =
   | { readonly kind: "none" }
   | ({ readonly kind: "default" } & DefaultValue)
   | { readonly kind: "identity"; readonly generation: "always" | "by default" }
+  /** Numbered from a sequence the column owns, as `serial` makes it: `DEFAULT nextval(...)`. */
+  | { readonly kind: "sequence"; readonly sequence: Sequence }
   | {
       readonly kind: "generated";
       readonly storage: "stored" | "virtual";
       readonly expression: string;
     };
+
+/** A sequence's numbers, as text since a bigint sequence's can exceed a JavaScript number. */
+export interface Sequence {
+  readonly schema: string;
+  readonly name: string;
+  /** `smallint`, `integer` or `bigint`. */
+  readonly dataType: string;
+  readonly start: string;
+  readonly increment: string;
+  readonly minimum: string;
+  readonly maximum: string;
+  readonly cache: string;
+  readonly cycle: boolean;
+}
 
 export type TypeRef = { readonly kind: "array"; readonly element: NamedTypeRef } | NamedTypeRef;
 

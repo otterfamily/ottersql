@@ -150,6 +150,13 @@ describe("planMigration, run on PGlite to the target schema", () => {
       ],
     },
     {
+      change: "creates a table with serial columns together with the sequences they own",
+      from: "",
+      to: `create table tickets (id bigserial primary key, seat smallserial, n int4);
+        alter sequence tickets_seat_seq increment by 2 cycle`,
+      steps: ["expand createTable public.tickets (lossy, inside, none)"],
+    },
+    {
       change: "creates a table whose id defaults to a function the schema defines",
       from: uuid7,
       to: `${uuid7}; create table events (id uuid primary key default my_uuid7())`,

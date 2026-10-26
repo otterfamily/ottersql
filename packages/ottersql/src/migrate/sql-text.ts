@@ -6,6 +6,7 @@ import type {
   Index,
   IndexKey,
   QualifiedName,
+  Sequence,
 } from "../catalog/index.ts";
 
 /** Always quoted, so no name can be read as a keyword or folded to lower case. */
@@ -26,19 +27,38 @@ export function columnList(names: readonly string[]): string {
 }
 
 export function columnDefinition(column: Column): string {
-  const { value } = column;
-  const parts = [identifier(column.name), column.typeSql];
+  const value = valueClause(column.value);
+  return [
+    identifier(column.name),
+    column.typeSql,
+    ...(value === null ? [] : [value]),
+    ...(column.notNull ? ["NOT NULL"] : []),
+  ].join(" ");
+}
+
+function valueClause(value: Column["value"]): string | null {
   if (value.kind === "default") {
-    parts.push(`DEFAULT ${value.expression}`);
-  } else if (value.kind === "identity") {
-    parts.push(`GENERATED ${value.generation.toUpperCase()} AS IDENTITY`);
-  } else if (value.kind === "generated") {
-    parts.push(`GENERATED ALWAYS AS (${value.expression}) ${value.storage.toUpperCase()}`);
+    return `DEFAULT ${value.expression}`;
   }
-  if (column.notNull) {
-    parts.push("NOT NULL");
+  if (value.kind === "sequence") {
+    return `DEFAULT nextval(${literal(qualified(value.sequence.schema, value.sequence.name))}::regclass)`;
   }
-  return parts.join(" ");
+  if (value.kind === "identity") {
+    return `GENERATED ${value.generation.toUpperCase()} AS IDENTITY`;
+  }
+  return value.kind === "generated"
+    ? `GENERATED ALWAYS AS (${value.expression}) ${value.storage.toUpperCase()}`
+    : null;
+}
+
+/** The sequence a `serial` column numbers its rows from, with every setting spelled out. */
+export function createSequence(sequence: Sequence): string {
+  return [
+    `CREATE SEQUENCE ${qualified(sequence.schema, sequence.name)} AS ${sequence.dataType}`,
+    ` INCREMENT BY ${sequence.increment} MINVALUE ${sequence.minimum}`,
+    ` MAXVALUE ${sequence.maximum} START WITH ${sequence.start} CACHE ${sequence.cache}`,
+    sequence.cycle ? " CYCLE" : " NO CYCLE",
+  ].join("");
 }
 
 export function deferral(value: Deferral): string {

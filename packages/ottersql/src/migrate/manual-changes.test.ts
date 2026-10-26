@@ -82,6 +82,13 @@ describe("planMigration", () => {
       reason: volatileDomainDefault,
     },
     {
+      change: "a serial column",
+      to: `${uuid7}; ${domains}; create table users (id int8 primary key, email text, n serial)`,
+      object: "public.users.n",
+      reason:
+        "Adding a serial column rewrites the table under an exclusive lock to number every row; add a nullable column, backfill it in batches, then set its default to the sequence",
+    },
+    {
       change: "a stored generated column",
       to: `${uuid7}; ${domains}; create table users (id int8 primary key, email text, domain text generated always as (split_part(email, '@', 2)) stored)`,
       object: "public.users.domain",
@@ -158,6 +165,20 @@ describe("planMigration", () => {
       object: "public.users.users_pkey",
       reason:
         "A changed primary key is left to a person: foreign keys often refer to it and its columns must be NOT NULL; write the change by hand",
+    },
+    {
+      change: "column that becomes serial",
+      from: "create table users (id int8 primary key, n int4)",
+      to: "create table users (id int8 primary key, n serial)",
+      object: "public.users.n",
+      reason: "ottersql does not plan changes to serial, identity or generated columns yet",
+    },
+    {
+      change: "column that stops being serial",
+      from: "create table users (id int8 primary key, n serial)",
+      to: "create table users (id int8 primary key, n int4 not null default 0)",
+      object: "public.users.n",
+      reason: "ottersql does not plan changes to serial, identity or generated columns yet",
     },
   ])("leaves a changed $change to be written by hand", async ({ from, to, object, reason }) => {
     const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
