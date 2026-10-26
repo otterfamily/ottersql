@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 import { queryModule } from "./query-module.ts";
-import { queryRuntimePath } from "./query-runtime.ts";
+import { queryRuntimeFrom } from "./query-runtime.ts";
 
 /**
  * The part of an esbuild plugin this one uses. esbuild and `Bun.build` both accept it, so
@@ -26,7 +26,7 @@ export function ottersql(): SqlBuildPlugin {
     name: "ottersql",
     setup: (build) => {
       build.onLoad({ filter: /\.sql$/ }, async ({ path }) => ({
-        contents: queryModule(await readFile(path, "utf8"), path, queryRuntimePath),
+        contents: queryModule(await readFile(path, "utf8"), path, queryRuntimeFrom(path)),
         loader: "js",
       }));
     },

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 
 import { queryModule } from "./query-module.ts";
-import { queryRuntimePath } from "./query-runtime.ts";
+import { queryRuntimeFrom } from "./query-runtime.ts";
 
 /** The part of Bun's plugin API this file uses; ottersql does not depend on Bun's types. */
 interface BunRuntime {
@@ -30,7 +30,7 @@ bun.plugin({
   name: "ottersql",
   setup: (build) => {
     build.onLoad({ filter: /\.sql$/v }, ({ path }) => ({
-      contents: queryModule(readFileSync(path, "utf8"), path, queryRuntimePath),
+      contents: queryModule(readFileSync(path, "utf8"), path, queryRuntimeFrom(path)),
       loader: "js",
     }));
   },

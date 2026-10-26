@@ -20,6 +20,7 @@ Each `.sql` file becomes a module that exports its queries. Load it with:
 
 - esbuild and `Bun.build`: `plugins: [ottersql()]` with `ottersql` from `@ottersql/sql/esbuild`.
 - webpack and Rspack: a rule `{ test: /\.sql$/, loader: "@ottersql/sql/webpack" }`.
+- Next.js with Turbopack: `turbopack: { rules: { "*.sql": { loaders: ["@ottersql/sql/webpack"], as: "*.js" } } }` in `next.config`.
 
 ## Connections
 

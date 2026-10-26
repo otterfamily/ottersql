@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 import { queryModule } from "./query-module.ts";
-import { queryRuntimePath } from "./query-runtime.ts";
+import { queryRuntimeFrom } from "./query-runtime.ts";
 
 /**
  * The part of a Vite plugin this one uses. Vite, Vitest, Rolldown and Rollup all accept it, so
@@ -28,7 +28,7 @@ export function ottersql(): SqlPlugin {
       if (!path.endsWith(".sql") || path.startsWith("\0")) {
         return null;
       }
-      return queryModule(await readFile(path, "utf8"), path, queryRuntimePath);
+      return queryModule(await readFile(path, "utf8"), path, queryRuntimeFrom(path));
     },
   };
 }
