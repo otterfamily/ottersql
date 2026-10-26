@@ -57,10 +57,30 @@ describe("named queries", () => {
       content: "-- @name arguments\nselect 1",
       message: '"arguments" cannot name a binding in strict mode JavaScript',
     },
+    { content: "-- @name a²\nselect 1", message: '"a²" is not a valid query name' },
+    {
+      content: "-- @name then\nselect 1",
+      message: '"then" would make the module look like a promise to await',
+    },
+    {
+      content: "-- @name a\ninsert into t values (1); delete from t",
+      message: 'Query "a" holds more than one statement; give each its own -- @name line',
+    },
   ])("reports $message", ({ content, message }) => {
     expect(readQueryFile(content).problems.map((problem) => problem.message)).toStrictEqual([
       message,
     ]);
+  });
+});
+
+describe("query names", () => {
+  test("locate the name itself, even when it repeats a word of the header", () => {
+    const [query] = readQueryFile("-- @name name\nselect 1").queries;
+    expect(query?.nameSpan).toStrictEqual({ start: "-- @name ".length, length: "name".length });
+  });
+
+  test("may be any JavaScript identifier, such as one with a combining mark", () => {
+    expect(readQueryFile("-- @name cafe\u0301\nselect 1").problems).toStrictEqual([]);
   });
 });
 

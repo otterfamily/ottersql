@@ -1,7 +1,7 @@
 import { findDomain, findTable, sameType } from "../catalog/index.ts";
 import type { Catalog, Column, Table, TypeRef } from "../catalog/index.ts";
-import { isIdentifier } from "../sql/query-file.ts";
 import type { Span } from "../sql/query-file.ts";
+import { isIdentifier } from "../sql/query-name.ts";
 import { columnNamesProblem } from "../sql/query.ts";
 import type { DescribedColumn, DescribedFile, DescribedQuery, Problem } from "./session.ts";
 import { literalUnion, nullable, tsType } from "./typescript-types.ts";

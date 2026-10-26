@@ -24,11 +24,19 @@ export function ottersql(): SqlPlugin {
     enforce: "pre",
     load: async (id) => {
       // Vite appends queries such as `?import` to ids; virtual modules start with a null byte.
-      const [path = id] = id.split("?");
-      if (!path.endsWith(".sql") || path.startsWith("\0")) {
+      const [path = id, query = ""] = id.split("?");
+      if (!path.endsWith(".sql") || path.startsWith("\0") || asksForAsset(query)) {
         return null;
       }
       return queryModule(await readFile(path, "utf8"), path, queryRuntimeFrom(path));
     },
   };
+}
+
+/** Queries by which a Vite import asks for the file itself (`?raw`, `?url`), which Vite serves. */
+const assetQueries: readonly string[] = ["raw", "url", "inline", "no-inline"];
+
+function asksForAsset(query: string): boolean {
+  const parameters = new URLSearchParams(query);
+  return assetQueries.some((name) => parameters.has(name));
 }

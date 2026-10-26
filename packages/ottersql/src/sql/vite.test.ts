@@ -41,6 +41,12 @@ describe("importing .sql files through the Vite plugin", () => {
     });
   });
 
+  test("leaves a .sql import with ?raw to Vite, as the file's text", async () => {
+    const root = await project(queries);
+    const module: unknown = await import(`${join(root, "queries.sql")}?raw`);
+    expect(module).toHaveProperty("default", queries);
+  });
+
   test("in Vitest, a file with problems fails to import, naming where each one is", async () => {
     const root = await project("-- @name add\nselect $1 as sum");
     await expect(import(join(root, "queries.sql"))).rejects.toThrow(

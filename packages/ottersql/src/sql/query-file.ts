@@ -1,5 +1,6 @@
 import { isSignificant, tokens } from "./lexer.ts";
 import type { Token } from "./lexer.ts";
+import { nameProblem } from "./query-name.ts";
 
 /** A range of a file, in UTF-16 code units like JavaScript string offsets. */
 export interface Span {
@@ -65,68 +66,7 @@ export function lineAndColumn(
   return { line: before.split("\n").length, column: offset - before.lastIndexOf("\n") };
 }
 
-const header = /^--[\t ]*@name[\t ]+(?<name>\S+)[\t ]*$/v;
-const identifier = /^[\p{L}$_][\p{L}\p{N}$_]*$/v;
-
-/** Whether `name` can be written as a JavaScript identifier (reserved words aside). */
-export function isIdentifier(name: string): boolean {
-  return identifier.test(name);
-}
-
-// Each query becomes an exported function of that name, so it cannot be a reserved word
-// (ECMAScript 2025, 13.1 and strict mode).
-const reservedWords: ReadonlySet<string> = new Set([
-  "await",
-  "break",
-  "case",
-  "catch",
-  "class",
-  "const",
-  "continue",
-  "debugger",
-  "default",
-  "delete",
-  "do",
-  "else",
-  "enum",
-  "export",
-  "extends",
-  "false",
-  "finally",
-  "for",
-  "function",
-  "if",
-  "implements",
-  "import",
-  "in",
-  "instanceof",
-  "interface",
-  "let",
-  "new",
-  "null",
-  "package",
-  "private",
-  "protected",
-  "public",
-  "return",
-  "static",
-  "super",
-  "switch",
-  "this",
-  "throw",
-  "true",
-  "try",
-  "typeof",
-  "var",
-  "void",
-  "while",
-  "with",
-  "yield",
-]);
-
-// Not reserved, but strict mode code cannot declare them (ECMAScript 2025, 13.1.1).
-const strictModeRestricted: ReadonlySet<string> = new Set(["arguments", "eval"]);
-
+const header = /^--[\t ]*@name[\t ]+(?<name>\S+)[\t ]*$/dv;
 /** Splits a `.sql` file into its `-- @name` queries and turns their `:name` parameters into `$n`. */
 export function readQueryFile(content: string): QueryFile {
   const all = [...tokens(content)];
@@ -167,15 +107,17 @@ function splitSections(
     if (name === null) {
       (sections.at(-1)?.tokens ?? preamble).push(token);
     } else {
-      const nameStart = content.indexOf(name, token.start + "--".length);
-      sections.push({ name, nameSpan: { start: nameStart, length: name.length }, tokens: [] });
+      sections.push({ name: name.text, nameSpan: name.span, tokens: [] });
     }
   }
   return { preamble, sections };
 }
 
-/** The query name of a `-- @name` line comment that starts its line, or `null`. */
-function headerName(content: string, token: Token): string | null {
+/** The query name of a `-- @name` line comment that starts its line, and where it is, or `null`. */
+function headerName(
+  content: string,
+  token: Token,
+): { readonly text: string; readonly span: Span } | null {
   if (token.kind !== "lineComment") {
     return null;
   }
@@ -183,7 +125,12 @@ function headerName(content: string, token: Token): string | null {
   if (content.slice(lineStart, token.start).trim() !== "") {
     return null;
   }
-  return header.exec(content.slice(token.start, token.end))?.groups?.["name"] ?? null;
+  const match = header.exec(content.slice(token.start, token.end));
+  const text = match?.groups?.["name"];
+  const at = match?.indices?.groups?.["name"];
+  return text === undefined || at === undefined
+    ? null
+    : { text, span: { start: token.start + at[0], length: text.length } };
 }
 
 function tokenProblems(all: readonly Token[]): QueryFileProblem[] {
@@ -220,20 +167,19 @@ function sectionProblem(
     (queries.some((query) => query.name === section.name)
       ? `Query "${section.name}" is already defined`
       : null) ??
-    (statementTokens(content, section).length === 0 ? `Query "${section.name}" has no SQL` : null);
+    statementProblem(content, section);
   return message === null ? null : { message, span: section.nameSpan };
 }
 
-/** Why `name` cannot be exported from a JavaScript module, or `null` when it can. */
-function nameProblem(name: string): string | null {
-  if (!isIdentifier(name)) {
-    return `"${name}" is not a valid query name`;
+/** Why the SQL under a name is not one statement, or `null` when it is. */
+function statementProblem(content: string, section: Section): string | null {
+  const statement = statementTokens(content, section);
+  if (statement.length === 0) {
+    return `Query "${section.name}" has no SQL`;
   }
-  if (reservedWords.has(name)) {
-    return `"${name}" is a reserved word in JavaScript`;
-  }
-  return strictModeRestricted.has(name)
-    ? `"${name}" cannot name a binding in strict mode JavaScript`
+  // A driver sends several statements in one query string as a script, and some run them all.
+  return statement.some((token) => token.kind === "other" && content.charAt(token.start) === ";")
+    ? `Query "${section.name}" holds more than one statement; give each its own -- @name line`
     : null;
 }
 
