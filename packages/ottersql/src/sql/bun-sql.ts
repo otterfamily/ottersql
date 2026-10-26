@@ -1,11 +1,11 @@
 import { clientConnection } from "./connection.ts";
-import type { Connection, DriverQuery } from "./connection.ts";
+import type { Connection, DriverQuery, DriverTransaction } from "./connection.ts";
 import { errorField, reportingQueryErrors } from "./query-error.ts";
 import type { QueryErrorFields } from "./query-error.ts";
 import { transactionModeSql } from "./transaction.ts";
 
-/** The part of a Bun `SQL` transaction this file uses. */
-interface BunSqlTransaction {
+/** The part of a Bun `SQL` client, transaction or savepoint this file uses to query. */
+interface BunSqlQueries {
   readonly unsafe: (
     sql: string,
     parameters: readonly (string | null)[],
@@ -19,8 +19,13 @@ interface BunSqlTransaction {
   };
 }
 
+/** The part of a Bun `SQL` transaction or savepoint this file uses. */
+interface BunSqlTransaction extends BunSqlQueries {
+  readonly savepoint: <Result>(run: (sp: BunSqlTransaction) => Promise<Result>) => Promise<Result>;
+}
+
 /** The part of a Bun `SQL` client this file uses; ottersql does not depend on Bun's types. */
-export interface BunSql extends BunSqlTransaction {
+export interface BunSql extends BunSqlQueries {
   readonly options: { readonly prepare?: boolean };
   readonly begin: <Result>(
     options: string,
@@ -47,7 +52,9 @@ export function bunSqlConnection(sql: BunSql): Connection {
     transaction: async (run, mode) => {
       const { result } = await reportingQueryErrors(
         async () =>
-          sql.begin(transactionModeSql(mode), async (tx) => ({ result: await run(queryOn(tx)) })),
+          sql.begin(transactionModeSql(mode), async (tx) => ({
+            result: await run(transactionOn(tx)),
+          })),
         bunErrorFields,
       );
       return result;
@@ -55,7 +62,20 @@ export function bunSqlConnection(sql: BunSql): Connection {
   }));
 }
 
-function queryOn(sql: BunSqlTransaction): DriverQuery {
+/** A transaction on Bun's `tx`, with Bun's own savepoints. */
+function transactionOn(tx: BunSqlTransaction): DriverTransaction {
+  return {
+    query: queryOn(tx),
+    savepoint: async (run) => {
+      const { result } = await tx.savepoint(async (sp) => ({
+        result: await run(transactionOn(sp)),
+      }));
+      return result;
+    },
+  };
+}
+
+function queryOn(sql: BunSqlQueries): DriverQuery {
   return async (query, parameters) => {
     const result = await reportingQueryErrors(
       async () => sql.unsafe(query, parameters).raw(),

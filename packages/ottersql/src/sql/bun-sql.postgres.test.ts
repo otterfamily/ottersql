@@ -150,6 +150,24 @@ describe("connections over Bun.sql", () => {
     );
   });
 
+  test("reject a transaction a statement failed in, even when the callback caught it", async () => {
+    const url = await postgresDatabase();
+    const body = `const sql = new SQL(URL, { prepare: false });
+      const db = bunSqlConnection(sql);
+      await rawQuery(db, "create table notes (body text primary key)", []);
+      const note = (tx, body) => rawQuery(tx, "insert into notes values ($1)", [body]);
+      const outcome = await db.transaction(async (tx) => {
+        await note(tx, "a");
+        await note(tx, "a").catch(() => null);
+      }).then(() => "resolved", (error) => error.code);
+      const { rows } = await rawQuery(db, "select body from notes", []);
+      await sql.end();
+      console.log(JSON.stringify({ outcome, rows }));`;
+    await expect(runInBun(bunScript(url, body), tmpdir())).resolves.toBe(
+      '{"outcome":"23505","rows":[]}\n',
+    );
+  });
+
   test("refuse a client that prepares statements, whose values may arrive in binary", async () => {
     const url = await postgresDatabase();
     const body = `const sql = new SQL(URL);

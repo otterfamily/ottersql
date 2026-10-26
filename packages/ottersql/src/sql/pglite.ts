@@ -1,6 +1,6 @@
 import type { PGliteInterface, Transaction } from "@electric-sql/pglite";
 
-import { clientConnection } from "./connection.ts";
+import { clientConnection, sqlTransaction } from "./connection.ts";
 import type { Connection, Driver, DriverQuery } from "./connection.ts";
 import { databaseErrorFields, reportingQueryErrors } from "./query-error.ts";
 import { transactionModeSql } from "./transaction.ts";
@@ -57,7 +57,7 @@ function textDriver(db: PGliteInterface): Driver {
             if (modes !== "") {
               await tx.query(`set transaction ${modes}`);
             }
-            return run(queryOn(tx));
+            return run(sqlTransaction(queryOn(tx)));
           }),
         databaseErrorFields,
       ),

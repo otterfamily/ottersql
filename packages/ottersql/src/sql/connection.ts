@@ -1,3 +1,4 @@
+import { QueryError } from "./query-error.ts";
 import { applySettings, retrying, transactionMode } from "./transaction.ts";
 import type { TransactionMode, TransactionOptions } from "./transaction.ts";
 
@@ -35,9 +36,47 @@ export interface Driver {
    * statement, which makes poolers such as RDS Proxy pin the connection.
    */
   readonly transaction: <Result>(
-    run: (query: DriverQuery) => Promise<Result>,
+    run: (tx: DriverTransaction) => Promise<Result>,
     mode: TransactionMode,
   ) => Promise<Result>;
+}
+
+/** A transaction as its driver runs it: statements on its connection, and savepoints in it. */
+export interface DriverTransaction {
+  readonly query: DriverQuery;
+  /**
+   * Runs `run` in a savepoint: released once `run` resolves, rolled back to when it rejects,
+   * resolving or rejecting as `run` does. A driver with savepoints of its own uses them, since it
+   * may track the errors of the statements inside; `sqlTransaction` writes them otherwise.
+   */
+  readonly savepoint: <Result>(
+    run: (savepoint: DriverTransaction) => Promise<Result>,
+  ) => Promise<Result>;
+}
+
+/**
+ * A `DriverTransaction` over `query`, for a driver without savepoints of its own: it sends
+ * SAVEPOINT, RELEASE SAVEPOINT and ROLLBACK TO SAVEPOINT itself. ottersql opens one savepoint of a
+ * transaction at a time, so each level needs one name.
+ */
+export function sqlTransaction(query: DriverQuery, depth = 1): DriverTransaction {
+  const name = `ottersql_${String(depth)}`;
+  return {
+    query,
+    savepoint: async (run) => {
+      await query(`savepoint ${name}`, []);
+      try {
+        const result = await run(sqlTransaction(query, depth + 1));
+        await query(`release savepoint ${name}`, []);
+        return result;
+      } catch (error) {
+        // Released too, so failed savepoints do not pile up as open subtransactions. The error
+        // that undid the savepoint is the one to report, not a failed rollback's.
+        await rollBackTo(query, name);
+        throw error;
+      }
+    },
+  };
 }
 
 // From the global registry: a bundle can hold its own copy of this module beside the one an
@@ -78,6 +117,15 @@ export interface Transaction {
   readonly savepoint: <Result>(run: (sp: Transaction) => Promise<Result>) => Promise<Result>;
 }
 
+async function rollBackTo(query: DriverQuery, name: string): Promise<void> {
+  try {
+    await query(`rollback to savepoint ${name}`, []);
+    await query(`release savepoint ${name}`, []);
+  } catch {
+    // The transaction cannot commit then, which its COMMIT reports.
+  }
+}
+
 /** A `Connection` over `driver`, for adapters ottersql does not ship. */
 export function driverConnection(driver: Driver): Connection {
   return {
@@ -85,13 +133,13 @@ export function driverConnection(driver: Driver): Connection {
     transaction: async (run, options = {}) => {
       const mode = transactionMode(options);
       return retrying(options.retry, async () =>
-        driver.transaction(async (query) => {
-          const tx = openTransaction(query, driver, 1);
+        driver.transaction(async (tx) => {
+          const scope = openScope(tx, driver);
           try {
-            await applySettings(query, options.settings);
-            return await run(tx.transaction);
+            await applySettings(scope.query, options.settings);
+            return settled(await run(scope.transaction), scope);
           } finally {
-            tx.end();
+            scope.end();
           }
         }, mode),
       );
@@ -99,44 +147,81 @@ export function driverConnection(driver: Driver): Connection {
   };
 }
 
-/** A transaction, or a savepoint `depth` levels in, that refuses queries once it has ended. */
-function openTransaction(
-  query: DriverQuery,
-  key: object,
-  depth: number,
-): { readonly transaction: Transaction; readonly end: () => void } {
+/** A transaction or a savepoint in progress, and what ottersql tracks about it. */
+interface Scope {
+  readonly transaction: Transaction;
+  /** Runs a statement in the scope, recording the error Postgres reports for it. */
+  readonly query: DriverQuery;
+  /** Ends the scope; queries on it are refused from then on. */
+  readonly end: () => void;
+  /** The first error Postgres reported in the scope, after which it can only roll back. */
+  readonly failure: () => QueryError | null;
+}
+
+/**
+ * `result` once the scope's callback has resolved, or the scope's first error: Postgres turns the
+ * COMMIT of a transaction a statement failed in into a ROLLBACK, so a callback that caught that
+ * error must not look as if it succeeded.
+ */
+function settled<Result>(result: Result, scope: Scope): Result {
+  scope.end();
+  const failure = scope.failure();
+  if (failure !== null) {
+    throw failure;
+  }
+  return result;
+}
+
+const ENDED = "This transaction has ended: run queries on the transaction only inside its callback";
+const SAVEPOINT_OPEN =
+  "A savepoint of this transaction is open: run queries on it until its callback settles";
+
+/**
+ * A transaction or savepoint over the driver's `tx`. It refuses queries once it has ended, and
+ * while one of its savepoints is open, since a statement there would run inside the savepoint.
+ */
+function openScope(tx: DriverTransaction, key: object): Scope {
   let ended = false;
-  const guarded: DriverQuery = async (sql, parameters) => {
-    if (ended) {
-      throw new Error(
-        "This transaction has ended: run queries on the transaction only inside its callback",
-      );
+  let savepointOpen = false;
+  let failure: QueryError | null = null;
+  const open = (): void => {
+    if (ended || savepointOpen) {
+      throw new Error(ended ? ENDED : SAVEPOINT_OPEN);
     }
-    return query(sql, parameters);
   };
-  const name = `ottersql_${String(depth)}`;
-  const transaction: Transaction = {
-    [state]: { query: guarded, cacheKey: key },
-    savepoint: async (run) => {
-      await guarded(`savepoint ${name}`, []);
-      const inner = openTransaction(guarded, key, depth + 1);
-      try {
-        const result = await run(inner.transaction);
-        await guarded(`release savepoint ${name}`, []);
-        return result;
-      } catch (error) {
-        await guarded(`rollback to savepoint ${name}`, []);
-        throw error;
-      } finally {
-        inner.end();
-      }
-    },
+  const query: DriverQuery = async (sql, parameters) => {
+    open();
+    try {
+      return await tx.query(sql, parameters);
+    } catch (error) {
+      failure ??= error instanceof QueryError ? error : null;
+      throw error;
+    }
+  };
+  const savepoint: Transaction["savepoint"] = async (run) => {
+    open();
+    // Set before the first await, so a second savepoint started meanwhile is refused.
+    savepointOpen = true;
+    try {
+      return await tx.savepoint(async (inner) => {
+        const scope = openScope(inner, key);
+        try {
+          return settled(await run(scope.transaction), scope);
+        } finally {
+          scope.end();
+        }
+      });
+    } finally {
+      savepointOpen = false;
+    }
   };
   return {
-    transaction,
+    transaction: { [state]: { query, cacheKey: key }, savepoint },
+    query,
     end: () => {
       ended = true;
     },
+    failure: () => failure,
   };
 }
 

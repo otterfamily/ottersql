@@ -29,6 +29,11 @@ async function setting(connection: Connection | Transaction, name: string): Prom
   return rows[0]?.[0];
 }
 
+/** Why a settled promise rejected, or `""` when it resolved. */
+function reasonOf(result: Readonly<PromiseSettledResult<unknown>>): string {
+  return result.status === "rejected" ? String(result.reason) : "";
+}
+
 describe("transactions", () => {
   test("commit what the callback did when it resolves, and resolve with its value", async ({
     drivers,
@@ -106,6 +111,56 @@ describe("transactions", () => {
       expect(inside).toBe("42");
       const after = await db.transaction(async (tx) => setting(tx, "app.user_id"));
       expect([null, ""]).toContain(after);
+    }
+  });
+
+  test("reject with Postgres's error when a statement failed, even if the callback caught it", async ({
+    drivers,
+  }) => {
+    for (const db of drivers) {
+      await notes(db);
+      const swallowed = db.transaction(async (tx) => {
+        await note(tx, "kept?");
+        await note(tx, "kept?").catch(() => null);
+        return "looks fine";
+      });
+      await expect(swallowed).rejects.toMatchObject({ code: "23505" });
+      await expect(bodies(db)).resolves.toStrictEqual([]);
+    }
+  });
+
+  test("undo a savepoint whose callback caught its statement's error, and go on", async ({
+    drivers,
+  }) => {
+    for (const db of drivers) {
+      await notes(db);
+      await db.transaction(async (tx) => {
+        await note(tx, "order");
+        const points = tx.savepoint(async (sp) => {
+          await note(sp, "order").catch(() => null);
+        });
+        await expect(points).rejects.toMatchObject({ code: "23505" });
+        await note(tx, "receipt");
+      });
+      await expect(bodies(db)).resolves.toStrictEqual(["order", "receipt"]);
+    }
+  });
+
+  test("refuse queries on a transaction while one of its savepoints is open", async ({
+    drivers,
+  }) => {
+    for (const db of drivers) {
+      await notes(db);
+      await db.transaction(async (tx) => {
+        const outer = tx.savepoint(async () => note(tx, "outside the savepoint"));
+        await expect(outer).rejects.toThrow("savepoint of this transaction is open");
+        const [first, second] = await Promise.allSettled([
+          tx.savepoint(async (sp) => note(sp, "first")),
+          tx.savepoint(async (sp) => note(sp, "second")),
+        ]);
+        expect(first.status).toBe("fulfilled");
+        expect(reasonOf(second)).toContain("savepoint of this transaction is open");
+      });
     }
   });
 

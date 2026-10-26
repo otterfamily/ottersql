@@ -1,7 +1,7 @@
 import type { Sql, TransactionSql } from "postgres";
 
 import { clientConnection } from "./connection.ts";
-import type { Connection, Driver, DriverQuery } from "./connection.ts";
+import type { Connection, Driver, DriverQuery, DriverTransaction } from "./connection.ts";
 import { errorField, reportingQueryErrors } from "./query-error.ts";
 import type { QueryErrorFields } from "./query-error.ts";
 import { transactionModeSql } from "./transaction.ts";
@@ -29,9 +29,27 @@ function textDriver(sql: Sql): Driver {
     transaction: async (run, mode) => {
       const { result } = await reportingQueryErrors(
         async () =>
-          sql.begin(transactionModeSql(mode), async (tx) => ({ result: await run(queryOn(tx)) })),
+          sql.begin(transactionModeSql(mode), async (tx) => ({
+            result: await run(transactionOn(tx)),
+          })),
         postgresErrorFields,
       );
+      return result;
+    },
+  };
+}
+
+/**
+ * A transaction on postgres.js's `tx`, with postgres.js's own savepoints: it tracks the errors of
+ * the statements in a transaction and fails the transaction for one a savepoint did not hold.
+ */
+function transactionOn(tx: TransactionSql): DriverTransaction {
+  return {
+    query: queryOn(tx),
+    savepoint: async (run) => {
+      const { result } = await tx.savepoint(async (sp) => ({
+        result: await run(transactionOn(sp)),
+      }));
       return result;
     },
   };

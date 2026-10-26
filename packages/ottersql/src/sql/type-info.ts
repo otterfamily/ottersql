@@ -121,33 +121,89 @@ interface PgTypeRow {
   readonly delimiter: string;
 }
 
-const knownByConnection = new WeakMap<object, Map<number, PgTypeRow>>();
+/** What a connection has looked up, and the lookups under way, so concurrent queries share one. */
+interface Lookups {
+  readonly known: Map<number, PgTypeRow>;
+  readonly pending: Map<number, Promise<void>>;
+}
+
+const lookupsByConnection = new WeakMap<object, Lookups>();
 
 /** The decoding information for each oid, looking up oids that are not built in through `connection`. */
 export async function typeInfos(
   connection: Connection | Transaction,
   oids: readonly number[],
 ): Promise<ReadonlyMap<number, TypeInfo>> {
-  const known = knownByConnection.get(cacheKey(connection)) ?? new Map<number, PgTypeRow>();
-  knownByConnection.set(cacheKey(connection), known);
-  await lookUp(connection, known, oids);
-  return new Map(oids.map((oid) => [oid, typeInfo(oid, known)]));
+  const key = cacheKey(connection);
+  const lookups = lookupsByConnection.get(key) ?? { known: new Map(), pending: new Map() };
+  lookupsByConnection.set(key, lookups);
+  await lookUp(connection, lookups, oids);
+  return new Map(oids.map((oid) => [oid, typeInfo(oid, lookups.known)]));
 }
 
+/** Looks up `oids` and the element, range and base types they lead to. */
 async function lookUp(
+  connection: Connection | Transaction,
+  { known, pending }: Lookups,
+  oids: readonly number[],
+): Promise<void> {
+  const unknown = (oid: number): boolean => oid !== 0 && !isBuiltIn(oid) && !known.has(oid);
+  let wanted = [...new Set(oids)].filter((oid) => unknown(oid));
+  while (wanted.length > 0) {
+    startReading(
+      connection,
+      { known, pending },
+      wanted.filter((oid) => !pending.has(oid)),
+    );
+    await Promise.all(wanted.map(async (oid) => pending.get(oid)));
+    wanted = wanted
+      .flatMap((oid) => {
+        const row = known.get(oid);
+        return row === undefined ? [] : [row.element, row.subtype, row.base];
+      })
+      .filter((oid) => unknown(oid));
+  }
+}
+
+/** Looks `oids` up, marking them as under way until the lookup settles. */
+function startReading(
+  connection: Connection | Transaction,
+  { known, pending }: Lookups,
+  oids: readonly number[],
+): void {
+  if (oids.length > 0) {
+    const reading = readInto(connection, known, oids);
+    for (const oid of oids) {
+      pending.set(oid, reading);
+    }
+    void forget(pending, oids, reading);
+  }
+}
+
+async function readInto(
   connection: Connection | Transaction,
   known: Map<number, PgTypeRow>,
   oids: readonly number[],
 ): Promise<void> {
-  let missing = [...new Set(oids)].filter((oid) => !isBuiltIn(oid) && !known.has(oid));
-  while (missing.length > 0) {
-    const rows = await readPgTypes(connection, missing);
-    for (const [oid, row] of rows) {
-      known.set(oid, row);
+  for (const [oid, row] of await readPgTypes(connection, oids)) {
+    known.set(oid, row);
+  }
+}
+
+/** Drops `oids` from the lookups under way once `reading` settles, failed or not. */
+async function forget(
+  pending: Map<number, Promise<void>>,
+  oids: readonly number[],
+  reading: Promise<void>,
+): Promise<void> {
+  try {
+    await reading;
+  } catch {
+    // Reported to the queries that wait for the lookup.
+  } finally {
+    for (const oid of oids) {
+      pending.delete(oid);
     }
-    missing = [...rows.values()]
-      .flatMap((row) => [row.element, row.subtype, row.base])
-      .filter((oid) => oid !== 0 && !isBuiltIn(oid) && !known.has(oid));
   }
 }
 

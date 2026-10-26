@@ -1,7 +1,9 @@
-import { describe, expect, test as base } from "vitest";
+import { PGlite } from "@electric-sql/pglite";
+import { describe, expect, onTestFinished, test as base } from "vitest";
 
-import { rawQuery } from "./connection.ts";
-import type { Connection } from "./connection.ts";
+import { driverConnection, rawQuery, sqlTransaction } from "./connection.ts";
+import type { Connection, DriverQuery } from "./connection.ts";
+import { pgliteConnection } from "./pglite.ts";
 import { openDrivers } from "./test-drivers.ts";
 import { builtInOids, typeInfos } from "./type-info.ts";
 import type { TypeInfo } from "./type-info.ts";
@@ -41,5 +43,26 @@ describe("built-in types", () => {
       const expected = new Map(rows.map(([oid, ...type]) => [Number(oid), expectedTypeInfo(type)]));
       await expect(typeInfos(connection, builtInOids)).resolves.toStrictEqual(expected);
     }
+  });
+
+  test("look a type up once for the queries that need it at the same time", async () => {
+    const db = await PGlite.create();
+    onTestFinished(async () => db.close());
+    await db.exec("create type mood as enum ('ok', 'bad')");
+    const direct = pgliteConnection(db);
+    const { rows } = await rawQuery(direct, "select 'mood[]'::regtype::oid", []);
+    const moods = Number(rows[0]?.[0]);
+    let lookups = 0;
+    const query: DriverQuery = async (sql, parameters) => {
+      lookups += Number(sql.includes("from pg_type t"));
+      return rawQuery(direct, sql, parameters);
+    };
+    const counted = driverConnection({
+      query,
+      transaction: async (run) => run(sqlTransaction(query)),
+    });
+    await Promise.all(Array.from({ length: 5 }, async () => typeInfos(counted, [moods])));
+    // One for the array type, then one for its element.
+    expect(lookups).toBe(2);
   });
 });

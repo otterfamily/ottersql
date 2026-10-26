@@ -1,7 +1,7 @@
 import type { IDatabase } from "pg-promise";
 
 import { clientConnection } from "./connection.ts";
-import type { Connection } from "./connection.ts";
+import type { Connection, DriverTransaction } from "./connection.ts";
 import { pgQuery } from "./pg-driver.ts";
 import { databaseErrorFields, reportingQueryErrors } from "./query-error.ts";
 import type { TransactionMode } from "./transaction.ts";
@@ -25,11 +25,17 @@ export function pgPromiseConnection(db: IDatabase<unknown>): Connection {
         types: { ...registry, getTypeParser: config.types.getTypeParser },
       }),
     );
+  // A transaction inside one is a savepoint to pg-promise.
+  const transactionOn = (task: Pick<IDatabase<unknown>, "result" | "tx">): DriverTransaction => ({
+    query: queryOn(task),
+    savepoint: async (run) => task.tx(async (inner) => run(transactionOn(inner))),
+  });
   return clientConnection(db, () => ({
     query: queryOn(db),
     transaction: async (run, mode) =>
       reportingQueryErrors(
-        async () => db.tx({ mode: pgPromiseMode(db, mode) }, async (task) => run(queryOn(task))),
+        async () =>
+          db.tx({ mode: pgPromiseMode(db, mode) }, async (task) => run(transactionOn(task))),
         databaseErrorFields,
       ),
   }));

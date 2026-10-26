@@ -1,4 +1,5 @@
-import type { Driver, DriverQuery } from "./connection.ts";
+import { sqlTransaction } from "./connection.ts";
+import type { Driver, DriverQuery, DriverTransaction } from "./connection.ts";
 import { databaseErrorFields, reportingQueryErrors } from "./query-error.ts";
 import { transactionModeSql } from "./transaction.ts";
 import type { TransactionMode } from "./transaction.ts";
@@ -63,7 +64,21 @@ export function pgQuery(query: (config: PgQueryConfig) => Promise<PgResult>): Dr
 export function pgDriver(pg: PgClient | PgPool): Driver {
   const query = pgQuery(async (config) => pg.query(config));
   if (!isPool(pg)) {
-    return { query, transaction: async (run, mode) => inTransaction({ query, mode }, run) };
+    // One connection holds one transaction at a time: a second BEGIN on it only warns, and its
+    // statements would join the first. So transactions on a client wait for the one before.
+    let previous: Promise<void> = Promise.resolve();
+    return {
+      query,
+      transaction: async (run, mode) => {
+        const before = previous;
+        const current = (async () => {
+          await before;
+          return inTransaction({ query, mode }, run);
+        })();
+        previous = ended(current);
+        return current;
+      },
+    };
   }
   return {
     query,
@@ -84,6 +99,15 @@ export function pgDriver(pg: PgClient | PgPool): Driver {
   };
 }
 
+/** Resolves once `transaction` has ended, whether it committed or not. */
+async function ended(transaction: Promise<unknown>): Promise<void> {
+  try {
+    await transaction;
+  } catch {
+    // Its caller gets the error; the next transaction only waits for the connection.
+  }
+}
+
 function isPool(pg: PgClient | PgPool): pg is PgPool {
   return "totalCount" in pg;
 }
@@ -99,11 +123,11 @@ async function inTransaction<Result>(
     readonly mode: TransactionMode;
     readonly rollbackFailed?: () => void;
   },
-  run: (query: DriverQuery) => Promise<Result>,
+  run: (tx: DriverTransaction) => Promise<Result>,
 ): Promise<Result> {
   await query(`begin ${transactionModeSql(mode)}`, []);
   try {
-    const result = await run(query);
+    const result = await run(sqlTransaction(query));
     await query("commit", []);
     return result;
   } catch (error) {
