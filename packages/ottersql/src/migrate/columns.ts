@@ -2,6 +2,8 @@ import { isDeepStrictEqual } from "node:util";
 
 import { findDomain } from "../catalog/find.ts";
 import type { Catalog, Column, Domain, Table, TypeRef } from "../catalog/index.ts";
+import { typeChange } from "./column-types.ts";
+import type { ColumnChange } from "./column-types.ts";
 import { commentChange } from "./comments.ts";
 import {
   alterTable,
@@ -29,7 +31,9 @@ export function columnChanges(before: Table, after: Table, to: Catalog): Changes
         ? dropColumn(after, column)
         : maybeRenamedColumn(after, column, other);
     }),
-    ...kept.map(([old, current]) => changeColumn(after, old, current)),
+    ...kept.map(([old, current]) =>
+      changeColumn({ table: after, before: old, after: current }, to),
+    ),
   ]);
 }
 
@@ -133,14 +137,17 @@ function dropColumn(table: Table, column: Column): Changes {
   );
 }
 
-function changeColumn(table: Table, before: Column, after: Column): Changes {
-  if (before.typeSql !== after.typeSql) {
+function changeColumn(change: ColumnChange, to: Catalog): Changes {
+  const { table, before, after } = change;
+  const type = typeChange(change, to);
+  if (type === null) {
     return manual(
       objectName(table, after.name),
       "Changing a column's type can rewrite the table under an exclusive lock; add a new column, backfill it and switch to it instead",
     );
   }
   return combine([
+    type,
     valueChange(table, before, after),
     notNullChange(table, before, after),
     commentChange({

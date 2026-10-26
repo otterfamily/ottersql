@@ -39,6 +39,16 @@ describe("planMigration, run on PGlite to the target schema", () => {
       steps: ["expand comment app (reversible, inside, none)"],
     },
     {
+      change: "widens varchar columns in place before the deploy, which rewrites no rows",
+      from: "create table users (id int8 primary key, email varchar(100), name varchar(50), bio varchar(10))",
+      to: "create table users (id int8 primary key, email varchar(320), name text, bio varchar)",
+      steps: [
+        "expand widenColumn public.users.email (lossy, inside, access exclusive)",
+        "expand widenColumn public.users.name (lossy, inside, access exclusive)",
+        "expand widenColumn public.users.bio (lossy, inside, access exclusive)",
+      ],
+    },
+    {
       change: "drops a table after the deploy",
       from: users,
       to: "",

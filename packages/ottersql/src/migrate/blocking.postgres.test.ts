@@ -20,14 +20,20 @@ interface TableState {
   readonly file: string;
 }
 
-/** Rows each table has had read by sequential scans, and the file it is stored in, by table. */
+/**
+ * Rows each table has had read by sequential scans, and the file it is stored in, by table; and
+ * the file of each index, which a rebuild replaces.
+ */
 async function tableStates(client: Client): Promise<Map<string, TableState>> {
   // Statistics reach the views at the next flush, so one is forced after the step ran.
   await client.query("select pg_stat_force_next_flush()");
   await client.query("select pg_stat_clear_snapshot()");
   const { rows } = await client.query<{ name: string; reads: string; file: string }>(
     `select s.relname as name, s.seq_tup_read as reads, c.relfilenode::text as file
-    from pg_stat_user_tables s join pg_class c on c.oid = s.relid`,
+    from pg_stat_user_tables s join pg_class c on c.oid = s.relid
+    union all
+    select s.indexrelname, 0, c.relfilenode::text
+    from pg_stat_user_indexes s join pg_class c on c.oid = s.indexrelid`,
   );
   return new Map(rows.map(({ name, reads, file }) => [name, { reads: Number(reads), file }]));
 }
@@ -184,6 +190,14 @@ describe("steps", () => {
       to: `create type status as enum ('new', 'paid');
         create table orders (id int8 primary key, user_id int8, total int4, status status);
         create index orders_user on orders (user_id)`,
+    },
+    {
+      change: "widening varchar columns that an index covers",
+      from: `create table names (id int8 primary key, short varchar(20) unique, long varchar(50));
+        create index names_long on names (long);
+        insert into names select i, 's' || i, 'l' || i from generate_series(1, 1000) i`,
+      to: `create table names (id int8 primary key, short varchar(40) unique, long text);
+        create index names_long on names (long)`,
     },
   ])(
     "neither scan nor rewrite a table while blocking writes, nor lock harder than they say, when $change",

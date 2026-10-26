@@ -26,22 +26,51 @@ describe("planMigration", () => {
     expect(plan).toStrictEqual({ steps: [], manual: [] });
   });
 
-  test("leaves a column's type change to be handled by hand, saying why", async () => {
-    const plan = planMigration(
-      await loadCatalog(users),
-      await loadCatalog("create table users (id int8 primary key, email varchar(320))"),
-    );
-    expect(plan).toStrictEqual({
-      steps: [],
-      manual: [
-        {
-          object: "public.users.email",
-          reason:
-            "Changing a column's type can rewrite the table under an exclusive lock; add a new column, backfill it and switch to it instead",
-        },
-      ],
-    });
-  });
+  const codes = "create table codes (code varchar(10) primary key)";
+  const referring = "create table codes (code varchar(10) references users (email))";
+
+  test.for([
+    { change: "text to varchar(320)", from: "email text", to: "email varchar(320)" },
+    { change: "narrowing a varchar", from: "email varchar(320)", to: "email varchar(100)" },
+    { change: "an array's varchar", from: "email varchar(10)[]", to: "email varchar(20)[]" },
+    { change: "int4 to int8", from: "email int4", to: "email int8" },
+    // Postgres checks every row again for the constraints on a column whose type changes.
+    {
+      change: "widening a varchar a check is on",
+      from: "email varchar(10) check (email <> '')",
+      to: "email varchar(20) check (email <> '')",
+    },
+    {
+      change: "widening a varchar a foreign key is on",
+      from: "email varchar(10) references codes",
+      to: "email varchar(20) references codes",
+      before: codes,
+    },
+    {
+      change: "widening a varchar a foreign key refers to",
+      from: "email varchar(10) unique",
+      to: "email varchar(20) unique",
+      after: referring,
+    },
+  ])(
+    "leaves a column's type change, $change, to be handled by hand",
+    async ({ from, to, before = "", after = "" }) => {
+      const plan = planMigration(
+        await loadCatalog(`${before}; create table users (id int8 primary key, ${from}); ${after}`),
+        await loadCatalog(`${before}; create table users (id int8 primary key, ${to}); ${after}`),
+      );
+      expect(plan).toStrictEqual({
+        steps: [],
+        manual: [
+          {
+            object: "public.users.email",
+            reason:
+              "Changing a column's type can rewrite the table under an exclusive lock; add a new column, backfill it and switch to it instead",
+          },
+        ],
+      });
+    },
+  );
 
   test.for([
     {

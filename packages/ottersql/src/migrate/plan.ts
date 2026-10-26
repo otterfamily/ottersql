@@ -50,6 +50,7 @@ export const stepKinds = [
   "createTable",
   "dropTable",
   "addColumn",
+  "widenColumn",
   "dropColumn",
   "setDefault",
   "dropDefault",
