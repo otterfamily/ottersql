@@ -160,8 +160,9 @@ function assemble(pieces: readonly Piece[]): Pick<RenderedFile, "text" | "mappin
 
 function columnType(column: DescribedColumn, context: TypeContext): string {
   const origin = originColumn(column, context.catalog);
+  // A NO INHERIT check says nothing of the rows of tables inheriting from this one.
   const allowed = origin?.table.checks.find(
-    (check) => check.allowedValues?.column === origin.column.name,
+    (check) => !check.noInherit && check.allowedValues?.column === origin.column.name,
   )?.allowedValues?.values;
   const type =
     allowed === undefined

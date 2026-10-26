@@ -2,7 +2,7 @@ import type { PGlite } from "@electric-sql/pglite";
 
 import type { NullabilityFacts } from "./nullability.ts";
 
-export type BuiltInFacts = Omit<NullabilityFacts, "isNotNullColumn">;
+export type BuiltInFacts = Omit<NullabilityFacts, "hasBeforeRowTrigger" | "isNotNullColumn">;
 
 // Built-ins that return non-null for non-null arguments. Overloads taking ranges or multiranges,
 // including the polymorphic anyrange family, are left out because `lower` and `upper` of an

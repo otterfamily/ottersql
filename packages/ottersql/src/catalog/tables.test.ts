@@ -146,3 +146,41 @@ describe("tables", () => {
     ]);
   });
 });
+
+describe("inheritance and triggers", () => {
+  test("reads which NOT NULL and check constraints do not reach inheriting tables", async () => {
+    const catalog = await loadCatalog(`
+      create table parent (
+        own text not null no inherit,
+        shared text not null,
+        checked text check (checked is not null) no inherit
+      );
+    `);
+    const parent = table(catalog, "parent");
+    expect(
+      parent.columns.map(({ name, notNull, notNullNoInherit }) => ({
+        name,
+        notNull,
+        notNullNoInherit,
+      })),
+    ).toStrictEqual([
+      { name: "own", notNull: true, notNullNoInherit: true },
+      { name: "shared", notNull: true, notNullNoInherit: false },
+      { name: "checked", notNull: false, notNullNoInherit: false },
+    ]);
+    expect(parent.checks.map(({ noInherit }) => noInherit)).toStrictEqual([true]);
+  });
+
+  test("reads the triggers a schema declares, with their timing, events and level", async () => {
+    const catalog = await loadCatalog(`
+      create table t (id int8 primary key, parent int8 references t);
+      create function touch() returns trigger language plpgsql as 'begin return new; end';
+      create trigger a_fill before insert or update on t for each row execute function touch();
+      create trigger b_audit after delete or truncate on t execute function touch();
+    `);
+    expect(table(catalog, "t").triggers).toStrictEqual([
+      { name: "a_fill", timing: "before", events: ["insert", "update"], forEachRow: true },
+      { name: "b_audit", timing: "after", events: ["delete", "truncate"], forEachRow: false },
+    ]);
+  });
+});

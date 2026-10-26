@@ -16,6 +16,7 @@ describe("check constraints", () => {
         columns: ["a", "b"],
         allowedValues: null,
         notNullColumns: [],
+        noInherit: false,
         enforcement: "validated",
       },
       {
@@ -24,6 +25,7 @@ describe("check constraints", () => {
         columns: ["a"],
         allowedValues: null,
         notNullColumns: [],
+        noInherit: false,
         enforcement: "not valid",
       },
     ]);

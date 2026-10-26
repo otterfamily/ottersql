@@ -8,6 +8,7 @@ import { callsVolatile } from "./volatility.ts";
 
 export interface TableColumnRow extends ColumnBaseRow {
   readonly notNull: boolean;
+  readonly notNullNoInherit: boolean;
   readonly identity: string;
   readonly generated: string;
   readonly expression: string | null;
@@ -20,6 +21,11 @@ const columnFields = `
     select from pg_constraint col_not_null
     where col_not_null.conrelid = col_attr.attrelid and col_not_null.contype = 'n'
       and col_not_null.conkey[1] = col_attr.attnum and not col_not_null.convalidated
+  ),
+  'notNullNoInherit', exists (
+    select from pg_constraint col_no_inherit
+    where col_no_inherit.conrelid = col_attr.attrelid and col_no_inherit.contype = 'n'
+      and col_no_inherit.conkey[1] = col_attr.attnum and col_no_inherit.connoinherit
   ),
   'identity', col_attr.attidentity,
   'generated', col_attr.attgenerated,
@@ -36,6 +42,7 @@ export const tableColumnRow: Shape<TableColumnRow> = (value, path) => {
   return {
     ...columnBaseRow(value, path),
     notNull: field("notNull", boolean),
+    notNullNoInherit: field("notNullNoInherit", boolean),
     identity: field("identity", string),
     generated: field("generated", string),
     expression: field("expression", nullable(string)),
@@ -44,7 +51,12 @@ export const tableColumnRow: Shape<TableColumnRow> = (value, path) => {
 };
 
 export function parseTableColumn(row: TableColumnRow): Column {
-  return { ...parseColumnBase(row), notNull: row.notNull, value: parseColumnValue(row) };
+  return {
+    ...parseColumnBase(row),
+    notNull: row.notNull,
+    notNullNoInherit: row.notNullNoInherit,
+    value: parseColumnValue(row),
+  };
 }
 
 const identityGenerations = { a: "always", d: "by default" } as const;

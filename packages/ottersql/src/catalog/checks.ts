@@ -1,4 +1,4 @@
-import { array, fields, string } from "./catalog-json.ts";
+import { array, boolean, fields, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { columnNames } from "./columns.ts";
 import { constraintState, constraintStateFields, parseEnforcement } from "./constraint-state.ts";
@@ -29,6 +29,7 @@ export function checksJson(relationOid: string, features: CatalogFeatures): stri
     select json_agg(json_build_object(
       ${checkFields("check_con", "check_con.conrelid", features)},
       'columns', check_columns.names,
+      'noInherit', check_con.connoinherit,
       'quotedColumns', array(select quote_ident(check_name) from unnest(check_columns.names) as check_name)
     ) order by check_con.conname)
     from pg_constraint check_con
@@ -53,6 +54,7 @@ export function domainChecksJson(typeOid: string, features: CatalogFeatures): st
 
 export interface TableCheckRow extends CheckBaseRow {
   readonly columns: readonly string[];
+  readonly noInherit: boolean;
   readonly quotedColumns: readonly string[];
 }
 
@@ -70,6 +72,7 @@ export const tableCheckRow: Shape<TableCheckRow> = (value, path) => {
   return {
     ...checkBaseRow(value, path),
     columns: field("columns", array(string)),
+    noInherit: field("noInherit", boolean),
     quotedColumns: field("quotedColumns", array(string)),
   };
 };
@@ -86,6 +89,7 @@ export function parseTableCheck(row: TableCheckRow): Check {
     columns: row.columns,
     allowedValues: column === undefined || values === null ? null : { column, values },
     notNullColumns: notNullColumns(row),
+    noInherit: row.noInherit,
   };
 }
 

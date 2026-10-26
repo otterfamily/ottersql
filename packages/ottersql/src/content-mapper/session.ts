@@ -1,6 +1,6 @@
 import type { PGlite } from "@electric-sql/pglite";
 
-import { findTable, openSchema, readRelations, readTypeRefs } from "../catalog/index.ts";
+import { openSchema, readRelations, readTypeRefs } from "../catalog/index.ts";
 import type { Catalog, Relation, TypeRef } from "../catalog/index.ts";
 import type { Connection } from "../sql/index.ts";
 import { pgliteConnection } from "../sql/pglite.ts";
@@ -8,8 +8,7 @@ import { fileOffset, offsetOfPosition, readQueryFile } from "../sql/query-file.t
 import type { Query, Span } from "../sql/query-file.ts";
 import { readBuiltInFacts } from "./built-in-functions.ts";
 import type { BuiltInFacts } from "./built-in-functions.ts";
-import { nodesOfType, scalar } from "./node-tree.ts";
-import type { NodeObject } from "./node-tree.ts";
+import { relationFacts, relationOids } from "./column-facts.ts";
 import { NODE_FORMAT_MAJOR, statementNullability } from "./nullability.ts";
 import { renderFile } from "./render.ts";
 import type { RenderedFile } from "./render.ts";
@@ -171,11 +170,7 @@ async function analyze(
     [...tableOids, ...relationOids(tree)],
     async (oids) => readRelations(context.connection, oids),
   );
-  const facts = {
-    isNotNullColumn: (relationOid: number, attnum: number) =>
-      isNotNullColumn(context.catalog, relations.get(relationOid), attnum),
-    ...context.builtIns,
-  };
+  const facts = { ...relationFacts(context.catalog, relations), ...context.builtIns };
   const proven = tree === null ? null : statementNullability(tree, facts);
   return {
     kind: "described",
@@ -228,29 +223,6 @@ async function describeCached(
 }
 
 /** Every table, view and other relation the analyzed tree reads from, however deeply nested. */
-function relationOids(tree: NodeObject | null): number[] {
-  return nodesOfType(tree ?? undefined, "RANGETBLENTRY").flatMap((entry) => {
-    const relid = scalar(entry, "relid");
-    return relid === undefined ? [] : [Number(relid)];
-  });
-}
-
-function isNotNullColumn(
-  catalog: Catalog,
-  relation: Relation | undefined,
-  attnum: number,
-): boolean {
-  if (relation === undefined) {
-    return false;
-  }
-  const name = relation.columns.get(attnum);
-  const table = findTable(catalog, relation.schema, relation.name);
-  return (
-    table !== undefined &&
-    (table.columns.some((column) => column.name === name && column.notNull) ||
-      table.checks.some((check) => name !== undefined && check.notNullColumns.includes(name)))
-  );
-}
 
 function origin(relation: Relation | undefined, attnum: number): DescribedColumn["origin"] {
   const column = relation?.columns.get(attnum);

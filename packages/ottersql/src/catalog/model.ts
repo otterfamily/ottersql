@@ -17,7 +17,19 @@ export interface Table {
   readonly foreignKeys: readonly ForeignKey[];
   readonly checks: readonly Check[];
   readonly indexes: readonly Index[];
+  readonly triggers: readonly Trigger[];
   readonly comment: Comment | null;
+}
+
+export type TriggerEvent = "insert" | "update" | "delete" | "truncate";
+
+/** A trigger the schema declares on a table; Postgres's internal ones, such as foreign keys', are left out. */
+export interface Trigger {
+  readonly name: string;
+  readonly timing: "before" | "after" | "instead of";
+  readonly events: readonly TriggerEvent[];
+  /** FOR EACH ROW, rather than once per statement. */
+  readonly forEachRow: boolean;
 }
 
 export interface Column {
@@ -26,6 +38,8 @@ export interface Column {
   /** The type as Postgres prints it, including modifiers such as `numeric(10,2)`. */
   readonly typeSql: string;
   readonly notNull: boolean;
+  /** NOT NULL NO INHERIT: it holds for this table's own rows, not for those of tables inheriting from it. */
+  readonly notNullNoInherit: boolean;
   readonly value: ColumnValue;
   readonly comment: Comment | null;
 }
@@ -107,6 +121,8 @@ export interface Check {
    * or as a term of a top-level AND, the way NOT NULL does.
    */
   readonly notNullColumns: readonly string[];
+  /** NO INHERIT: it holds for this table's own rows, not for those of tables inheriting from it. */
+  readonly noInherit: boolean;
   readonly enforcement: Enforcement;
 }
 

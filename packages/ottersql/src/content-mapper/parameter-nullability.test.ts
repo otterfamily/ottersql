@@ -42,6 +42,22 @@ describe("parameter nullability", () => {
       expected: { id: false, name: false },
     },
     {
+      sql: "insert into stamped (id, slug) values (:id, :slug)",
+      expected: { id: true, slug: true },
+    },
+    {
+      sql: "update stamped set slug = :slug where id = :id",
+      expected: { slug: false, id: true },
+    },
+    {
+      sql: "update parent set own = :own, shared = :shared",
+      expected: { own: true, shared: false },
+    },
+    {
+      sql: "update only parent set own = :own",
+      expected: { own: false },
+    },
+    {
       sql: "select id from users where name = :name",
       expected: { name: true },
     },

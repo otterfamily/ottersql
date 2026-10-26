@@ -72,6 +72,14 @@ describe("nullability (ADR 0009)", () => {
       expected: { name: true, n: false },
     },
     {
+      sql: "select own, shared, checked from parent",
+      expected: { own: true, shared: false, checked: true },
+    },
+    {
+      sql: "select own, shared, checked from only parent",
+      expected: { own: false, shared: false, checked: false },
+    },
+    {
       sql: "select code, pair, other, note from legacy",
       expected: { code: false, pair: false, other: true, note: true },
     },

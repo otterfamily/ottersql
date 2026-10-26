@@ -22,8 +22,14 @@ import {
 
 /** What the rules need to know about the schema and built-in functions, keyed by Postgres oids. */
 export interface NullabilityFacts {
-  /** Whether column `attnum` of relation `relationOid` is a validated NOT NULL table column. */
-  readonly isNotNullColumn: (relationOid: number, attnum: number) => boolean;
+  /**
+   * Whether column `attnum` of relation `relationOid` is never null: for the table's own rows only
+   * when `ownRowsOnly` (a query naming it with ONLY, or an INSERT into it), otherwise also for the
+   * rows of tables inheriting from it, which NO INHERIT constraints do not reach.
+   */
+  readonly isNotNullColumn: (relationOid: number, attnum: number, ownRowsOnly: boolean) => boolean;
+  /** Whether relation `relationOid` has a BEFORE ROW trigger on `event`, which may change the row. */
+  readonly hasBeforeRowTrigger: (relationOid: number, event: "insert" | "update") => boolean;
   /** Aggregates and window functions that never return null, such as `count` and `row_number`. */
   readonly nonNullAggregates: ReadonlySet<string>;
   /** Functions and operators whose result is non-null whenever every argument is. */
@@ -207,7 +213,11 @@ const rangeColumnRules: Readonly<
   [RTE_GROUP]: (owner, entry, attnum) =>
     provesNonNull(list(field(entry, "groupexprs"))[attnum - 1], owner),
   [RTE_RELATION]: (owner, entry, attnum) =>
-    owner.facts.isNotNullColumn(Number(scalar(entry, "relid")), attnum),
+    owner.facts.isNotNullColumn(
+      Number(scalar(entry, "relid")),
+      attnum,
+      scalar(entry, "inh") !== "true",
+    ),
   [RTE_SUBQUERY]: (owner, entry, attnum) => {
     const subquery = field(entry, "subquery");
     return isNode(subquery, "QUERY") && provesColumn(child(owner, subquery), attnum);

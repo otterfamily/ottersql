@@ -20,6 +20,18 @@ const schemaSql = `
   );
   alter table legacy add column note text, add constraint note_present check (note is not null) not valid;
   create table spans (id int8 primary key, r int4range not null, a int[] not null);
+  create table parent (
+    id int8 primary key,
+    own text not null no inherit,
+    shared text not null,
+    checked text,
+    check (checked is not null) no inherit
+  );
+  create table child () inherits (parent);
+  create function fill_slug() returns trigger language plpgsql as $$
+    begin new.slug := coalesce(new.slug, 'slug-' || new.id); return new; end $$;
+  create table stamped (id int8 primary key, slug text not null);
+  create trigger fills_slug before insert on stamped for each row execute function fill_slug();
   create function maybe(i int) returns text language sql as 'select null';
   create type wrapped as (v text);
   create function wrap(i int) returns wrapped language sql as 'select null::wrapped';

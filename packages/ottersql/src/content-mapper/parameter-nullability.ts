@@ -17,28 +17,43 @@ import {
  */
 export function nonNullParameters(
   query: NodeObject,
-  facts: Pick<NullabilityFacts, "isNotNullColumn" | "nonNullCasts">,
+  facts: Pick<NullabilityFacts, "hasBeforeRowTrigger" | "isNotNullColumn" | "nonNullCasts">,
 ): ReadonlySet<number> {
-  const command = scalar(query, "commandType");
   const rtable = list(field(query, "rtable"));
-  const target = rtable[Number(scalar(query, "resultRelation")) - 1];
-  if (
-    (command !== COMMAND_INSERT && command !== COMMAND_UPDATE) ||
-    !isNode(target, "RANGETBLENTRY")
-  ) {
+  const write = writeTarget(query, rtable);
+  if (write === null) {
     return new Set();
   }
-  const relation = Number(scalar(target, "relid"));
+  const { command, target, relation } = write;
+  // A BEFORE ROW trigger may replace a null before the constraint checks it.
+  if (facts.hasBeforeRowTrigger(relation, command === COMMAND_INSERT ? "insert" : "update")) {
+    return new Set();
+  }
+  // An INSERT writes the table's own rows; an UPDATE without ONLY also those of its children.
+  const ownRowsOnly = command === COMMAND_INSERT || scalar(target, "inh") !== "true";
   // Not ON CONFLICT DO UPDATE SET: without a conflict it never runs, and the row is inserted.
   const entries = list(field(query, "targetList"));
   return new Set(
     entries.flatMap((entry) =>
       isNode(entry, "TARGETENTRY") &&
-      facts.isNotNullColumn(relation, Number(scalar(entry, "resno")))
+      facts.isNotNullColumn(relation, Number(scalar(entry, "resno")), ownRowsOnly)
         ? written(field(entry, "expr"), rtable, facts)
         : [],
     ),
   );
+}
+
+/** The table an INSERT or UPDATE writes, or `null` for any other statement. */
+function writeTarget(
+  query: NodeObject,
+  rtable: readonly NodeValue[],
+): { readonly command: string; readonly target: NodeObject; readonly relation: number } | null {
+  const command = scalar(query, "commandType");
+  const target = rtable[Number(scalar(query, "resultRelation")) - 1];
+  return (command === COMMAND_INSERT || command === COMMAND_UPDATE) &&
+    isNode(target, "RANGETBLENTRY")
+    ? { command, target, relation: Number(scalar(target, "relid")) }
+    : null;
 }
 
 /** The parameters `expression` writes as they are: a parameter, a cast of one, or a VALUES column. */

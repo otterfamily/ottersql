@@ -31,6 +31,8 @@ export type {
   RoutineColumn,
   RoutineResult,
   Table,
+  Trigger,
+  TriggerEvent,
   TypeRef,
   UniqueConstraint,
   View,
