@@ -18,8 +18,11 @@ export function qualified(schema: string, name: string): string {
   return `${identifier(schema)}.${identifier(name)}`;
 }
 
+/** A string constant that reads back as `text` whether or not standard_conforming_strings is on. */
 export function literal(text: string): string {
-  return `'${text.replaceAll("'", "''")}'`;
+  const quoted = text.replaceAll("'", "''");
+  // With the setting off, a backslash in '...' starts an escape; in E'...' it always does.
+  return text.includes("\\") ? `E'${quoted.replaceAll("\\", String.raw`\\`)}'` : `'${quoted}'`;
 }
 
 export function columnList(names: readonly string[]): string {
