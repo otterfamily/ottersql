@@ -1,12 +1,11 @@
 import type { Connection } from "../sql/index.ts";
 import { readCapabilities } from "./capabilities.ts";
-import { readDomains } from "./domains.ts";
-import { readEnums } from "./enums.ts";
 import { readFeatures } from "./features.ts";
 import type { Catalog } from "./model.ts";
-import { readRanges } from "./ranges.ts";
 import { readRoutines } from "./routines.ts";
+import { readSchemas } from "./schemas.ts";
 import { readTables } from "./tables.ts";
+import { readUserTypes } from "./user-types.ts";
 import { readViews } from "./views.ts";
 
 /** What the catalog reads: the objects of every user schema but those it is told to leave out. */
@@ -33,10 +32,9 @@ export async function readCatalog(
       const features = await readFeatures(transaction);
       return {
         capabilities: await readCapabilities(transaction),
+        schemas: await readSchemas(transaction, omitSchemas),
         tables: await readTables(transaction, features, omitSchemas),
-        enums: await readEnums(transaction, omitSchemas),
-        ranges: await readRanges(transaction, omitSchemas),
-        domains: await readDomains(transaction, features, omitSchemas),
+        ...(await readUserTypes(transaction, features, omitSchemas)),
         views: await readViews(transaction, omitSchemas),
         routines: await readRoutines(transaction, omitSchemas),
       };

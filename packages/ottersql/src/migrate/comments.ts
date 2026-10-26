@@ -4,15 +4,16 @@ import { literal } from "./sql-text.ts";
 import { noChanges, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
-/** `COMMENT ON` takes a SHARE UPDATE EXCLUSIVE lock on a table, and none on a type. */
-const commentLocks: Readonly<Record<"TABLE" | "COLUMN" | "TYPE", Lock>> = {
+/** `COMMENT ON` takes a SHARE UPDATE EXCLUSIVE lock on a table, and none on a type or schema. */
+const commentLocks: Readonly<Record<"TABLE" | "COLUMN" | "TYPE" | "SCHEMA", Lock>> = {
   TABLE: "share update exclusive",
   COLUMN: "share update exclusive",
   TYPE: "none",
+  SCHEMA: "none",
 };
 
 export function commentChange(target: {
-  readonly on: "TABLE" | "COLUMN" | "TYPE";
+  readonly on: "TABLE" | "COLUMN" | "TYPE" | "SCHEMA";
   readonly object: string;
   /** The object as SQL names it. */
   readonly name: string;

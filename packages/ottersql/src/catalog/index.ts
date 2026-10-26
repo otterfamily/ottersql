@@ -5,9 +5,9 @@ export { CatalogShapeError } from "./catalog-json.ts";
 export type { OpenSchema } from "./load-catalog.ts";
 export { SchemaError } from "./schema-error.ts";
 export type { SchemaPosition } from "./schema-error.ts";
+export type { Capabilities } from "./capabilities.ts";
 export type {
   Annotation,
-  Capabilities,
   Catalog,
   Check,
   Column,
@@ -31,6 +31,7 @@ export type {
   RoutineArgument,
   RoutineColumn,
   RoutineResult,
+  Schema,
   Sequence,
   Table,
   Trigger,

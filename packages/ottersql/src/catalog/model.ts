@@ -1,11 +1,20 @@
+import type { Capabilities } from "./capabilities.ts";
+
 export interface Catalog {
   readonly capabilities: Capabilities;
+  readonly schemas: readonly Schema[];
   readonly tables: readonly Table[];
   readonly enums: readonly Enum[];
   readonly ranges: readonly RangeType[];
   readonly domains: readonly Domain[];
   readonly views: readonly View[];
   readonly routines: readonly Routine[];
+}
+
+/** A schema the user's objects live in, `public` included. */
+export interface Schema {
+  readonly name: string;
+  readonly comment: Comment | null;
 }
 
 export interface Table {
@@ -286,10 +295,4 @@ export interface RoutineColumn {
   readonly name: string | null;
   readonly type: TypeRef;
   readonly typeSql: string;
-}
-
-/** What the database the catalog was read from supports. */
-export interface Capabilities {
-  readonly engine: "postgres";
-  readonly version: { readonly major: number; readonly minor: number };
 }

@@ -42,6 +42,8 @@ interface StepCommon {
 }
 
 export const stepKinds = [
+  "createSchema",
+  "dropSchema",
   "createEnum",
   "addEnumValue",
   "dropEnum",

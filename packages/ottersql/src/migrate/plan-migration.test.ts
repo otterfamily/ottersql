@@ -14,6 +14,31 @@ describe("planMigration, run on PGlite to the target schema", () => {
       steps: ["expand createTable public.users (lossy, inside, none)"],
     },
     {
+      change: "creates a schema before the objects in it",
+      from: "",
+      to: "create schema app; create type app.mood as enum ('ok'); create table app.notes (id int8 primary key, mood app.mood)",
+      steps: [
+        "expand createSchema app (reversible, inside, none)",
+        "expand createEnum app.mood (lossy, inside, none)",
+        "expand createTable app.notes (lossy, inside, none)",
+      ],
+    },
+    {
+      change: "drops a schema after the objects in it",
+      from: "create schema app; create table app.notes (id int8 primary key)",
+      to: "",
+      steps: [
+        "contract dropTable app.notes (irreversible, inside, access exclusive)",
+        "contract dropSchema app (irreversible, inside, none)",
+      ],
+    },
+    {
+      change: "comments a schema",
+      from: "create schema app",
+      to: "create schema app; comment on schema app is 'Billing'",
+      steps: ["expand comment app (reversible, inside, none)"],
+    },
+    {
       change: "drops a table after the deploy",
       from: users,
       to: "",
