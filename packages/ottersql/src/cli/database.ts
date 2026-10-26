@@ -12,7 +12,7 @@ import { CommandError } from "./outcome.ts";
 export async function withSession<Result>(
   env: Context["env"],
   use: (connection: Connection) => Promise<Result>,
-  { onlyLocal }: { readonly onlyLocal?: string } = {},
+  { onlyLocal }: { readonly onlyLocal?: "push" } = {},
 ): Promise<Result> {
   const client = new (await nodePostgres())({ connectionString: databaseUrl(env) });
   if (onlyLocal !== undefined) {
@@ -79,7 +79,7 @@ const localHosts: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "::1"
  * localhost, a loopback address or a Unix socket. Names such as a Docker Compose service are
  * refused too, since nothing tells them from a server elsewhere.
  */
-function requireLocal(host: string, command: string): void {
+function requireLocal(host: string, command: "push"): void {
   if (!(localHosts.has(host) || host.startsWith("/"))) {
     throw new CommandError({
       kind: "invalid",

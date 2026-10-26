@@ -164,11 +164,19 @@ describe("ottersql migrate check", () => {
   });
 });
 
+/** The `version` of a parsed package.json. */
+function versionIn(manifest: unknown): string {
+  return typeof manifest === "object" && manifest !== null
+    ? String(Reflect.get(manifest, "version"))
+    : "";
+}
+
 describe("ottersql arguments", () => {
   test.for([
     { args: [], why: "Name a command" },
     { args: ["migrate"], why: "Name a command" },
     { args: ["migrate", "push"], why: "Unknown command: migrate push" },
+    { args: ["deploy"], why: "Unknown command: deploy" },
     { args: ["migrate", "generate"], why: "Name the migration, such as `add_users`" },
     {
       args: ["migrate", "generate", "Add Users"],
@@ -209,6 +217,19 @@ describe("ottersql arguments", () => {
         stderr:
           "The migrations do not build db/schema.sql: 1 steps and 0 changes left to a person are missing\n  expand createTable public.logs (lossy, inside, lock none)\nFix: Run `ottersql migrate generate <name>` and review the migration it writes\n",
       },
+    });
+  });
+
+  test("prints its version with --version", async () => {
+    const root = await project({});
+    const manifest: unknown = JSON.parse(
+      await readFile(new URL("../../package.json", import.meta.url), "utf8"),
+    );
+    const version = versionIn(manifest);
+    await expect(ottersql(root, ["--version"])).resolves.toStrictEqual({
+      exitCode: 0,
+      stdout: `${version}\n`,
+      stderr: "",
     });
   });
 

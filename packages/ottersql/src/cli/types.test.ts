@@ -3,7 +3,7 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "vitest";
 
-import { at, ottersqlJson, project, writeFiles } from "./test-cli.ts";
+import { at, ottersql, ottersqlJson, project, writeFiles } from "./test-cli.ts";
 
 const files = {
   "db/schema.sql": "create table users (id int8 primary key, email text not null);\n",
@@ -92,6 +92,19 @@ describe("ottersql types", () => {
       code: "types.query_invalid",
       where: { file: "src/users.sql", line: 2 },
       written: ["src/users.d.sql.ts"],
+    });
+  });
+
+  test("with --check, reports a query Postgres rejects even when the files are up to date", async () => {
+    const root = await project({
+      ...files,
+      "src/users.sql": "-- @name broken\nselect missing from users;\n",
+    });
+    await ottersql(root, ["types"]);
+    const { exitCode, json } = await ottersqlJson(root, ["types", "--check"]);
+    expect({ exitCode, code: at(json, "code") }).toStrictEqual({
+      exitCode: 4,
+      code: "types.query_invalid",
     });
   });
 

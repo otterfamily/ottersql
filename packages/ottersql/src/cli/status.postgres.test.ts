@@ -2,7 +2,14 @@ import { postgresDatabase } from "@ottersql/testing";
 import { Client } from "pg";
 import { describe, expect, test } from "vitest";
 
-import { ottersql, ottersqlJson, project, writeFiles } from "./test-cli.ts";
+import {
+  at,
+  ottersql,
+  ottersqlJson,
+  ottersqlJsonWithStderr,
+  project,
+  writeFiles,
+} from "./test-cli.ts";
 
 const users = "create table users (id int8 primary key, email text);\n";
 
@@ -118,6 +125,28 @@ describe("ottersql migrate status", () => {
           },
         },
       },
+    });
+  });
+
+  test("reports a statement the database rejects as a failed query, not as a bug", async () => {
+    const url = await postgresDatabase(
+      "create schema ottersql; create table ottersql.applied_steps (unexpected int4);",
+    );
+    const root = await project({ "db/schema.sql": users });
+    await ottersql(root, ["migrate", "generate", "add_users"]);
+    const { exitCode, json, stderr } = await ottersqlJsonWithStderr(root, ["migrate", "status"], {
+      env: { DATABASE_URL: url },
+    });
+    expect({
+      exitCode,
+      code: at(json, "code"),
+      sqlstate: at(json, "result", "sqlstate"),
+      stack: stderr.includes("    at "),
+    }).toStrictEqual({
+      exitCode: 1,
+      code: "database.query_failed",
+      sqlstate: "42703",
+      stack: false,
     });
   });
 });

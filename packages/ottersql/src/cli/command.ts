@@ -5,6 +5,7 @@ import { isMigrationLabel } from "../migrate/index.ts";
 /** What the command line asks for, parsed once where it enters. */
 export type Command =
   | { readonly name: "help" }
+  | { readonly name: "version" }
   | {
       readonly name: "migrate generate";
       readonly migration: string;
@@ -92,6 +93,7 @@ const options = {
   empty: { type: "boolean" },
   check: { type: "boolean" },
   help: { type: "boolean", short: "h" },
+  version: { type: "boolean" },
 } as const;
 
 /** Whether the output is to be JSON; read apart from parsing, so that usage errors honour it. */
@@ -110,6 +112,9 @@ export function parseCommand(args: readonly string[]): Command {
   if (values.help === true) {
     return { name: "help" };
   }
+  if (values.version === true) {
+    return { name: "version" };
+  }
   const { name, rest } = commandName(positionals);
   refuseOtherOptions(name, values);
   return commandOf(name, rest, values);
@@ -120,6 +125,9 @@ function commandName(positionals: readonly string[]): { name: string; rest: read
   const [group, ...afterGroup] = positionals;
   if (group !== undefined && singleWord.has(group)) {
     return { name: group, rest: afterGroup };
+  }
+  if (group !== undefined && group !== "migrate") {
+    throw new UsageError(`Unknown command: ${group}; run \`ottersql --help\` for the list`);
   }
   const [verb, ...rest] = afterGroup;
   if (group === undefined || verb === undefined) {

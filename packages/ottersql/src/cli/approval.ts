@@ -5,7 +5,7 @@ import { CommandError } from "./outcome.ts";
 /** A command that can run steps that cannot be undone: how to run it again, and its codes' namespace. */
 export interface Approvable {
   readonly command: string;
-  readonly namespace: string;
+  readonly namespace: "migrate" | "push";
 }
 
 /** Only a person approves steps that cannot be undone, so an AI agent's --approve is refused. */

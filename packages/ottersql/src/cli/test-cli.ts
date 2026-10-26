@@ -72,6 +72,16 @@ export async function ottersqlJson(
   return { exitCode, json: parseJson(stdout) };
 }
 
+/** Runs `ottersql <args> --json` and reads its JSON, keeping what it wrote to stderr. */
+export async function ottersqlJsonWithStderr(
+  cwd: string,
+  args: readonly string[],
+  options: RunOptions = {},
+): Promise<{ readonly exitCode: number; readonly json: unknown; readonly stderr: string }> {
+  const { exitCode, stdout, stderr } = await ottersql(cwd, [...args, "--json"], options);
+  return { exitCode, json: parseJson(stdout), stderr };
+}
+
 export function parseJson(text: string): unknown {
   return JSON.parse(text);
 }

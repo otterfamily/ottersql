@@ -8,6 +8,7 @@ import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
 import type { Outcome } from "./outcome.ts";
+import { sqlstateNote } from "./outcome.ts";
 import { historyRefusal, locate, readMigrations, shown } from "./project.ts";
 import type { Layout } from "./project.ts";
 
@@ -65,7 +66,7 @@ function reported(layout: Layout, { applied, failed, waiting }: ApplyResult): Ou
     ok: false,
     kind: "failed",
     code: "migrate.step_failed",
-    why: `Step ${String(failed.step)} of ${failed.migration} failed: ${failed.message} (SQLSTATE ${String(failed.code)})`,
+    why: `Step ${String(failed.step)} of ${failed.migration} failed: ${failed.message}${sqlstateNote(failed.code)}`,
     fix: "Fix the cause, then apply again; it resumes at this step",
     where: { file: shown(layout, join(layout.migrationsDirectory, failed.migration)) },
     result: { applied, failed },

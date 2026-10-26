@@ -120,7 +120,7 @@ function problemLines(problems: readonly DeclarationFileProblem[]): string[] {
 function checked(result: Changes): Outcome {
   const files = [...result.written, ...result.removed];
   if (files.length === 0) {
-    return { ok: true, result, lines: ["The declaration files are up to date"] };
+    return withProblems(result, ["The declaration files are up to date"]);
   }
   return {
     ok: false,
@@ -142,6 +142,11 @@ function written(result: Changes): Outcome {
     ...result.written.map((file) => `  wrote ${file}`),
     ...result.removed.map((file) => `  removed ${file}`),
   ];
+  return withProblems(result, lines);
+}
+
+/** Success with `lines`, unless a query in the files cannot be typed. */
+function withProblems(result: Changes, lines: readonly string[]): Outcome {
   const [problem] = result.problems;
   if (problem === undefined) {
     return { ok: true, result, lines };

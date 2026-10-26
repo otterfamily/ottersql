@@ -94,3 +94,23 @@ ottersql's own errors, such as a value that does not fit its column's type, name
 ## The command
 
 `ottersql` connects with node-postgres to `DATABASE_URL`. For a connection it cannot make that way, such as one that signs in with a short-lived token, call the library from your own script with a connection you make: `applyMigrations(connection, …)` from `ottersql/migrate` takes any driver's connection.
+
+With `--json`, every command prints one JSON object: `{ "ok": true, "result": … }`, or `{ "ok": false, "code": …, "why": …, "fix": … }` with the failure's code, which agents can branch on. The exit code is 0 on success, 1 when something ran and failed, 2 when nothing ran because the arguments, files or history are wrong, 3 when steps need a person's approval, and 4 when the command found something to fix.
+
+| Code                                                                                                    | Meaning                                                                                |
+| ------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `usage.invalid`                                                                                         | The arguments name no command, or options it does not take                             |
+| `project.tsconfig_unreadable`, `project.tsconfig_invalid`                                               | The tsconfig cannot be read or parsed                                                  |
+| `project.peer_missing`                                                                                  | A dependency the command needs, such as `@electric-sql/pglite`, is not installed       |
+| `schema.unreadable`, `schema.invalid`                                                                   | schema.sql cannot be read, or Postgres rejects it                                      |
+| `database.url_missing`, `database.driver_missing`, `database.connection_failed`                         | The command cannot reach the database                                                  |
+| `database.query_failed`                                                                                 | The database rejected a statement; `result.sqlstate` says why                          |
+| `migrate.file_invalid`, `migrate.history_mismatch`                                                      | A migration file is malformed, or the files and the database's history disagree        |
+| `migrate.out_of_date`                                                                                   | The migrations do not build schema.sql                                                 |
+| `migrate.drift`                                                                                         | The database was changed outside its migrations                                        |
+| `migrate.approval_required`, `migrate.approval_by_agent`                                                | Steps that cannot be undone need a person's approval                                   |
+| `migrate.step_failed`                                                                                   | A step failed; applying again resumes at it                                            |
+| `migrate.baseline_name_missing`, `migrate.baseline_unnamed`, `migrate.baseline_mismatch`                | The baseline needs a name, takes none, or does not match the database                  |
+| `push.not_local`, `push.manual`, `push.approval_required`, `push.approval_by_agent`, `push.step_failed` | push refused a database elsewhere, left changes to a person, needs approval, or failed |
+| `types.not_generated`, `types.out_of_date`, `types.query_invalid`                                       | Declaration files are missing or stale, or a query cannot be typed                     |
+| `internal`                                                                                              | A bug in ottersql                                                                      |

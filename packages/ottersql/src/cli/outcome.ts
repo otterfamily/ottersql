@@ -1,3 +1,5 @@
+import type { FailureCode } from "./codes.ts";
+
 /**
  * How a command ended. The JSON output and the exit code are promises agents rely on (ADR 0007),
  * so a failure's `code` keeps its meaning once published.
@@ -15,8 +17,7 @@ export interface Failure {
   readonly ok: false;
   /** Decides the exit code; `code` says more within it. */
   readonly kind: FailureKind;
-  /** Such as `migrate.approval_required`: a namespace, a dot, and words joined by underscores. */
-  readonly code: string;
+  readonly code: FailureCode;
   readonly why: string;
   readonly fix: string;
   /** A path relative to the working directory, and a 1-based line when one is known. */
@@ -86,4 +87,9 @@ export function toText(outcome: Outcome): { readonly stdout: string; readonly st
 
 function joinLines(lines: readonly string[]): string {
   return lines.map((line) => `${line}\n`).join("");
+}
+
+/** ` (SQLSTATE 23505)`, or nothing when the failure was not the database's. */
+export function sqlstateNote(code: string | null): string {
+  return code === null ? "" : ` (SQLSTATE ${code})`;
 }

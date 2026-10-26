@@ -7,6 +7,7 @@ import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
 import type { Outcome } from "./outcome.ts";
+import { sqlstateNote } from "./outcome.ts";
 import { locate, readSchema } from "./project.ts";
 
 type Push = Extract<Command, { name: "push" }>;
@@ -58,7 +59,7 @@ function reported({ applied, failed, manual }: PushResult): Outcome {
       ok: false,
       kind: "failed",
       code: "push.step_failed",
-      why: `${failed.kind} ${failed.object} failed: ${failed.message} (SQLSTATE ${String(failed.code)})`,
+      why: `${failed.kind} ${failed.object} failed: ${failed.message}${sqlstateNote(failed.code)}`,
       fix: "Fix the cause, then push again",
       result: { applied: steps, failed },
     };

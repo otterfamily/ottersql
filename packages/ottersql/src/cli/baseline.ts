@@ -29,7 +29,7 @@ export async function baseline(context: Context, command: Baseline): Promise<Out
   if (existing.length > 0 && command.migration !== null) {
     throw new CommandError({
       kind: "invalid",
-      code: "usage.invalid",
+      code: "migrate.baseline_unnamed",
       why: "There are migrations already, so the baseline records them instead of writing one",
       fix: "Run `ottersql migrate baseline` without a name",
     });
@@ -55,7 +55,7 @@ async function writeFirst(
   if (command.migration === null) {
     throw new CommandError({
       kind: "invalid",
-      code: "usage.invalid",
+      code: "migrate.baseline_name_missing",
       why: "There are no migrations yet, so the baseline needs a name, such as `baseline`",
       fix: "Run `ottersql migrate baseline <name>`",
     });
