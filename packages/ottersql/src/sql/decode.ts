@@ -9,6 +9,7 @@ import {
 } from "./literals.ts";
 import type { ArrayItems, RangeText } from "./literals.ts";
 import type { TypeInfo } from "./type-info.ts";
+import { isoYear } from "./years.ts";
 
 /** A value whose type cannot hold it exactly, such as `infinity` for a date (ADR 0008). */
 export class DecodeError extends Error {
@@ -126,27 +127,3 @@ export const baseCodecs: Readonly<Record<string, BaseCodec>> = {
     decode: (text) => Temporal.Instant.from(isoYear(text)),
   },
 };
-
-const yearDigits = /^\d+/v;
-const ISO_YEAR_DIGITS = 4;
-const EXPANDED_YEAR_DIGITS = 6;
-
-/**
- * Temporal reads Postgres's date and time output as it is, except for years: Postgres prints
- * `0044-03-15 BC` and `10000-01-01`, where ISO 8601 writes `-000043-03-15` and `+010000-01-01`
- * (1 BC is year 0). Other text, such as `infinity`, is left for Temporal to reject (ADR 0008).
- */
-function isoYear(text: string): string {
-  const bc = text.endsWith(" BC");
-  if (text.charAt(ISO_YEAR_DIGITS) === "-" && !bc) {
-    return text;
-  }
-  const digits = yearDigits.exec(text)?.[0];
-  if (digits === undefined) {
-    return text;
-  }
-  const year = bc ? 1 - Number(digits) : Number(digits);
-  const sign = year < 0 ? "-" : "+";
-  const rest = text.slice(digits.length, bc ? -" BC".length : undefined);
-  return `${sign}${String(Math.abs(year)).padStart(EXPANDED_YEAR_DIGITS, "0")}${rest}`;
-}

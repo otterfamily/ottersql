@@ -1,8 +1,9 @@
 import { byteaText } from "./bytea.ts";
 import { arrayLiteral, intervalLiteral, rangeLiteral } from "./literals.ts";
 import type { ArrayItems } from "./literals.ts";
-import { Json } from "./values.ts";
+import { jsonText } from "./values.ts";
 import type { Interval } from "./values.ts";
+import { postgresYear } from "./years.ts";
 
 /**
  * Encodes a parameter in Postgres's text input format, by the kind of JavaScript value: parameter
@@ -34,9 +35,9 @@ function encodeScalar(value: unknown): string {
 }
 
 const objectEncoders: readonly ((value: unknown) => string | undefined)[] = [
-  (value) => (value instanceof Json ? JSON.stringify(value.value) : undefined),
+  jsonText,
   (value) => (value instanceof Uint8Array ? byteaText(value) : undefined),
-  (value) => (isTemporal(value) ? value.toString() : undefined),
+  (value) => (isTemporal(value) ? postgresYear(value.toString()) : undefined),
   (value) => (isInterval(value) ? intervalLiteral(value) : undefined),
   (value) =>
     isRange(value)
