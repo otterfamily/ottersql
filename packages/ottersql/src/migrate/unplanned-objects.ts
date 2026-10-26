@@ -30,10 +30,20 @@ export function unplannedChanges(from: Catalog, to: Catalog): Changes {
 
 /** Names of objects only one side has, or that differ; overloaded functions share a name. */
 function differingNames(before: readonly Named[], after: readonly Named[]): string[] {
-  const names = new Set([...before, ...after].map(({ schema, name }) => `${schema}.${name}`));
-  return [...names].filter((name) => {
-    const old = before.filter((item) => `${item.schema}.${item.name}` === name);
-    const current = after.filter((item) => `${item.schema}.${item.name}` === name);
-    return !isDeepStrictEqual(old, current);
-  });
+  const byName = new Map<string, { readonly before: Named[]; readonly after: Named[] }>();
+  const group = (item: Named): { readonly before: Named[]; readonly after: Named[] } => {
+    const name = `${item.schema}.${item.name}`;
+    const found = byName.get(name) ?? { before: [], after: [] };
+    byName.set(name, found);
+    return found;
+  };
+  for (const item of before) {
+    group(item).before.push(item);
+  }
+  for (const item of after) {
+    group(item).after.push(item);
+  }
+  return [...byName]
+    .filter(([, sides]) => !isDeepStrictEqual(sides.before, sides.after))
+    .map(([name]) => name);
 }
