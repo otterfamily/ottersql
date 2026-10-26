@@ -1,6 +1,8 @@
+import { isDeepStrictEqual } from "node:util";
+
 import type { Catalog, Column, ForeignKey, Table } from "../catalog/index.ts";
 import { alterTable, identifier } from "./sql-text.ts";
-import { noChanges, objectName, only, step } from "./steps.ts";
+import { manual, noChanges, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 const VARCHAR = /^character varying(?:\((?<length>\d+)\))?$/v;
@@ -58,14 +60,24 @@ export interface ColumnChange {
 
 /**
  * A column's type change, when it reads and rewrites nothing: before the deploy, since the new
- * app may write the longer values. Any other change of type is `null`, left to a person.
+ * app may write the longer values. Any other change of type or collation is left to a person.
  */
-export function typeChange({ table, before, after }: ColumnChange, to: Catalog): Changes | null {
+export function typeChange({ table, before, after }: ColumnChange, to: Catalog): Changes {
+  const object = objectName(table, after.name);
+  if (!isDeepStrictEqual(before.collation, after.collation)) {
+    return manual(
+      object,
+      "Changing a column's collation rebuilds its indexes under an exclusive lock and can reorder what they hold; add a new column, backfill it and switch to it instead",
+    );
+  }
   if (before.typeSql === after.typeSql) {
     return noChanges;
   }
   if (!widens(before.typeSql, after.typeSql) || constrained(table, after.name, to)) {
-    return null;
+    return manual(
+      object,
+      "Changing a column's type can rewrite the table under an exclusive lock; add a new column, backfill it and switch to it instead",
+    );
   }
   const statement = alterTable(
     table,
@@ -74,7 +86,7 @@ export function typeChange({ table, before, after }: ColumnChange, to: Catalog):
   return only(
     step({
       kind: "widenColumn",
-      object: objectName(table, after.name),
+      object,
       statements: [statement],
       phase: "expand",
       reversal: "lossy",

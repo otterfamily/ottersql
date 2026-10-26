@@ -10,10 +10,13 @@ export interface Trigger {
   readonly events: readonly TriggerEvent[];
   /** FOR EACH ROW, rather than once per statement. */
   readonly forEachRow: boolean;
+  /** The CREATE TRIGGER statement as Postgres prints it. */
+  readonly definition: string;
 }
 
 export interface TriggerRow {
   readonly name: string;
+  readonly definition: string;
   readonly forEachRow: boolean;
   readonly before: boolean;
   readonly insteadOf: boolean;
@@ -31,6 +34,7 @@ export function triggersJson(relationOid: string): string {
   return `coalesce((
     select json_agg(json_build_object(
       'name', trigger_row.tgname,
+      'definition', pg_get_triggerdef(trigger_row.oid),
       'forEachRow', trigger_row.tgtype & 1 <> 0,
       'before', trigger_row.tgtype & 2 <> 0,
       'insert', trigger_row.tgtype & 4 <> 0,
@@ -48,6 +52,7 @@ export const triggerRow: Shape<TriggerRow> = (value, path) => {
   const field = fields(value, path);
   return {
     name: field("name", string),
+    definition: field("definition", string),
     forEachRow: field("forEachRow", boolean),
     before: field("before", boolean),
     insteadOf: field("insteadOf", boolean),
@@ -73,5 +78,6 @@ export function parseTrigger(row: TriggerRow): Trigger {
     timing: timingOf(row),
     events: events.filter((event) => row[event]),
     forEachRow: row.forEachRow,
+    definition: row.definition,
   };
 }

@@ -19,7 +19,7 @@ function input(name: string, hasDefault = false): RoutineArgument {
 }
 
 describe("routines", () => {
-  test("reads a scalar function's arguments, defaults, result and volatility", async () => {
+  test("reads a scalar function's arguments, defaults, result, volatility and body", async () => {
     const catalog = await loadCatalog(`
       create function add(a int, b int default 1) returns int
         language sql immutable as 'select a + b';
@@ -32,8 +32,20 @@ describe("routines", () => {
       arguments: [input("a"), input("b", true)],
       returns: { kind: "value", setOf: false, type: int4, typeSql: "integer" },
       volatility: "immutable",
+      definition: "select a + b",
       comment: { text: "Adds", annotations: [] },
     });
+  });
+
+  test("reads no body of a SQL-standard function, which Postgres keeps only parsed, nor of an aggregate", async () => {
+    const catalog = await loadCatalog(`
+      create function twice(n int) returns int language sql immutable return n * 2;
+      create aggregate total(int) (sfunc = int4pl, stype = int);
+    `);
+    expect([
+      routine(catalog, "twice").definition,
+      routine(catalog, "total").definition,
+    ]).toStrictEqual([null, null]);
   });
 
   test("reads OUT, INOUT and TABLE parameters as the columns of the rows it returns", async () => {

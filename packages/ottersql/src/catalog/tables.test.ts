@@ -221,7 +221,7 @@ describe("inheritance and triggers", () => {
     expect(parent.checks.map(({ noInherit }) => noInherit)).toStrictEqual([true]);
   });
 
-  test("reads the triggers a schema declares, with their timing, events and level", async () => {
+  test("reads the triggers a schema declares, with their timing, events, level and definition", async () => {
     const catalog = await loadCatalog(`
       create table t (id int8 primary key, parent int8 references t);
       create function touch() returns trigger language plpgsql as 'begin return new; end';
@@ -229,8 +229,22 @@ describe("inheritance and triggers", () => {
       create trigger b_audit after delete or truncate on t execute function touch();
     `);
     expect(table(catalog, "t").triggers).toStrictEqual([
-      { name: "a_fill", timing: "before", events: ["insert", "update"], forEachRow: true },
-      { name: "b_audit", timing: "after", events: ["delete", "truncate"], forEachRow: false },
+      {
+        name: "a_fill",
+        timing: "before",
+        events: ["insert", "update"],
+        forEachRow: true,
+        definition:
+          "CREATE TRIGGER a_fill BEFORE INSERT OR UPDATE ON public.t FOR EACH ROW EXECUTE FUNCTION touch()",
+      },
+      {
+        name: "b_audit",
+        timing: "after",
+        events: ["delete", "truncate"],
+        forEachRow: false,
+        definition:
+          "CREATE TRIGGER b_audit AFTER DELETE OR TRUNCATE ON public.t FOR EACH STATEMENT EXECUTE FUNCTION touch()",
+      },
     ]);
   });
 });

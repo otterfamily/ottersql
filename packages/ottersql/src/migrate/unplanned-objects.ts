@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Catalog } from "../catalog/index.ts";
-import { combine, manual } from "./steps.ts";
+import { combine, manual, notPlanned } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 interface Named {
@@ -11,19 +11,19 @@ interface Named {
 
 /** Kinds of objects ottersql reads but does not plan changes to yet. */
 const unplanned = [
-  ["domains", "domain"],
-  ["ranges", "range type"],
-  ["views", "view"],
-  ["routines", "function"],
+  ["extensions", "an extension"],
+  ["sequences", "a sequence"],
+  ["domains", "a domain"],
+  ["ranges", "a range type"],
+  ["views", "a view"],
+  ["routines", "a function"],
 ] as const satisfies readonly (readonly [keyof Catalog, string])[];
 
 /** Reports every added, removed or changed object of a kind the planner does not handle. */
 export function unplannedChanges(from: Catalog, to: Catalog): Changes {
   return combine(
     unplanned.flatMap(([property, label]) =>
-      differingNames(from[property], to[property]).map((name) =>
-        manual(name, `ottersql does not plan changes to a ${label} yet; write this change by hand`),
-      ),
+      differingNames(from[property], to[property]).map((name) => manual(name, notPlanned(label))),
     ),
   );
 }

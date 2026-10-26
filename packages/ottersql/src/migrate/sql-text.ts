@@ -31,9 +31,11 @@ export function columnList(names: readonly string[]): string {
 
 export function columnDefinition(column: Column): string {
   const value = valueClause(column.value);
+  const { collation } = column;
   return [
     identifier(column.name),
     column.typeSql,
+    ...(collation === null ? [] : [`COLLATE ${qualified(collation.schema, collation.name)}`]),
     ...(value === null ? [] : [value]),
     ...(column.notNull ? ["NOT NULL"] : []),
   ].join(" ");

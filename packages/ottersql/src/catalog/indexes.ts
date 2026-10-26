@@ -1,4 +1,4 @@
-import { array, boolean, fields, nullable, string } from "./catalog-json.ts";
+import { array, boolean, fields, nullable, qualifiedName, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { columnNames } from "./columns.ts";
 import type { Index, IndexKey, QualifiedName } from "./model.ts";
@@ -72,11 +72,6 @@ interface IndexKeyRow {
   readonly operatorClass: QualifiedName | null;
   readonly collation: QualifiedName | null;
 }
-
-const qualifiedName: Shape<QualifiedName> = (value, path) => {
-  const field = fields(value, path);
-  return { schema: field("schema", string), name: field("name", string) };
-};
 
 const indexKeyRow: Shape<IndexKeyRow> = (value, path) => {
   const field = fields(value, path);

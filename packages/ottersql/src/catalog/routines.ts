@@ -18,6 +18,7 @@ interface RoutineRow {
   readonly resultTypeSql: string;
   readonly defaults: number;
   readonly parameters: readonly ParameterRow[];
+  readonly definition: string | null;
   readonly comment: string | null;
 }
 
@@ -50,6 +51,7 @@ const routineRow: Shape<RoutineRow> = (value, path) => {
     resultTypeSql: field("resultTypeSql", string),
     defaults: field("defaults", number),
     parameters: field("parameters", array(parameterRow)),
+    definition: field("definition", nullable(string)),
     comment: field("comment", nullable(string)),
   };
 };
@@ -77,6 +79,8 @@ export async function readRoutines(
             p.proargnames
           ) with ordinality as param(type, mode, name, pos)
         ), '[]') as parameters,
+        case when p.prokind = 'a' or p.prosqlbody is not null then null
+          else p.prosrc end as definition,
         obj_description(p.oid, 'pg_proc') as comment,
         pg_get_function_identity_arguments(p.oid) as "identityArguments"
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace
@@ -132,6 +136,7 @@ function parseRoutine(row: RoutineRow): Routine {
     })),
     returns: parseResult(row, kind),
     volatility: decode(volatilities, row.volatility, "pg_proc.provolatile"),
+    definition: row.definition,
     comment: parseComment(row.comment),
   };
 }

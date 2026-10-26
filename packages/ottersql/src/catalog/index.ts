@@ -6,7 +6,10 @@ export type { OpenSchema } from "./load-catalog.ts";
 export { SchemaError } from "./schema-error.ts";
 export type { SchemaPosition } from "./schema-error.ts";
 export type { Capabilities } from "./capabilities.ts";
+export type { InstalledExtension } from "./installed-extensions.ts";
 export type { Partition } from "./partitions.ts";
+export type { Policy, RowSecurity } from "./policies.ts";
+export type { Sequence } from "./sequences.ts";
 export type { Trigger, TriggerEvent } from "./triggers.ts";
 export type {
   Annotation,
@@ -34,7 +37,6 @@ export type {
   RoutineColumn,
   RoutineResult,
   Schema,
-  Sequence,
   Table,
   TypeRef,
   UniqueConstraint,

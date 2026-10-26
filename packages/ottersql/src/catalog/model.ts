@@ -1,11 +1,17 @@
 import type { Capabilities } from "./capabilities.ts";
+import type { InstalledExtension } from "./installed-extensions.ts";
 import type { Partition } from "./partitions.ts";
+import type { Policy, RowSecurity } from "./policies.ts";
+import type { Sequence } from "./sequences.ts";
 import type { Trigger } from "./triggers.ts";
 
 export interface Catalog {
   readonly capabilities: Capabilities;
   readonly schemas: readonly Schema[];
+  readonly extensions: readonly InstalledExtension[];
   readonly tables: readonly Table[];
+  /** Sequences no column owns; those of `serial` columns are read with them. */
+  readonly sequences: readonly Sequence[];
   readonly enums: readonly Enum[];
   readonly ranges: readonly RangeType[];
   readonly domains: readonly Domain[];
@@ -29,6 +35,8 @@ export interface Table {
   readonly checks: readonly Check[];
   readonly indexes: readonly Index[];
   readonly triggers: readonly Trigger[];
+  readonly rowSecurity: RowSecurity;
+  readonly policies: readonly Policy[];
   /** The partition key of a partitioned table as Postgres prints it, such as `RANGE (at)`. */
   readonly partitionedBy: string | null;
   readonly partitionOf: Partition | null;
@@ -43,6 +51,8 @@ export interface Column {
   readonly notNull: boolean;
   /** NOT NULL NO INHERIT: it holds for this table's own rows, not for those of tables inheriting from it. */
   readonly notNullNoInherit: boolean;
+  /** The column's collation, when it is not the one its type has. */
+  readonly collation: QualifiedName | null;
   readonly value: ColumnValue;
   readonly comment: Comment | null;
 }
@@ -66,20 +76,6 @@ export type ColumnValue =
       readonly storage: "stored" | "virtual";
       readonly expression: string;
     };
-
-/** A sequence's numbers, as text since a bigint sequence's can exceed a JavaScript number. */
-export interface Sequence {
-  readonly schema: string;
-  readonly name: string;
-  /** `smallint`, `integer` or `bigint`. */
-  readonly dataType: string;
-  readonly start: string;
-  readonly increment: string;
-  readonly minimum: string;
-  readonly maximum: string;
-  readonly cache: string;
-  readonly cycle: boolean;
-}
 
 export type TypeRef = { readonly kind: "array"; readonly element: NamedTypeRef } | NamedTypeRef;
 
@@ -258,6 +254,11 @@ export interface Routine {
   readonly arguments: readonly RoutineArgument[];
   readonly returns: RoutineResult;
   readonly volatility: "immutable" | "stable" | "volatile";
+  /**
+   * The body as written. `null` for an aggregate, and for a SQL-standard body (`RETURN` or `BEGIN
+   * ATOMIC`), which Postgres keeps only parsed and prints differently from one major to the next.
+   */
+  readonly definition: string | null;
   readonly comment: Comment | null;
 }
 

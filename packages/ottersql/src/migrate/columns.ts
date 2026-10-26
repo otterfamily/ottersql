@@ -140,11 +140,8 @@ function dropColumn(table: Table, column: Column): Changes {
 function changeColumn(change: ColumnChange, to: Catalog): Changes {
   const { table, before, after } = change;
   const type = typeChange(change, to);
-  if (type === null) {
-    return manual(
-      objectName(table, after.name),
-      "Changing a column's type can rewrite the table under an exclusive lock; add a new column, backfill it and switch to it instead",
-    );
+  if (type.manual.length > 0) {
+    return type;
   }
   return combine([
     type,

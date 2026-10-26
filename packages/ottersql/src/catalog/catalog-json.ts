@@ -1,5 +1,6 @@
 import { rawQuery } from "../sql/driver.ts";
 import type { Connection, Transaction } from "../sql/index.ts";
+import type { QualifiedName } from "./model.ts";
 
 /**
  * Reads a JSON value the catalog queries return as a `Value`, or throws saying where it is not one.
@@ -53,6 +54,12 @@ export function fields(value: unknown, path: string): Field {
   }
   return (name, shape) => shape(Reflect.get(value, name), `${path}.${name}`);
 }
+
+/** An object's schema and name, such as `{ schema: "pg_catalog", name: "C" }` for a collation. */
+export const qualifiedName: Shape<QualifiedName> = (value, path) => {
+  const field = fields(value, path);
+  return { schema: field("schema", string), name: field("name", string) };
+};
 
 /** A catalog query: the rows to select, the order to keep them in, and how to read each. */
 export interface CatalogQuery<Row> {

@@ -34,6 +34,11 @@ export function manual(object: string, reason: string): Changes {
   return { steps: [], manual: [{ object, reason }] };
 }
 
+/** Why a change to `what`, such as "a trigger", is left to a person. */
+export function notPlanned(what: string): string {
+  return `ottersql does not plan changes to ${what} yet; write this change by hand`;
+}
+
 export function only(...steps: readonly Step[]): Changes {
   return { steps, manual: [] };
 }

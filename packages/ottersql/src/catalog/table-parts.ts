@@ -9,22 +9,20 @@ import type { CatalogFeatures } from "./features.ts";
 import { indexesJson, indexRow, parseIndex } from "./indexes.ts";
 import type { IndexRow } from "./indexes.ts";
 import type { Table } from "./model.ts";
-import { partitionedByJson, partitionOfJson, partitionRow } from "./partitions.ts";
-import type { Partition } from "./partitions.ts";
 import { parseTableColumn, tableColumnRow, tableColumnsJson } from "./table-columns.ts";
 import type { TableColumnRow } from "./table-columns.ts";
+import { parseTableSettings, tableSettingsJson, tableSettingsRow } from "./table-settings.ts";
+import type { TableSettingsRow } from "./table-settings.ts";
 import { parseTrigger, triggerRow, triggersJson } from "./triggers.ts";
 import type { TriggerRow } from "./triggers.ts";
 
-export interface TableRow extends KeyRows {
+export interface TableRow extends KeyRows, TableSettingsRow {
   readonly schema: string;
   readonly name: string;
   readonly columns: readonly TableColumnRow[];
   readonly checks: readonly TableCheckRow[];
   readonly indexes: readonly IndexRow[];
   readonly triggers: readonly TriggerRow[];
-  readonly partitionedBy: string | null;
-  readonly partitionOf: Partition | null;
   readonly comment: string | null;
 }
 
@@ -32,14 +30,13 @@ export const tableRow: Shape<TableRow> = (value, path) => {
   const field = fields(value, path);
   return {
     ...keyRows(field),
+    ...tableSettingsRow(field),
     schema: field("schema", string),
     name: field("name", string),
     columns: field("columns", array(tableColumnRow)),
     checks: field("checks", array(tableCheckRow)),
     indexes: field("indexes", array(indexRow)),
     triggers: field("triggers", array(triggerRow)),
-    partitionedBy: field("partitionedBy", nullable(string)),
-    partitionOf: field("partitionOf", nullable(partitionRow)),
     comment: field("comment", nullable(string)),
   };
 };
@@ -52,8 +49,7 @@ export function tablePartsJson(features: CatalogFeatures): string {
         ${checksJson("c.oid", features)} as checks,
         ${indexesJson("c.oid")} as indexes,
         ${triggersJson("c.oid")} as triggers,
-        ${partitionedByJson()} as "partitionedBy",
-        ${partitionOfJson()} as "partitionOf",
+        ${tableSettingsJson()},
         obj_description(c.oid, 'pg_class') as comment`;
 }
 
@@ -69,8 +65,7 @@ export function parseTable(row: TableRow): Table {
     checks: row.checks.map((check) => parseTableCheck(check)),
     indexes: row.indexes.map((index) => parseIndex(index)),
     triggers: row.triggers.map((trigger) => parseTrigger(trigger)),
-    partitionedBy: row.partitionedBy,
-    partitionOf: row.partitionOf,
+    ...parseTableSettings(row),
     comment: parseComment(row.comment),
   };
 }

@@ -2,11 +2,9 @@ import type { Connection } from "../sql/index.ts";
 import { readCapabilities } from "./capabilities.ts";
 import { readFeatures } from "./features.ts";
 import type { Catalog } from "./model.ts";
-import { readRoutines } from "./routines.ts";
+import { readSchemaObjects } from "./schema-objects.ts";
 import { readSchemas } from "./schemas.ts";
 import { readTables } from "./tables.ts";
-import { readUserTypes } from "./user-types.ts";
-import { readViews } from "./views.ts";
 
 /** What the catalog reads: the objects of every user schema but those it is told to leave out. */
 export interface CatalogOptions {
@@ -34,9 +32,7 @@ export async function readCatalog(
         capabilities: await readCapabilities(transaction),
         schemas: await readSchemas(transaction, omitSchemas),
         tables: await readTables(transaction, features, omitSchemas),
-        ...(await readUserTypes(transaction, features, omitSchemas)),
-        views: await readViews(transaction, omitSchemas),
-        routines: await readRoutines(transaction, omitSchemas),
+        ...(await readSchemaObjects(transaction, features, omitSchemas)),
       };
     },
     { isolation: "repeatable read", readOnly: true, settings: { search_path: "public" } },

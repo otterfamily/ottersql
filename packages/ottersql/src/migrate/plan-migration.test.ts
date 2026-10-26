@@ -86,6 +86,18 @@ describe("planMigration, run on PGlite to the target schema", () => {
       ],
     },
     {
+      change: "creates a table with a column's collation",
+      from: "",
+      to: `create table users (id int8 primary key, email text collate "C", tags text[] collate "C")`,
+      steps: ["expand createTable public.users (lossy, inside, none)"],
+    },
+    {
+      change: "adds a column with its collation",
+      from: users,
+      to: `create table users (id int8 primary key, email text, name text collate "C")`,
+      steps: ["expand addColumn public.users.name (lossy, inside, access exclusive)"],
+    },
+    {
       change: "drops a table after the deploy",
       from: users,
       to: "",
