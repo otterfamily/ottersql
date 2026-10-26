@@ -1,5 +1,5 @@
 import { cacheKey, rawQuery } from "./connection.ts";
-import type { Connection } from "./connection.ts";
+import type { Connection, Transaction } from "./connection.ts";
 
 /** How values of a Postgres type are decoded. */
 export type TypeInfo =
@@ -122,7 +122,7 @@ const knownByConnection = new WeakMap<object, Map<number, PgTypeRow>>();
 
 /** The decoding information for each oid, looking up oids that are not built in through `connection`. */
 export async function typeInfos(
-  connection: Connection,
+  connection: Connection | Transaction,
   oids: readonly number[],
 ): Promise<ReadonlyMap<number, TypeInfo>> {
   const known = knownByConnection.get(cacheKey(connection)) ?? new Map<number, PgTypeRow>();
@@ -132,7 +132,7 @@ export async function typeInfos(
 }
 
 async function lookUp(
-  connection: Connection,
+  connection: Connection | Transaction,
   known: Map<number, PgTypeRow>,
   oids: readonly number[],
 ): Promise<void> {
@@ -180,7 +180,7 @@ function typeInfoOf(row: PgTypeRow, known: ReadonlyMap<number, PgTypeRow>): Type
 }
 
 async function readPgTypes(
-  connection: Connection,
+  connection: Connection | Transaction,
   oids: readonly number[],
 ): Promise<ReadonlyMap<number, PgTypeRow>> {
   const { rows } = await rawQuery(

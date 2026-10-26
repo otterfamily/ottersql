@@ -102,6 +102,23 @@ describe("connections over Bun.sql", () => {
     expect(viaPg).toMatchObject({ name: "QueryError", code: "23505" });
   });
 
+  test("run transactions that commit, roll back and keep a savepoint's work apart", async () => {
+    const url = await postgresDatabase();
+    const body = `const sql = new SQL(URL, { prepare: false });
+      const db = bunSqlConnection(sql);
+      await rawQuery(db, "create table notes (body text)", []);
+      const note = (tx, body) => rawQuery(tx, "insert into notes values ($1)", [body]);
+      await db.transaction(async (tx) => {
+        await note(tx, "order");
+        await tx.savepoint(async (sp) => { await note(sp, "points"); throw new Error("no"); }).catch(() => {});
+      });
+      await db.transaction(async (tx) => { await note(tx, "draft"); throw new Error("no"); }).catch(() => {});
+      const { rows } = await rawQuery(db, "select body from notes", []);
+      await sql.end();
+      console.log(JSON.stringify(rows));`;
+    await expect(runInBun(bunScript(url, body), tmpdir())).resolves.toBe('[["order"]]\n');
+  });
+
   test("refuse a client that prepares statements, whose values may arrive in binary", async () => {
     const url = await postgresDatabase();
     const body = `const sql = new SQL(URL);

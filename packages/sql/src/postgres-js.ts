@@ -1,7 +1,7 @@
-import type { Sql } from "postgres";
+import type { Sql, TransactionSql } from "postgres";
 
 import { clientConnection } from "./connection.ts";
-import type { Connection, Driver } from "./connection.ts";
+import type { Connection, Driver, DriverQuery } from "./connection.ts";
 import { errorField, reportingQueryErrors } from "./query-error.ts";
 import type { QueryErrorFields } from "./query-error.ts";
 
@@ -23,23 +23,35 @@ const UNKNOWN_OID = 705;
 // timestamps rewritten).
 function textDriver(sql: Sql): Driver {
   return {
-    query: async (text, parameters) => {
-      const values = parameters.map((value) =>
-        value === null ? null : sql.typed(value, UNKNOWN_OID),
-      );
-      const result = await reportingQueryErrors(
-        async () => sql.unsafe(text, values).raw(),
+    query: queryOn(sql),
+    // Wrapped, because postgres.js awaits every element of an array a transaction resolves with.
+    transaction: async (run) => {
+      const { result } = await reportingQueryErrors(
+        async () => sql.begin(async (tx) => ({ result: await run(queryOn(tx)) })),
         postgresErrorFields,
       );
-      const rows: readonly (readonly (Buffer | null)[])[] = result;
-      return {
-        fields: (result.columns ?? []).map((column) => ({
-          name: column.name,
-          typeOid: column.type,
-        })),
-        rows: rows.map((row) => row.map((value) => (value === null ? null : value.toString()))),
-      };
+      return result;
     },
+  };
+}
+
+function queryOn(sql: Sql | TransactionSql): DriverQuery {
+  return async (text, parameters) => {
+    const values = parameters.map((value) =>
+      value === null ? null : sql.typed(value, UNKNOWN_OID),
+    );
+    const result = await reportingQueryErrors(
+      async () => sql.unsafe(text, values).raw(),
+      postgresErrorFields,
+    );
+    const rows: readonly (readonly (Buffer | null)[])[] = result;
+    return {
+      fields: (result.columns ?? []).map((column) => ({
+        name: column.name,
+        typeOid: column.type,
+      })),
+      rows: rows.map((row) => row.map((value) => (value === null ? null : value.toString()))),
+    };
   };
 }
 

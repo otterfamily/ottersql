@@ -198,6 +198,7 @@
           { "from": "package", "name": "Pool", "package": "pg" },
           { "from": "package", "name": "PoolClient", "package": "pg" },
           { "from": "package", "name": "Sql", "package": "postgres" },
+          { "from": "package", "name": "TransactionSql", "package": "postgres" },
           { "from": "package", "name": "IDatabase", "package": "pg-promise" },
           { "from": "package", "name": "TestProject", "package": "vitest" },
           { "from": "lib", "name": "RegExp" },
@@ -267,6 +268,12 @@
       // The command's entry reads the environment once and passes it in, so that everything else
       // takes it as an argument and tests can give their own.
       "rules": { "node/no-process-env": "off" },
+    },
+    {
+      "files": ["packages/sql/src/wait.ts"],
+      // The query runtime imports nothing from Node so it runs in browsers with PGlite too, and
+      // without node:timers/promises a timer is awaited through a promise made here.
+      "rules": { "promise/avoid-new": "off" },
     },
     {
       "files": ["packages/sql/src/esbuild.ts"],

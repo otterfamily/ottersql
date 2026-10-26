@@ -1,5 +1,5 @@
 import { rawQuery } from "./connection.ts";
-import type { Connection } from "./connection.ts";
+import type { Connection, Transaction } from "./connection.ts";
 import { columnDecoder } from "./decode.ts";
 import { encodeParameter } from "./encode.ts";
 import { typeInfos } from "./type-info.ts";
@@ -7,8 +7,8 @@ import type { TypeInfo } from "./type-info.ts";
 
 /** A query's arguments: the connection, then its parameters unless it has none (`undefined`). */
 export type QueryArguments<Params> = Params extends undefined
-  ? [connection: Connection]
-  : [connection: Connection, params: Params];
+  ? [connection: Connection | Transaction]
+  : [connection: Connection | Transaction, params: Params];
 
 /** A query from a `.sql` file, typed by the content mapper and run on any `Connection`. */
 export interface TypedQuery<Params, Row> {
@@ -76,7 +76,7 @@ export function defineQuery(
 ): TypedQuery<QueryParams | undefined, QueryRow> {
   type Params = QueryParams;
   type Row = QueryRow;
-  const run = async (connection: Connection, params?: Params): Promise<Row[]> => {
+  const run = async (connection: Connection | Transaction, params?: Params): Promise<Row[]> => {
     const values = parameterNames.map((name) => encodeParameter(parameterValue(params, name)));
     const result = await rawQuery(connection, sql, values);
     const problem = columnNamesProblem(result.fields.map(({ name }) => name));
@@ -94,7 +94,7 @@ export function defineQuery(
     return result.rows.map((row) => decodeRow(row, columns));
   };
   return Object.assign(run, {
-    one: async (connection: Connection, params?: Params): Promise<Row> => {
+    one: async (connection: Connection | Transaction, params?: Params): Promise<Row> => {
       const rows = await run(connection, params);
       const [row] = rows;
       if (row === undefined || rows.length > 1) {
@@ -102,7 +102,10 @@ export function defineQuery(
       }
       return row;
     },
-    maybeOne: async (connection: Connection, params?: Params): Promise<Row | null> => {
+    maybeOne: async (
+      connection: Connection | Transaction,
+      params?: Params,
+    ): Promise<Row | null> => {
       const rows = await run(connection, params);
       if (rows.length > 1) {
         throw new Error(`expected at most one row, got ${String(rows.length)}`);

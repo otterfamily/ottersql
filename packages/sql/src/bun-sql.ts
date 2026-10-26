@@ -1,11 +1,10 @@
 import { clientConnection } from "./connection.ts";
-import type { Connection } from "./connection.ts";
+import type { Connection, DriverQuery } from "./connection.ts";
 import { errorField, reportingQueryErrors } from "./query-error.ts";
 import type { QueryErrorFields } from "./query-error.ts";
 
-/** The part of a Bun `SQL` client this file uses; ottersql does not depend on Bun's types. */
-export interface BunSql {
-  readonly options: { readonly prepare?: boolean };
+/** The part of a Bun `SQL` transaction this file uses. */
+interface BunSqlTransaction {
   readonly unsafe: (
     sql: string,
     parameters: readonly (string | null)[],
@@ -16,6 +15,12 @@ export interface BunSql {
       }
     >;
   };
+}
+
+/** The part of a Bun `SQL` client this file uses; ottersql does not depend on Bun's types. */
+export interface BunSql extends BunSqlTransaction {
+  readonly options: { readonly prepare?: boolean };
+  readonly begin: <Result>(run: (tx: BunSqlTransaction) => Promise<Result>) => Promise<Result>;
 }
 
 const text = new TextDecoder();
@@ -32,20 +37,32 @@ export function bunSqlConnection(sql: BunSql): Connection {
     );
   }
   return clientConnection(sql, () => ({
-    query: async (query, parameters) => {
-      const result = await reportingQueryErrors(
-        async () => sql.unsafe(query, parameters).raw(),
+    query: queryOn(sql),
+    // Wrapped, because Bun takes an array a transaction resolves with for queries to run.
+    transaction: async (run) => {
+      const { result } = await reportingQueryErrors(
+        async () => sql.begin(async (tx) => ({ result: await run(queryOn(tx)) })),
         bunErrorFields,
       );
-      return {
-        fields: (result.columns ?? []).map((column) => ({
-          name: column.name,
-          typeOid: column.type,
-        })),
-        rows: result.map((row) => row.map((value) => (value === null ? null : text.decode(value)))),
-      };
+      return result;
     },
   }));
+}
+
+function queryOn(sql: BunSqlTransaction): DriverQuery {
+  return async (query, parameters) => {
+    const result = await reportingQueryErrors(
+      async () => sql.unsafe(query, parameters).raw(),
+      bunErrorFields,
+    );
+    return {
+      fields: (result.columns ?? []).map((column) => ({
+        name: column.name,
+        typeOid: column.type,
+      })),
+      rows: result.map((row) => row.map((value) => (value === null ? null : text.decode(value)))),
+    };
+  };
 }
 
 /** The fields of Bun's PostgresError, whose `code` is Bun's own and `errno` the SQLSTATE. */

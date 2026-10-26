@@ -33,6 +33,21 @@ Queries run on a `Connection`, made from the driver the application already uses
 - Bun.sql: `bunSqlConnection(sql)` from `@ottersql/sql/bun-sql`, for a client created with `{ prepare: false }` (Bun receives prepared statements' values of some types in binary)
 - PGlite: `pgliteConnection(db)` from `@ottersql/sql/pglite`
 
+## Transactions
+
+```ts
+const order = await db.transaction(
+  async (tx) => {
+    const order = await createOrder.one(tx, { userId });
+    await tx.savepoint(async (sp) => addPoints(sp, { userId })); // undone alone if it rejects
+    return order;
+  },
+  { isolation: "serializable", settings: { "app.user_id": userId }, retry: { attempts: 3 } },
+);
+```
+
+The transaction commits when the callback resolves and rolls back when it rejects, on one connection the driver holds for it; pass node-postgres a pool, not a client. `settings` last for the transaction only, as `SET LOCAL` does. `retry` runs the callback again after a serialization failure or a deadlock, so give it only callbacks that do nothing but query. `readOnly` and, for serializable read-only transactions, `deferrable` are there too.
+
 A `Connection` runs only typed queries. Tools built on ottersql run SQL as it is with `rawQuery` from `@ottersql/sql/driver`, which also has `driverConnection` for drivers ottersql has no adapter for.
 
 ## Errors
