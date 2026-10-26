@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 
+import { findTable } from "./find.ts";
 import { loadCatalog } from "./index.ts";
 import { table } from "./test-helpers.ts";
 
@@ -206,5 +207,25 @@ describe("inheritance and triggers", () => {
       { name: "a_fill", timing: "before", events: ["insert", "update"], forEachRow: true },
       { name: "b_audit", timing: "after", events: ["delete", "truncate"], forEachRow: false },
     ]);
+  });
+});
+
+describe("finding a table by name", () => {
+  test("tells apart names whose text runs across the dot between schema and name", async () => {
+    const catalog = await loadCatalog(`
+      create schema "a.b";
+      create schema a;
+      create table "a.b".c (in_ab int);
+      create table a."b.c" (in_a int);
+    `);
+    expect(
+      [
+        ["a.b", "c"],
+        ["a", "b.c"],
+        ["a", "b"],
+      ].map(([schema = "", name = ""]) =>
+        findTable(catalog, schema, name)?.columns.map((column) => column.name),
+      ),
+    ).toStrictEqual([["in_ab"], ["in_a"], undefined]);
   });
 });
