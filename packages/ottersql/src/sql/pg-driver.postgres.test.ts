@@ -57,4 +57,40 @@ describe("transactions over node-postgres", () => {
     const { rows } = await rawQuery(db, "select body from notes", []);
     expect(rows).toStrictEqual([["kept"]]);
   });
+
+  test("keep a query made on a single client meanwhile outside its transaction", async () => {
+    const client = new Client({ connectionString: await postgresDatabase() });
+    await client.connect();
+    onTestFinished(async () => client.end());
+    const db = pgConnection(client);
+    await rawQuery(db, "create table notes (body text)", []);
+    const { promise: begun, resolve: begin } = Promise.withResolvers<null>();
+    const failed = db.transaction(async (tx) => {
+      await rawQuery(tx, "select 1", []);
+      begin(null);
+      await rawQuery(tx, "select pg_sleep(0.05)", []);
+      throw new Error("roll back");
+    });
+    await begun;
+    const [rolledBack, kept] = await Promise.allSettled([
+      failed,
+      rawQuery(db, "insert into notes values ('kept')", []),
+    ]);
+    expect([rolledBack.status, kept.status]).toStrictEqual(["rejected", "fulfilled"]);
+    const { rows } = await rawQuery(db, "select body from notes", []);
+    expect(rows).toStrictEqual([["kept"]]);
+  });
+
+  test("refuse the client inside its own transaction's callback, which would wait for itself", async () => {
+    const client = new Client({ connectionString: await postgresDatabase() });
+    await client.connect();
+    onTestFinished(async () => client.end());
+    const db = pgConnection(client);
+    await expect(db.transaction(async () => rawQuery(db, "select 1", []))).rejects.toThrow(
+      "inside one of its transactions",
+    );
+    await expect(
+      db.transaction(async () => db.transaction(async (tx) => rawQuery(tx, "select 1", []))),
+    ).rejects.toThrow("inside one of its transactions");
+  });
 });

@@ -1,3 +1,5 @@
+import { AsyncLocalStorage } from "node:async_hooks";
+
 import { sqlTransaction } from "./connection.ts";
 import type { Driver, DriverQuery, DriverTransaction } from "./connection.ts";
 import { databaseErrorFields, reportingQueryErrors } from "./query-error.ts";
@@ -64,21 +66,7 @@ export function pgQuery(query: (config: PgQueryConfig) => Promise<PgResult>): Dr
 export function pgDriver(pg: PgClient | PgPool): Driver {
   const query = pgQuery(async (config) => pg.query(config));
   if (!isPool(pg)) {
-    // One connection holds one transaction at a time: a second BEGIN on it only warns, and its
-    // statements would join the first. So transactions on a client wait for the one before.
-    let previous: Promise<void> = Promise.resolve();
-    return {
-      query,
-      transaction: async (run, mode) => {
-        const before = previous;
-        const current = (async () => {
-          await before;
-          return inTransaction({ query, mode }, run);
-        })();
-        previous = ended(current);
-        return current;
-      },
-    };
+    return clientDriver(query);
   }
   return {
     query,
@@ -95,6 +83,42 @@ export function pgDriver(pg: PgClient | PgPool): Driver {
         // A client whose rollback failed may still be in the transaction, so the pool drops it.
         client.release(broken);
       }
+    },
+  };
+}
+
+const INSIDE =
+  "This query was made on a client inside one of its transactions, which it would wait for: make it on the transaction the callback receives, or use tx.savepoint";
+
+/**
+ * A `Driver` over one connection, which holds one transaction at a time: a second BEGIN on it only
+ * warns, and statements sent meanwhile would join the transaction and be rolled back with it. So
+ * queries and transactions on it wait for the transaction before them, and those made from inside
+ * a transaction's callback, which would wait for themselves, are refused.
+ */
+function clientDriver(query: DriverQuery): Driver {
+  const inside = new AsyncLocalStorage<true>();
+  let previous: Promise<void> = Promise.resolve();
+  const refuseInside = (): void => {
+    if (inside.getStore() === true) {
+      throw new Error(INSIDE);
+    }
+  };
+  return {
+    query: async (sql, parameters) => {
+      refuseInside();
+      await previous;
+      return query(sql, parameters);
+    },
+    transaction: async (run, mode) => {
+      refuseInside();
+      const before = previous;
+      const current = (async () => {
+        await before;
+        return inside.run(true, async () => inTransaction({ query, mode }, run));
+      })();
+      previous = ended(current);
+      return current;
     },
   };
 }
