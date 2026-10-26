@@ -135,12 +135,30 @@ describe("decoding values (ADR 0008)", () => {
     },
   );
 
+  test("rejects an interval in a style it does not read, saying which styles it reads", async () => {
+    const db = await PGlite.create();
+    try {
+      await db.exec("set intervalstyle = sql_standard");
+      await expect(
+        selectOne(pgliteConnection(db), "'1 year 2 mons 3 days'::interval"),
+      ).rejects.toThrow(
+        new DecodeError(
+          'Column "v" has a value that cannot be decoded as interval: unsupported interval format; set IntervalStyle to postgres or iso_8601',
+        ),
+      );
+    } finally {
+      await db.close();
+    }
+  });
+
   test("rejects bytea in the escape output format, which hex decoding would corrupt", async () => {
     const db = await PGlite.create();
     try {
       await db.exec("set bytea_output = escape");
       await expect(selectOne(pgliteConnection(db), "'abc'::bytea")).rejects.toThrow(
-        new DecodeError('Column "v" has a value that cannot be decoded as bytea'),
+        new DecodeError(
+          'Column "v" has a value that cannot be decoded as bytea: not bytea in the hex output format',
+        ),
       );
     } finally {
       await db.close();

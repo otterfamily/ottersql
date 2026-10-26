@@ -1,4 +1,5 @@
 import { byteaBytes } from "./bytea.ts";
+import { FormatError } from "./format-error.ts";
 import {
   isNested,
   parseArrayLiteral,
@@ -29,11 +30,12 @@ export function columnDecoder(column: string, type: TypeInfo): (text: string | n
     }
     try {
       return decode(text);
-    } catch {
-      // Neither the value nor the parser's error, which quotes it, goes into the error: errors end
-      // up in logs, and a row can hold personal data.
+    } catch (error) {
+      // The value stays out of the error, since errors end up in logs and rows hold personal
+      // data; so do the errors of parsers that quote it. ottersql's own reasons do not.
+      const reason = error instanceof FormatError ? `: ${error.message}` : "";
       throw new DecodeError(
-        `Column "${column}" has a value that cannot be decoded as ${typeName(type)}`,
+        `Column "${column}" has a value that cannot be decoded as ${typeName(type)}${reason}`,
       );
     }
   };

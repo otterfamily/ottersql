@@ -1,3 +1,4 @@
+import { FormatError } from "./format-error.ts";
 // The hex format of bytea (`\x00ff`): Postgres writes it by default and reads it whatever its settings.
 const PREFIX = String.raw`\x`;
 const HEX = 16;
@@ -13,7 +14,7 @@ export function byteaText(bytes: Uint8Array): string {
 /** Only the hex format: reading `bytea_output = escape` text as hex would corrupt it. */
 export function byteaBytes(text: string): Uint8Array {
   if (!hexText.test(text)) {
-    throw new TypeError("not bytea in the hex output format");
+    throw new FormatError("not bytea in the hex output format");
   }
   const bytes = new Uint8Array((text.length - PREFIX.length) / DIGITS_PER_BYTE);
   for (let index = 0; index < bytes.length; index += 1) {

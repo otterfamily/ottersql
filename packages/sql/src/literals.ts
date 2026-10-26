@@ -1,3 +1,4 @@
+import { FormatError } from "./format-error.ts";
 import type { Interval } from "./values.ts";
 
 /** An array literal's elements as text, nested for multidimensional arrays; `null` for NULL. */
@@ -140,7 +141,7 @@ function calendarParts(tokens: readonly string[]): Pick<Interval, "months" | "da
 function intervalUnit(token: string | undefined): keyof typeof monthsPerUnit {
   const unit = token?.replace(/s$/v, "");
   if (unit !== "year" && unit !== "mon" && unit !== "day") {
-    throw new TypeError("unsupported interval format; set IntervalStyle to postgres or iso_8601");
+    throw new FormatError("unsupported interval format; set IntervalStyle to postgres or iso_8601");
   }
   return unit;
 }
@@ -209,7 +210,7 @@ class LiteralReader {
 
   #expect(character: string): void {
     if (this.#peek() !== character) {
-      throw new TypeError(`expected ${character} at ${String(this.#position)}`);
+      throw new FormatError(`expected ${character} at ${String(this.#position)}`);
     }
     this.#position += 1;
   }
@@ -254,7 +255,7 @@ class LiteralReader {
       text += this.#peek();
       this.#position += 1;
     }
-    throw new TypeError("unterminated quoted value");
+    throw new FormatError("unterminated quoted value");
   }
 
   #unquoted(stops: string): string {
