@@ -1,7 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
 import type { QualifiedName } from "@ottersql/catalog";
-import type { Connection } from "@ottersql/sql";
+import type { Connection, Transaction } from "@ottersql/sql";
 import { rawQuery } from "@ottersql/sql/driver";
 
 import { writeBlockingLocks } from "./plan.ts";
@@ -55,7 +55,8 @@ export interface StepFailure {
 /** A step to run, and what to do once it ran: inside its transaction, when it has one. */
 export interface Run {
   readonly step: Step;
-  readonly done?: () => Promise<void>;
+  /** Records the step, on the transaction the step ran in when it ran in one. */
+  readonly done?: (connection: Connection | Transaction) => Promise<void>;
 }
 
 /** Runs one step, retrying while it gives up waiting for a lock or deadlocks. */
@@ -90,24 +91,16 @@ async function runOnce(connection: Connection, run: Run, timeout: Timeouts): Pro
 }
 /** The step and what follows it commit together, so a step is never applied without being recorded. */
 async function runInside(connection: Connection, run: Run, timeout: Timeouts): Promise<void> {
-  await rawQuery(connection, "begin", []);
-  try {
-    // Like SET LOCAL, set_config(..., true) ends with the transaction, and RDS Proxy does not pin
-    // a connection for it.
-    await rawQuery(
-      connection,
-      "select set_config('lock_timeout', $1, true), set_config('statement_timeout', $2, true)",
-      [timeout.lock, timeout.statement],
-    );
-    for (const sql of run.step.statements) {
-      await rawQuery(connection, sql, []);
-    }
-    await run.done?.();
-    await rawQuery(connection, "commit", []);
-  } catch (error) {
-    await rawQuery(connection, "rollback", []);
-    throw error;
-  }
+  await connection.transaction(
+    async (tx) => {
+      for (const sql of run.step.statements) {
+        await rawQuery(tx, sql, []);
+      }
+      await run.done?.(tx);
+    },
+    // Local to the transaction, as SET LOCAL is; RDS Proxy does not pin a connection for them.
+    { settings: { lock_timeout: timeout.lock, statement_timeout: timeout.statement } },
+  );
 }
 
 /**
@@ -116,7 +109,7 @@ async function runInside(connection: Connection, run: Run, timeout: Timeouts): P
  */
 async function runOutside(
   connection: Connection,
-  { step, done }: { readonly step: OutsideStep; readonly done?: () => Promise<void> },
+  { step, done }: { readonly step: OutsideStep; readonly done?: Run["done"] },
   timeout: Timeouts,
 ): Promise<void> {
   await rawQuery(
@@ -130,7 +123,7 @@ async function runOutside(
         await rawQuery(connection, sql, []);
       }
     }
-    await done?.();
+    await done?.(connection);
   } finally {
     await rawQuery(connection, "reset lock_timeout", []);
     await rawQuery(connection, "reset statement_timeout", []);

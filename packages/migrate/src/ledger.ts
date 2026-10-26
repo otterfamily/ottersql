@@ -1,6 +1,6 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
-import type { Connection } from "@ottersql/sql";
+import type { Connection, Transaction } from "@ottersql/sql";
 import { rawQuery } from "@ottersql/sql/driver";
 
 import type { Step } from "./plan.ts";
@@ -83,7 +83,10 @@ export async function readLedger(connection: Connection): Promise<AppliedStep[]>
   }));
 }
 
-export async function record(connection: Connection, pending: PendingStep): Promise<void> {
+export async function record(
+  connection: Connection | Transaction,
+  pending: PendingStep,
+): Promise<void> {
   await rawQuery(
     connection,
     `insert into ${ledger} (migration, step, hash, kind, object) values ($1, $2, $3, $4, $5)`,
@@ -103,14 +106,9 @@ export async function recordAll(
   steps: readonly PendingStep[],
 ): Promise<void> {
   await createLedger(connection);
-  await rawQuery(connection, "begin", []);
-  try {
+  await connection.transaction(async (tx) => {
     for (const step of steps) {
-      await record(connection, step);
+      await record(tx, step);
     }
-    await rawQuery(connection, "commit", []);
-  } catch (error) {
-    await rawQuery(connection, "rollback", []);
-    throw error;
-  }
+  });
 }

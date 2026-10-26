@@ -83,7 +83,7 @@ async function runInOrder(
   for (const step of pending) {
     const failure = await runStep(
       connection,
-      { step: step.step, done: async () => record(connection, step) },
+      { step: step.step, done: async (db) => record(db, step) },
       options,
     );
     const ref = { migration: step.migration, step: step.index };
