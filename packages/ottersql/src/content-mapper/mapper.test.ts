@@ -129,6 +129,31 @@ describe("content mapper protocol", () => {
     }
   });
 
+  test("answers a transform asked for while schema.sql changes, before closing the old schema", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ottersql-mapper-"));
+    const mapper = createMapper();
+    try {
+      const schemaPath = await defaultSchemaFile(root);
+      const project = { projectHandle: "p", configFileName: join(root, "tsconfig.json") };
+      await writeFile(schemaPath, "create table t (id int);");
+      await mapper("openProject", project);
+      const queries = [1, 2, 3, 4, 5].map(
+        (index) => `-- @name q${String(index)}\nselect id + ${String(index)} as n from t`,
+      );
+      const transforms = queries.map(async (query) =>
+        transform(mapper, join(root, "queries.sql"), query),
+      );
+      await writeFile(schemaPath, "create table t (id int, added text);");
+      const reopened = mapper("openProject", project);
+      const files = await Promise.all(transforms);
+      await reopened;
+      expect(files.flatMap(({ diagnostics }) => diagnostics)).toStrictEqual([]);
+    } finally {
+      await mapper("closeProject", { projectHandle: "p" });
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
   test("answers an unknown method with JSON-RPC's method-not-found error", async () => {
     await expect(createMapper()("nonsense", {})).rejects.toMatchObject({ code: -32_601 });
   });
