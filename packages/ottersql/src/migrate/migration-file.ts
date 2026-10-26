@@ -3,7 +3,7 @@ import type { Located } from "../sql/statements.ts";
 import { isMigrationFileName, migrationNameRule } from "./migration-name.ts";
 import type { MigrationFile } from "./migrations.ts";
 import { locks, phases, reversals, stepKinds, transactions } from "./plan.ts";
-import type { OutsideStep, Plan, Step } from "./plan.ts";
+import type { OutsideStep, Step } from "./plan.ts";
 
 /** Where in a migration file a problem is: in a named file or in text read on its own, on a line or in the name. */
 interface Where {
@@ -29,62 +29,11 @@ export class MigrationFileError extends Error {
   }
 }
 
-const PREFIX = "ottersql:";
+/** What starts a directive comment, after its `--`. */
+export const PREFIX = "ottersql:";
 const directiveNames = ["step", "cleanup", "manual"] as const;
 const stepAttributes = ["kind", "object", "phase", "reversal", "transaction", "lock"] as const;
 const cleanupAttributes = ["schema", "index"] as const;
-
-/**
- * A migration file for `plan`: each step's SQL under a `-- ottersql:step` line that carries what
- * the applier and a reviewer need, so the file stays plain SQL. Changes left to a person are listed
- * as comments, for them to write as steps.
- */
-export function renderMigration(plan: Plan): string {
-  const manual = plan.manual.map(
-    ({ object, reason }) => `-- ${PREFIX}manual ${object}\n-- ${reason}\n`,
-  );
-  const steps = plan.steps.map((step) =>
-    [
-      `-- ${PREFIX}step ${stepHeader(step)}`,
-      ...(step.reason === null ? [] : [`-- ${step.reason}`]),
-      ...(step.transaction === "outside" && step.cleanup !== null
-        ? [
-            `-- ${PREFIX}cleanup schema=${JSON.stringify(step.cleanup.schema)} index=${JSON.stringify(step.cleanup.name)}`,
-          ]
-        : []),
-      ...step.statements.map((sql) => `${sql};`),
-      "",
-    ].join("\n"),
-  );
-  return [...manual, ...steps].join("\n");
-}
-
-/**
- * A migration file with no steps yet, for a person to write them: data to move, or objects
- * ottersql does not plan. It explains the step line, which on its own is a plain comment here.
- */
-export function emptyMigration(): string {
-  return [
-    "-- Steps written by hand. Each starts with a line such as",
-    `-- -- ${PREFIX}step kind=custom object="public.users"`,
-    "-- followed by its SQL. A step that leaves out phase, reversal, transaction or lock runs after",
-    "-- the deploy, in a transaction, and waits for approval: say what it does, such as",
-    `-- -- ${PREFIX}step kind=custom object="public.users" phase=contract reversal=lossy lock="row exclusive"`,
-    "-- for an UPDATE that fills a column. Whatever the steps create must be in schema.sql too.",
-    "",
-  ].join("\n");
-}
-
-function stepHeader(step: Step): string {
-  return [
-    `kind=${step.kind}`,
-    `object=${JSON.stringify(step.object)}`,
-    `phase=${step.phase}`,
-    `reversal=${step.reversal}`,
-    `transaction=${step.transaction}`,
-    `lock=${JSON.stringify(step.lock)}`,
-  ].join(" ");
-}
 
 /** The steps of `file`; a `MigrationFileError` names it. */
 export function readMigration(file: MigrationFile): Step[] {
@@ -274,7 +223,7 @@ function readStep(
     refuseCleanup(cleanups);
     return { ...common, transaction };
   }
-  return { ...common, transaction, cleanup: cleanupOf(cleanups) };
+  return { ...common, transaction, cleanup: outsideCleanup(header, statements, cleanups) };
 }
 
 /** A step inside a transaction rolls back when it fails, so it leaves nothing to clean up. */
@@ -285,7 +234,20 @@ function refuseCleanup(cleanups: readonly Directive[]): void {
   }
 }
 
-function cleanupOf(cleanups: readonly Directive[]): OutsideStep["cleanup"] {
+/** The cleanup of a step outside a transaction, which must have one statement. */
+function outsideCleanup(
+  header: Directive,
+  statements: readonly string[],
+  cleanups: readonly Directive[],
+): OutsideStep["cleanup"] {
+  // Each statement outside a transaction commits on its own, so a step that failed after its first
+  // could not tell, when run again, which of its statements had run.
+  if (statements.length > 1) {
+    throw new MigrationFileError(
+      header.where,
+      "a step outside a transaction has one statement; put each in a step of its own",
+    );
+  }
   const [cleanup, extra] = cleanups;
   if (extra !== undefined) {
     throw new MigrationFileError(extra.where, "a step has one cleanup at most");

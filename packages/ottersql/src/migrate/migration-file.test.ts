@@ -108,6 +108,12 @@ describe("migration files", () => {
       text: `${outside}\n-- ottersql:cleanup schema="public" index="i"\n-- ottersql:cleanup schema="public" index="j"\ncreate index concurrently i on t (id);`,
       message: "line 3: a step has one cleanup at most",
     },
+    {
+      problem: "two statements in a step outside a transaction, which a rerun could not resume",
+      text: `${outside}\ncreate index concurrently i on t (id);\ncreate index concurrently j on t (id);`,
+      message:
+        "line 1: a step outside a transaction has one statement; put each in a step of its own",
+    },
   ])("reject $problem, naming the line", ({ text, message }) => {
     expect(failure(() => readMigrationFile(text))).toStrictEqual({
       name: "MigrationFileError",
