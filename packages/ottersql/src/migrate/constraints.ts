@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Check, Enforcement, ForeignKey, PrimaryKey, Table } from "../catalog/index.ts";
+import { exclusionChanges } from "./exclusion-constraints.ts";
 import { indexBackedKey } from "./key-indexes.ts";
 import type { Step } from "./plan.ts";
 import {
@@ -14,7 +15,8 @@ import { combine, manual, matchByName, noChanges, objectName, only, step } from 
 import type { Changes } from "./steps.ts";
 
 /**
- * Checks, foreign keys and primary keys; unique keys are planned in unique-keys.ts. Constraints
+ * Checks, foreign keys, primary keys and exclusion constraints; unique keys are planned in
+ * unique-keys.ts. Constraints
  * added to a table that has rows hold for new rows first and are validated in a step of
  * their own, which blocks no writes; unique and primary keys are built as indexes concurrently.
  * Adding one tightens what the app may write, so it waits for the deploy; dropping one loosens it,
@@ -45,6 +47,7 @@ export function constraintChanges(before: Table, after: Table): Changes {
           "A changed primary key is left to a person: foreign keys often refer to it and its columns must be NOT NULL; write the change by hand",
         ),
     }),
+    exclusionChanges(before, after),
   ]);
 }
 

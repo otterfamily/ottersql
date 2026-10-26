@@ -78,13 +78,4 @@ describe("indexes", () => {
       "parent_code",
     ]);
   });
-
-  test("keeps the index behind an exclusion constraint", async () => {
-    const catalog = await loadCatalog(`
-      create table booking (room int, during tsrange, exclude using gist (during with &&));
-    `);
-    expect(
-      table(catalog, "booking").indexes.map(({ name, method }) => ({ name, method })),
-    ).toStrictEqual([{ name: "booking_during_excl", method: "gist" }]);
-  });
 });

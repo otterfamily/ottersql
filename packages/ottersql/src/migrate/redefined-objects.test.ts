@@ -110,3 +110,70 @@ describe("planMigration of changed constraints and partitioned tables", () => {
     ]);
   });
 });
+
+/** A table of bookings with `constraints` added. */
+function bookings(constraints: string): string {
+  return `create extension btree_gist;
+    create table booking (room int8, during tstzrange${constraints})`;
+}
+
+const noOverlap = ", constraint no_overlap exclude using gist (during with &&)";
+const temporalKey = ", constraint booking_room_during_key unique (room, during without overlaps)";
+
+describe("planMigration of exclusion constraints and keys WITHOUT OVERLAPS", () => {
+  test("creates a new table with them, as written", async () => {
+    const plan = planMigration(
+      await loadCatalog("create extension btree_gist"),
+      await loadCatalog(bookings(`${noOverlap}${temporalKey}`)),
+    );
+    expect(plan.steps.map((step) => step.statements)).toStrictEqual([
+      [
+        'CREATE TABLE "public"."booking" ("room" bigint, "during" tstzrange, CONSTRAINT "booking_room_during_key" UNIQUE ("room", "during" WITHOUT OVERLAPS), CONSTRAINT "no_overlap" EXCLUDE USING gist (during WITH &&))',
+      ],
+    ]);
+  });
+
+  test.for([
+    {
+      change: "an exclusion constraint added",
+      from: bookings(""),
+      to: bookings(noOverlap),
+      object: "public.booking.no_overlap",
+      reason:
+        "ottersql does not plan changes to an exclusion constraint yet; write this change by hand",
+    },
+    {
+      change: "an exclusion constraint dropped",
+      from: bookings(noOverlap),
+      to: bookings(""),
+      object: "public.booking.no_overlap",
+      reason:
+        "ottersql does not plan changes to an exclusion constraint yet; write this change by hand",
+    },
+    {
+      change: "a key WITHOUT OVERLAPS added",
+      from: bookings(""),
+      to: bookings(temporalKey),
+      object: "public.booking.booking_room_during_key",
+      reason:
+        "ottersql adds a key to a table with rows through a unique B-tree index built concurrently, which a key WITHOUT OVERLAPS cannot use; write this change by hand",
+    },
+  ])("leaves $change to a table with rows to a person", async ({ from, to, object, reason }) => {
+    const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
+    expect(plan).toStrictEqual({ steps: [], manual: [{ object, reason }] });
+  });
+
+  test("adds a foreign key with PERIOD as written", async () => {
+    const plan = planMigration(
+      await loadCatalog(bookings(temporalKey)),
+      await loadCatalog(
+        `${bookings(temporalKey)};
+        create table stay (room int8, at tstzrange,
+          constraint stay_booking foreign key (room, period at) references booking (room, period during))`,
+      ),
+    );
+    expect(plan.steps.flatMap((step) => step.statements)).toContain(
+      'ALTER TABLE "public"."stay" ADD CONSTRAINT "stay_booking" FOREIGN KEY ("room", PERIOD "at") REFERENCES "public"."booking" ("room", PERIOD "during") ON UPDATE NO ACTION ON DELETE NO ACTION',
+    );
+  });
+});

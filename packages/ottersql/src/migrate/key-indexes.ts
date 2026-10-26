@@ -1,7 +1,11 @@
 import type { Index, PrimaryKey, Table, UniqueConstraint } from "../catalog/index.ts";
 import { alterTable, createIndex, deferral, identifier } from "./sql-text.ts";
-import { objectName, only, outsideStep, step } from "./steps.ts";
+import { manual, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
+
+/** Why a key WITHOUT OVERLAPS is not added to or changed on a table with rows by the planner. */
+export const withoutOverlapsReason =
+  "ottersql adds a key to a table with rows through a unique B-tree index built concurrently, which a key WITHOUT OVERLAPS cannot use; write this change by hand";
 
 export function keyIndex(key: PrimaryKey | UniqueConstraint): Index {
   return {
@@ -29,6 +33,9 @@ export function indexBackedKey(
   kind: "addUnique" | "addPrimaryKey",
 ): Changes {
   const object = objectName(table, key.name);
+  if (key.withoutOverlaps) {
+    return manual(object, withoutOverlapsReason);
+  }
   const constraint = kind === "addUnique" ? "UNIQUE" : "PRIMARY KEY";
   const name = identifier(key.name);
   const build = createIndex(table, keyIndex(key), true);

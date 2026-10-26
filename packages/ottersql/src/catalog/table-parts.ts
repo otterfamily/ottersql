@@ -54,7 +54,7 @@ export function tablePartsJson(features: CatalogFeatures): string {
 }
 
 export function parseTable(row: TableRow): Table {
-  const { primaryKey, uniqueConstraints, foreignKeys } = parseKeys(row);
+  const { primaryKey, uniqueConstraints, foreignKeys, exclusionConstraints } = parseKeys(row);
   return {
     schema: row.schema,
     name: row.name,
@@ -63,6 +63,7 @@ export function parseTable(row: TableRow): Table {
     uniqueConstraints,
     foreignKeys,
     checks: row.checks.map((check) => parseTableCheck(check)),
+    exclusionConstraints,
     indexes: row.indexes.map((index) => parseIndex(index)),
     triggers: row.triggers.map((trigger) => parseTrigger(trigger)),
     ...parseTableSettings(row),

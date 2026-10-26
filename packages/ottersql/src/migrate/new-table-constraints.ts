@@ -8,6 +8,7 @@ import {
   enforcement,
   foreignKeyDefinition,
   identifier,
+  keyColumnList,
 } from "./sql-text.ts";
 import { combine, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
@@ -23,11 +24,11 @@ export function inlineConstraints(table: Table): string[] {
     primaryKey === null
       ? []
       : [
-          `CONSTRAINT ${identifier(primaryKey.name)} PRIMARY KEY ${columnList(primaryKey.columns)}${include(primaryKey.include)}${deferral(primaryKey.deferral)}`,
+          `CONSTRAINT ${identifier(primaryKey.name)} PRIMARY KEY ${keyColumnList(primaryKey)}${include(primaryKey.include)}${deferral(primaryKey.deferral)}`,
         ];
   const unique = table.uniqueConstraints.map(
     (key) =>
-      `CONSTRAINT ${identifier(key.name)} UNIQUE${key.nullsNotDistinct ? " NULLS NOT DISTINCT" : ""} ${columnList(key.columns)}${include(key.include)}${deferral(key.deferral)}`,
+      `CONSTRAINT ${identifier(key.name)} UNIQUE${key.nullsNotDistinct ? " NULLS NOT DISTINCT" : ""} ${keyColumnList(key)}${include(key.include)}${deferral(key.deferral)}`,
   );
   const checks = table.checks
     .filter((check) => check.enforcement !== "not valid")
@@ -35,7 +36,10 @@ export function inlineConstraints(table: Table): string[] {
       (check) =>
         `CONSTRAINT ${identifier(check.name)} CHECK (${check.expression})${enforcement(check.enforcement)}`,
     );
-  return [...primary, ...unique, ...checks];
+  const exclusions = table.exclusionConstraints.map(
+    ({ name, definition }) => `CONSTRAINT ${identifier(name)} ${definition}`,
+  );
+  return [...primary, ...unique, ...checks, ...exclusions];
 }
 
 /**

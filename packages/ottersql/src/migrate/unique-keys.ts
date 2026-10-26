@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { Catalog, Table, UniqueConstraint } from "../catalog/index.ts";
 import { dropConstraint } from "./constraints.ts";
-import { indexBackedKey, keyIndex } from "./key-indexes.ts";
+import { indexBackedKey, keyIndex, withoutOverlapsReason } from "./key-indexes.ts";
 import { alterTable, createIndex, deferral, exceedsNameLimit, identifier } from "./sql-text.ts";
 import { combine, manual, matchByName, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
@@ -91,6 +91,9 @@ function swapKey(
 ): Changes {
   const way = direction(old, current);
   const object = objectName(table, current.name);
+  if (old.withoutOverlaps || current.withoutOverlaps) {
+    return manual(object, withoutOverlapsReason);
+  }
   if (way === null || referenced(from, table, old)) {
     return manual(
       object,

@@ -5,7 +5,7 @@ import type { Index, IndexKey, QualifiedName } from "./model.ts";
 
 /**
  * Selects the indexes of the table `relationOid` as `parseIndex` reads them. Indexes that back a
- * primary key or unique constraint are left out, since the constraint describes them. Its aliases
+ * primary key, unique or exclusion constraint are left out, since the constraint describes them. Its aliases
  * start with `idx_` so they cannot shadow the caller's.
  */
 export function indexesJson(relationOid: string): string {
@@ -49,7 +49,7 @@ export function indexesJson(relationOid: string): string {
     where idx.indrelid = ${relationOid} and not exists (
       select from pg_constraint idx_con
       where idx_con.conrelid = idx.indrelid and idx_con.conindid = idx.indexrelid
-        and idx_con.contype in ('p', 'u')
+        and idx_con.contype in ('p', 'u', 'x')
     )
   ), '[]')`;
 }

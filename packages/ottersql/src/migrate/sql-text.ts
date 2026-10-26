@@ -29,6 +29,22 @@ export function columnList(names: readonly string[]): string {
   return `(${names.map((name) => identifier(name)).join(", ")})`;
 }
 
+/** A key's columns, the last one marked WITHOUT OVERLAPS when the key says so. */
+export function keyColumnList(key: {
+  readonly columns: readonly string[];
+  readonly withoutOverlaps: boolean;
+}): string {
+  const list = columnList(key.columns);
+  return key.withoutOverlaps ? `${list.slice(0, -1)} WITHOUT OVERLAPS)` : list;
+}
+
+/** A foreign key's columns on one side, the last one marked PERIOD when `period` says so. */
+function foreignKeyColumnList(names: readonly string[], period: boolean): string {
+  const quoted = names.map((name) => identifier(name));
+  const last = quoted.length - 1;
+  return `(${quoted.map((name, index) => (period && index === last ? `PERIOD ${name}` : name)).join(", ")})`;
+}
+
 export function columnDefinition(column: Column): string {
   const value = valueClause(column.value);
   const { collation } = column;
@@ -79,8 +95,8 @@ export function foreignKeyDefinition(key: ForeignKey): string {
   const { references } = key;
   const match = key.match === "simple" ? "" : ` MATCH ${key.match.toUpperCase()}`;
   return [
-    `FOREIGN KEY ${columnList(key.columns)}`,
-    ` REFERENCES ${qualified(references.schema, references.table)} ${columnList(references.columns)}`,
+    `FOREIGN KEY ${foreignKeyColumnList(key.columns, key.period)}`,
+    ` REFERENCES ${qualified(references.schema, references.table)} ${foreignKeyColumnList(references.columns, key.period)}`,
     match,
     ` ON UPDATE ${key.onUpdate.toUpperCase()} ON DELETE ${key.onDelete.toUpperCase()}`,
     deferral(key.deferral),

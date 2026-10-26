@@ -10,6 +10,7 @@ describe("keys", () => {
       name: "t_pkey",
       columns: ["b", "a"],
       include: [],
+      withoutOverlaps: false,
       deferral: "not deferrable",
     });
   });
@@ -33,6 +34,7 @@ describe("keys", () => {
         columns: ["b", "a"],
         include: [],
         nullsNotDistinct: false,
+        withoutOverlaps: false,
         deferral: "not deferrable",
       },
       {
@@ -40,6 +42,7 @@ describe("keys", () => {
         columns: ["c"],
         include: [],
         nullsNotDistinct: true,
+        withoutOverlaps: false,
         deferral: "initially deferred",
       },
     ]);
@@ -66,6 +69,7 @@ describe("keys", () => {
         match: "simple",
         onUpdate: "no action",
         onDelete: "no action",
+        period: false,
         deferral: "not deferrable",
         enforcement: "not valid",
       },
@@ -76,6 +80,7 @@ describe("keys", () => {
         match: "simple",
         onUpdate: "no action",
         onDelete: "no action",
+        period: false,
         deferral: "not deferrable",
         enforcement: "not enforced",
       },
@@ -86,6 +91,7 @@ describe("keys", () => {
         match: "full",
         onUpdate: "cascade",
         onDelete: "set null",
+        period: false,
         deferral: "initially immediate",
         enforcement: "validated",
       },
@@ -101,16 +107,62 @@ describe("keys", () => {
       );
     `);
     expect([table(catalog, "t").primaryKey, table(catalog, "t").uniqueConstraints]).toStrictEqual([
-      { name: "t_pkey", columns: ["a"], include: ["b"], deferral: "initially deferred" },
+      {
+        name: "t_pkey",
+        columns: ["a"],
+        include: ["b"],
+        withoutOverlaps: false,
+        deferral: "initially deferred",
+      },
       [
         {
           name: "t_c_key",
           columns: ["c"],
           include: ["d", "b"],
           nullsNotDistinct: false,
+          withoutOverlaps: false,
           deferral: "not deferrable",
         },
       ],
     ]);
+  });
+
+  test("reads keys WITHOUT OVERLAPS and foreign keys with PERIOD", async () => {
+    const catalog = await loadCatalog(`
+      create extension btree_gist;
+      create table room (id int8, during tstzrange, primary key (id, during without overlaps));
+      create table booking (
+        room_id int8, at tstzrange, unique (room_id, at without overlaps),
+        foreign key (room_id, period at) references room (id, period during)
+      );
+    `);
+    expect({
+      primaryKey: table(catalog, "room").primaryKey?.withoutOverlaps,
+      unique: table(catalog, "booking").uniqueConstraints.map((key) => key.withoutOverlaps),
+      foreignKey: table(catalog, "booking").foreignKeys.map((key) => key.period),
+    }).toStrictEqual({ primaryKey: true, unique: [true], foreignKey: [true] });
+  });
+});
+
+describe("exclusion constraints", () => {
+  test("reads them as Postgres prints them, without the index behind them", async () => {
+    const catalog = await loadCatalog(`
+      create table booking (
+        room int, during tsrange,
+        constraint no_overlap exclude using gist (during with &&) deferrable initially deferred
+      );
+    `);
+    expect({
+      exclusionConstraints: table(catalog, "booking").exclusionConstraints,
+      indexes: table(catalog, "booking").indexes,
+    }).toStrictEqual({
+      exclusionConstraints: [
+        {
+          name: "no_overlap",
+          definition: "EXCLUDE USING gist (during WITH &&) DEFERRABLE INITIALLY DEFERRED",
+        },
+      ],
+      indexes: [],
+    });
   });
 });

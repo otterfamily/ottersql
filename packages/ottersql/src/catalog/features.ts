@@ -9,19 +9,26 @@ import type { Shape } from "./catalog-json.ts";
 export interface CatalogFeatures {
   /** `pg_constraint.conenforced` (Postgres 18): constraints can be NOT ENFORCED. */
   readonly enforcedFlag: boolean;
+  /** `pg_constraint.conperiod` (Postgres 18): keys WITHOUT OVERLAPS and foreign keys with PERIOD. */
+  readonly periodFlag: boolean;
 }
 
 const featuresRow: Shape<CatalogFeatures> = (value, path) => {
   const field = fields(value, path);
-  return { enforcedFlag: field("enforcedFlag", boolean) };
+  return { enforcedFlag: field("enforcedFlag", boolean), periodFlag: field("periodFlag", boolean) };
 };
+
+function hasConstraintColumn(name: string): string {
+  return `exists (
+      select from pg_attribute
+      where attrelid = 'pg_catalog.pg_constraint'::regclass and attname = '${name}'
+    )`;
+}
 
 export async function readFeatures(transaction: Transaction): Promise<CatalogFeatures> {
   const [features] = await queryRows(transaction, {
-    select: `select exists (
-        select from pg_attribute
-        where attrelid = 'pg_catalog.pg_constraint'::regclass and attname = 'conenforced'
-      ) as "enforcedFlag"`,
+    select: `select ${hasConstraintColumn("conenforced")} as "enforcedFlag",
+        ${hasConstraintColumn("conperiod")} as "periodFlag"`,
     row: featuresRow,
     label: "features",
   });

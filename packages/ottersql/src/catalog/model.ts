@@ -1,6 +1,7 @@
 import type { Capabilities } from "./capabilities.ts";
 import type { CompositeType } from "./composites.ts";
 import type { InstalledExtension } from "./installed-extensions.ts";
+import type { ExclusionConstraint, ForeignKey, PrimaryKey, UniqueConstraint } from "./keys.ts";
 import type { Partition } from "./partitions.ts";
 import type { Policy, RowSecurity } from "./policies.ts";
 import type { Sequence } from "./sequences.ts";
@@ -35,6 +36,7 @@ export interface Table {
   readonly uniqueConstraints: readonly UniqueConstraint[];
   readonly foreignKeys: readonly ForeignKey[];
   readonly checks: readonly Check[];
+  readonly exclusionConstraints: readonly ExclusionConstraint[];
   readonly indexes: readonly Index[];
   readonly triggers: readonly Trigger[];
   readonly rowSecurity: RowSecurity;
@@ -88,38 +90,6 @@ export interface NamedTypeRef {
   readonly schema: string;
   readonly name: string;
 }
-
-export interface PrimaryKey {
-  readonly name: string;
-  readonly columns: readonly string[];
-  readonly include: readonly string[];
-  readonly deferral: Deferral;
-}
-
-export interface UniqueConstraint {
-  readonly name: string;
-  readonly columns: readonly string[];
-  readonly include: readonly string[];
-  readonly nullsNotDistinct: boolean;
-  readonly deferral: Deferral;
-}
-
-export interface ForeignKey {
-  readonly name: string;
-  readonly columns: readonly string[];
-  readonly references: {
-    readonly schema: string;
-    readonly table: string;
-    readonly columns: readonly string[];
-  };
-  readonly match: "simple" | "full" | "partial";
-  readonly onUpdate: ForeignKeyAction;
-  readonly onDelete: ForeignKeyAction;
-  readonly deferral: Deferral;
-  readonly enforcement: Enforcement;
-}
-
-export type ForeignKeyAction = "no action" | "restrict" | "cascade" | "set null" | "set default";
 
 export type Deferral = "not deferrable" | "initially immediate" | "initially deferred";
 
