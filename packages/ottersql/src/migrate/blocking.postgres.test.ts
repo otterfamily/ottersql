@@ -32,18 +32,59 @@ async function tableStates(client: Client): Promise<Map<string, TableState>> {
   return new Map(rows.map(({ name, reads, file }) => [name, { reads: Number(reads), file }]));
 }
 
-async function runStep(client: Client, step: Step): Promise<void> {
+/** A lock a step held on a table, by its pg_locks mode. */
+interface TakenLock {
+  readonly name: string;
+  readonly mode: string;
+}
+
+/** Postgres's table lock modes, weakest first. */
+const lockModes = [
+  "AccessShareLock",
+  "RowShareLock",
+  "RowExclusiveLock",
+  "ShareUpdateExclusiveLock",
+  "ShareLock",
+  "ShareRowExclusiveLock",
+  "ExclusiveLock",
+  "AccessExclusiveLock",
+];
+
+/** The strongest mode each declared lock allows; "none" still reads, as every statement does. */
+const allowedModes: Readonly<Record<Step["lock"], string>> = {
+  none: "AccessShareLock",
+  "row exclusive": "RowExclusiveLock",
+  "share update exclusive": "ShareUpdateExclusiveLock",
+  "share row exclusive": "ShareRowExclusiveLock",
+  "access exclusive": "AccessExclusiveLock",
+};
+
+/**
+ * Runs `step`, and returns the locks it held before committing on the tables that existed before
+ * it. A step outside a transaction leaves nothing to read in pg_locks; the planner gives such steps
+ * only CREATE and DROP INDEX CONCURRENTLY, whose lock Postgres fixes.
+ */
+async function runStep(client: Client, step: Step): Promise<TakenLock[]> {
   if (step.transaction === "outside") {
     for (const sql of step.statements) {
       await client.query(sql);
     }
-    return;
+    return [];
   }
+  const existing = await client.query<{ oid: string }>(
+    "select oid::text from pg_class where relkind in ('r', 'p') and relnamespace = 'public'::regnamespace",
+  );
   await client.query("begin");
   for (const sql of step.statements) {
     await client.query(sql);
   }
+  const { rows } = await client.query<TakenLock>(
+    `select c.relname as name, l.mode from pg_locks l join pg_class c on c.oid = l.relation
+    where l.pid = pg_backend_pid() and l.locktype = 'relation' and c.oid = any($1::oid[])`,
+    [existing.rows.map(({ oid }) => oid)],
+  );
   await client.query("commit");
+  return rows;
 }
 
 /** How `step` scanned or rewrote a table while blocking writes, by the table states around it. */
@@ -65,16 +106,30 @@ function blockingWorkOf(
   });
 }
 
-/** What each step that blocks writes did to a table it should leave alone: scan or rewrite it. */
-async function blockingWork(fromSql: string, steps: readonly Step[]): Promise<string[]> {
+/** The locks `step` took that are stronger than the one it declares. */
+function understatedLocks(step: Step, taken: readonly TakenLock[]): string[] {
+  const allowed = lockModes.indexOf(allowedModes[step.lock]);
+  return taken
+    .filter(({ mode }) => lockModes.indexOf(mode) > allowed)
+    .map(({ name, mode }) => `${step.kind} ${step.object} took ${mode} on ${name}`);
+}
+
+/**
+ * What each step did that its plan does not allow: scan or rewrite a table while blocking writes,
+ * or lock a table harder than it declares.
+ */
+async function overreach(fromSql: string, steps: readonly Step[]): Promise<string[]> {
   const client = new Client({ connectionString: await postgresDatabase(fromSql) });
   await client.connect();
   try {
     const found: string[] = [];
     for (const step of steps) {
       const before = await tableStates(client);
-      await runStep(client, step);
-      found.push(...blockingWorkOf(step, before, await tableStates(client)));
+      const taken = await runStep(client, step);
+      found.push(
+        ...blockingWorkOf(step, before, await tableStates(client)),
+        ...understatedLocks(step, taken),
+      );
     }
     return found;
   } finally {
@@ -82,7 +137,18 @@ async function blockingWork(fromSql: string, steps: readonly Step[]): Promise<st
   }
 }
 
-describe("steps that block writes", () => {
+/** A step written as a person might, to check that `overreach` sees what it is meant to. */
+function naive(spec: Pick<Step, "kind" | "object" | "statements" | "lock">): Step {
+  return {
+    ...spec,
+    phase: "contract",
+    reversal: "reversible",
+    transaction: "inside",
+    reason: null,
+  };
+}
+
+describe("steps", () => {
   test.for([
     {
       change: "adding columns, a NOT NULL, a default and dropping one",
@@ -119,27 +185,40 @@ describe("steps that block writes", () => {
         create table orders (id int8 primary key, user_id int8, total int4, status status);
         create index orders_user on orders (user_id)`,
     },
-  ])("neither scan nor rewrite a table when $change", { timeout: 60_000 }, async ({ from, to }) => {
-    const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
-    expect({
-      planned: plan.steps.length > 0,
-      found: await blockingWork(from, plan.steps),
-    }).toStrictEqual({ planned: true, found: [] });
-  });
+  ])(
+    "neither scan nor rewrite a table while blocking writes, nor lock harder than they say, when $change",
+    { timeout: 60_000 },
+    async ({ from, to }) => {
+      const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
+      expect({
+        planned: plan.steps.length > 0,
+        found: await overreach(from, plan.steps),
+      }).toStrictEqual({ planned: true, found: [] });
+    },
+  );
 
-  test("are caught when they scan, as SET NOT NULL without a valid check does", async () => {
-    const naive: Step = {
-      kind: "setNotNull",
-      object: "public.users.email",
-      statements: ["ALTER TABLE users ALTER COLUMN email SET NOT NULL"],
-      phase: "contract",
-      reversal: "reversible",
-      transaction: "inside",
-      lock: "access exclusive",
-      reason: null,
-    };
-    await expect(blockingWork(users, [naive])).resolves.toStrictEqual([
-      `setNotNull public.users.email read ${String(ROWS)} rows of users`,
-    ]);
-  }, 60_000);
+  test.for([
+    {
+      problem: "scan, as SET NOT NULL without a valid check does",
+      step: naive({
+        kind: "setNotNull",
+        object: "public.users.email",
+        statements: ["ALTER TABLE users ALTER COLUMN email SET NOT NULL"],
+        lock: "access exclusive",
+      }),
+      found: [`setNotNull public.users.email read ${String(ROWS)} rows of users`],
+    },
+    {
+      problem: "lock harder than they say, as an ADD COLUMN said to take none",
+      step: naive({
+        kind: "addColumn",
+        object: "public.users.note",
+        statements: ["ALTER TABLE users ADD COLUMN note text"],
+        lock: "none",
+      }),
+      found: ["addColumn public.users.note took AccessExclusiveLock on users"],
+    },
+  ])("are caught when they $problem", { timeout: 60_000 }, async ({ step, found }) => {
+    await expect(overreach(users, [step])).resolves.toStrictEqual(found);
+  });
 });
