@@ -1,6 +1,7 @@
 import { parseArgs } from "node:util";
 
 import { isMigrationLabel } from "../migrate/migration-name.ts";
+import { DEFAULT_LOCK_WAIT } from "../migrate/run-lock.ts";
 
 /** What the command line asks for, parsed once where it enters. */
 export type Command =
@@ -45,7 +46,10 @@ export class UsageError extends Error {
   override readonly name = "UsageError";
 }
 
-export const usage = `Usage: ottersql <command> [options]
+const MILLISECONDS_PER_SECOND = 1000;
+
+export function usage(): string {
+  return `Usage: ottersql <command> [options]
 
 Commands:
   ottersql migrate generate <name>   Write what schema.sql adds as the next migration
@@ -73,7 +77,7 @@ Options:
   --approve <approval>  apply, push: run steps that cannot be undone; the approval comes from the
                         refusal that listed them, and only a person can give it
   --lock-wait <seconds> apply: how long to wait for another run applying migrations to the same
-                        database (default: 600)
+                        database (default: ${String(DEFAULT_LOCK_WAIT / MILLISECONDS_PER_SECOND)})
   --empty               generate: write a file for steps written by hand, such as moving data
   --check               types: report declaration files that are missing or out of date
   -h, --help            Show this help
@@ -82,12 +86,13 @@ Migrations live in the migrations/ directory next to schema.sql.
 
 Exit codes:
   0  Done
-  1  Ran and failed, such as a step the database rejected
+  1  Failed, such as a step the database rejected or a lock another run kept too long
   2  Nothing ran: the arguments, the files or the migration history are wrong
   3  Nothing ran: steps that cannot be undone need a person's approval
   4  Ran and found something to fix, such as migrations that do not build schema.sql, or a
      database changed outside its migrations
 `;
+}
 
 const options = {
   json: { type: "boolean" },
@@ -250,17 +255,15 @@ function parsePhase(phase: string | undefined): "expand" | "contract" | null {
   throw new UsageError(`--phase is expand or contract, not ${JSON.stringify(phase)}`);
 }
 
-const MILLISECONDS_PER_SECOND = 1000;
-
 function parseLockWait(seconds: string | undefined): number | null {
   if (seconds === undefined) {
     return null;
   }
-  const value = seconds.trim() === "" ? Number.NaN : Number(seconds);
-  if (!Number.isFinite(value) || value < 0) {
+  // Plain decimals only: Number would also take hexadecimal, exponents and blank text.
+  if (!/^\d+(?:\.\d+)?$/v.test(seconds)) {
     throw new UsageError(`--lock-wait is a number of seconds, not ${JSON.stringify(seconds)}`);
   }
-  return value * MILLISECONDS_PER_SECOND;
+  return Number(seconds) * MILLISECONDS_PER_SECOND;
 }
 
 function noMore(rest: readonly string[]): void {

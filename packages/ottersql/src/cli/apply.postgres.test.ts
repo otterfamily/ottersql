@@ -211,7 +211,7 @@ describe("ottersql migrate apply", () => {
     }
   });
 
-  test.for(["soon", "-1", ""])(
+  test.for(["soon", "-1", "", "0x10", "1e3", " 5"])(
     "refuses --lock-wait %j, which is no number of seconds",
     async (wait) => {
       const root = await project({ "db/schema.sql": users });

@@ -203,4 +203,19 @@ describe("applyMigrations on PGlite", () => {
       await schema.close();
     }
   });
+
+  test.for([Number.NaN, -1, Number.POSITIVE_INFINITY])(
+    "refuses to wait %s milliseconds for another run",
+    async (wait) => {
+      const schema = await openSchema(users, migratedObjects);
+      try {
+        const connection = pgliteConnection(schema.database);
+        await expect(applyMigrations(connection, [], { waitForOtherRuns: wait })).rejects.toThrow(
+          RangeError,
+        );
+      } finally {
+        await schema.close();
+      }
+    },
+  );
 });

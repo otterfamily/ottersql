@@ -42,7 +42,7 @@ async function run(args: readonly string[], io: Io): Promise<Ran | string> {
     return { command: "ottersql", outcome: command };
   }
   if (command.name === "help" || command.name === "version") {
-    return command.name === "help" ? usage : `${version()}\n`;
+    return command.name === "help" ? usage() : `${version()}\n`;
   }
   try {
     return { command: command.name, outcome: await runCommand(io, command) };

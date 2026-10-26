@@ -69,6 +69,20 @@ describe("applyMigrations on Postgres", () => {
     }
   });
 
+  test("waits for another run on the same session too, which a pooler may hand both runs", async () => {
+    const url = await postgresDatabase(users);
+    const shared = await connect(url);
+    try {
+      await shared.query("select pg_advisory_lock(hashtextextended('ottersql.applied_steps', 0))");
+      const file = await migrationFrom(users, `${users}; alter table users add column name text`);
+      await expect(
+        applyMigrations(pgConnection(shared), [file], { waitForOtherRuns: 300 }),
+      ).rejects.toThrow(LockWaitTimeoutError);
+    } finally {
+      await shared.end();
+    }
+  });
+
   test("refuses to run when the connection changes session after taking the lock, as through a transaction-mode pooler", async () => {
     const url = await postgresDatabase(users);
     const [first, second] = await Promise.all([connect(url), connect(url)]);

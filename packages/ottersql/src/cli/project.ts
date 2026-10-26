@@ -141,6 +141,7 @@ export function migrationRefusal(error: unknown, layout: Layout): unknown {
       code: "database.session_changed",
       why: error.message,
       fix: "Connect to Postgres directly or through a pooler in session mode, not one in transaction mode; until the first session ends, other runs wait for its lock",
+      result: { finished: error.finished },
     });
   }
   return error;
