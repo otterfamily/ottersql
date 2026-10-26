@@ -20,6 +20,7 @@
     "./bun-sql": "./src/bun-sql.ts",
     "./esbuild": "./src/esbuild.ts",
     "./pg": "./src/pg.ts",
+    "./pg-promise": "./src/pg-promise.ts",
     "./pglite": "./src/pglite.ts",
     "./postgres": "./src/postgres.ts",
     "./register": {
@@ -39,6 +40,7 @@
       "./bun-sql": "./dist/bun-sql.js",
       "./esbuild": "./dist/esbuild.js",
       "./pg": "./dist/pg.js",
+      "./pg-promise": "./dist/pg-promise.js",
       "./pglite": "./dist/pglite.js",
       "./postgres": "./dist/postgres.js",
       "./register": {
@@ -66,6 +68,7 @@
     "esbuild": "catalog:",
     "next": "catalog:",
     "pg": "catalog:",
+    "pg-promise": "catalog:",
     "postgres": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -77,6 +80,7 @@
   "peerDependencies": {
     "@electric-sql/pglite": ">=0.5",
     "pg": ">=8",
+    "pg-promise": ">=12",
     "postgres": ">=3.4"
   },
   "peerDependenciesMeta": {
@@ -84,6 +88,9 @@
       "optional": true
     },
     "pg": {
+      "optional": true
+    },
+    "pg-promise": {
       "optional": true
     },
     "postgres": {

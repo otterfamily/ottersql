@@ -198,6 +198,7 @@
           { "from": "package", "name": "Pool", "package": "pg" },
           { "from": "package", "name": "PoolClient", "package": "pg" },
           { "from": "package", "name": "Sql", "package": "postgres" },
+          { "from": "package", "name": "IDatabase", "package": "pg-promise" },
           { "from": "package", "name": "TestProject", "package": "vitest" },
           { "from": "lib", "name": "RegExp" },
           { "from": "lib", "name": "Uint8Array" },
