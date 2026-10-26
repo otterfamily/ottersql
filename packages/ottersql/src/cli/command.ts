@@ -159,9 +159,9 @@ const optionCommands = {
 } as const satisfies Record<string, readonly string[]>;
 
 function refuseOtherOptions(name: string, values: Values): void {
-  for (const option of ["phase", "approve", "lock-wait", "empty", "check"] as const) {
-    const takers: readonly string[] = optionCommands[option];
-    if (!takers.includes(name) && values[option] !== undefined) {
+  for (const [option, commands] of Object.entries(optionCommands)) {
+    const takers: readonly string[] = commands;
+    if (!takers.includes(name) && Object.hasOwn(values, option)) {
       throw new UsageError(`${name} takes no --${option}`);
     }
   }
