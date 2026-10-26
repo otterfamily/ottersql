@@ -12,6 +12,7 @@ export interface QueryResult {
  * whatever the driver (ADR 0008).
  */
 export interface Driver {
+  /** Rejects with a `QueryError` when Postgres reports an error, and as the driver does otherwise. */
   readonly query: (sql: string, parameters: readonly (string | null)[]) => Promise<QueryResult>;
 }
 

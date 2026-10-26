@@ -2,6 +2,8 @@ import type { Sql } from "postgres";
 
 import { clientConnection } from "./connection.ts";
 import type { Connection, Driver } from "./connection.ts";
+import { errorField, reportingQueryErrors } from "./query-error.ts";
+import type { QueryErrorFields } from "./query-error.ts";
 
 /**
  * A `Connection` over postgres.js, receiving every value as text. The same client gives the same
@@ -25,7 +27,10 @@ function textDriver(sql: Sql): Driver {
       const values = parameters.map((value) =>
         value === null ? null : sql.typed(value, UNKNOWN_OID),
       );
-      const result = await sql.unsafe(text, values).raw();
+      const result = await reportingQueryErrors(
+        async () => sql.unsafe(text, values).raw(),
+        postgresErrorFields,
+      );
       const rows: readonly (readonly (Buffer | null)[])[] = result;
       return {
         fields: (result.columns ?? []).map((column) => ({
@@ -36,4 +41,24 @@ function textDriver(sql: Sql): Driver {
       };
     },
   };
+}
+
+/** The fields of postgres.js's PostgresError, which it names with a `_name` suffix. */
+function postgresErrorFields(error: unknown): QueryErrorFields | null {
+  if (!(error instanceof Error) || error.name !== "PostgresError") {
+    return null;
+  }
+  const code = errorField(error, "code");
+  return code === null
+    ? null
+    : {
+        code,
+        message: error.message,
+        detail: errorField(error, "detail"),
+        hint: errorField(error, "hint"),
+        schema: errorField(error, "schema_name"),
+        table: errorField(error, "table_name"),
+        column: errorField(error, "column_name"),
+        constraint: errorField(error, "constraint_name"),
+      };
 }

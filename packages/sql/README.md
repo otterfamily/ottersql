@@ -34,3 +34,7 @@ Queries run on a `Connection`, made from the driver the application already uses
 - PGlite: `pgliteConnection(db)` from `@ottersql/sql/pglite`
 
 A `Connection` runs only typed queries. Tools built on ottersql run SQL as it is with `rawQuery` from `@ottersql/sql/driver`, which also has `driverConnection` for drivers ottersql has no adapter for.
+
+## Errors
+
+An error Postgres reports rejects with a `QueryError`, the same whatever the driver: `code` is the SQLSTATE (`"23505"` for a unique violation), with `constraint`, `table`, `column`, `schema`, `detail` and `hint` where Postgres gives them, and the driver's own error as `cause`.

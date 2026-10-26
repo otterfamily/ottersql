@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 
 import { postgresDatabase, runInBun } from "@ottersql/testing";
 import { Pool } from "pg";
-import { describe, expect, test } from "vitest";
+import { describe, expect, onTestFinished, test } from "vitest";
 
 import { rawQuery } from "./connection.ts";
 import { encodeParameter } from "./encode.ts";
@@ -50,6 +50,15 @@ function bunScript(url: string, body: string): string {
   ].join("\n");
 }
 
+/** What a test compares of a rejection: its own fields and message, without the driver's cause. */
+function reported(error: unknown): unknown {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+  const { cause: _driverError, ...fields } = error;
+  return { ...fields, message: error.message };
+}
+
 describe("connections over Bun.sql", () => {
   test("receive exactly the text and types node-postgres receives", async () => {
     const url = await postgresDatabase();
@@ -71,6 +80,26 @@ describe("connections over Bun.sql", () => {
       console.log(JSON.stringify(results));`;
     const viaBun: unknown = JSON.parse(await runInBun(bunScript(url, body), tmpdir()));
     expect(viaBun).toStrictEqual(viaPg);
+  });
+
+  test("reject with the QueryError node-postgres's connection rejects with", async () => {
+    const setup = "create table t (email text not null unique)";
+    const failing = "insert into t values ($1), ($1)";
+    const pool = new Pool({ connectionString: await postgresDatabase() });
+    onTestFinished(async () => pool.end());
+    await rawQuery(pgConnection(pool), setup, []);
+    const viaPg = await rawQuery(pgConnection(pool), failing, ["otter"]).catch(reported);
+    const url = await postgresDatabase();
+    const body = `const sql = new SQL(URL, { prepare: false });
+      const connection = bunSqlConnection(sql);
+      await rawQuery(connection, ${JSON.stringify(setup)}, []);
+      const error = await rawQuery(connection, ${JSON.stringify(failing)}, ["otter"]).catch((error) => error);
+      await sql.end();
+      const { cause: _driverError, ...fields } = error;
+      console.log(JSON.stringify({ ...fields, message: error.message }));`;
+    const viaBun: unknown = JSON.parse(await runInBun(bunScript(url, body), tmpdir()));
+    expect(viaBun).toStrictEqual(viaPg);
+    expect(viaPg).toMatchObject({ name: "QueryError", code: "23505" });
   });
 
   test("refuse a client that prepares statements, whose values may arrive in binary", async () => {

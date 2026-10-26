@@ -1,5 +1,7 @@
 import { clientConnection } from "./connection.ts";
 import type { Connection } from "./connection.ts";
+import { errorField, reportingQueryErrors } from "./query-error.ts";
+import type { QueryErrorFields } from "./query-error.ts";
 
 /** The part of a Bun `SQL` client this file uses; ottersql does not depend on Bun's types. */
 export interface BunSql {
@@ -31,7 +33,10 @@ export function bunSqlConnection(sql: BunSql): Connection {
   }
   return clientConnection(sql, () => ({
     query: async (query, parameters) => {
-      const result = await sql.unsafe(query, parameters).raw();
+      const result = await reportingQueryErrors(
+        async () => sql.unsafe(query, parameters).raw(),
+        bunErrorFields,
+      );
       return {
         fields: (result.columns ?? []).map((column) => ({
           name: column.name,
@@ -41,4 +46,24 @@ export function bunSqlConnection(sql: BunSql): Connection {
       };
     },
   }));
+}
+
+/** The fields of Bun's PostgresError, whose `code` is Bun's own and `errno` the SQLSTATE. */
+function bunErrorFields(error: unknown): QueryErrorFields | null {
+  if (!(error instanceof Error) || error.name !== "PostgresError") {
+    return null;
+  }
+  const code = errorField(error, "errno");
+  return code === null
+    ? null
+    : {
+        code,
+        message: error.message,
+        detail: errorField(error, "detail"),
+        hint: errorField(error, "hint"),
+        schema: errorField(error, "schema"),
+        table: errorField(error, "table"),
+        column: errorField(error, "column"),
+        constraint: errorField(error, "constraint"),
+      };
 }

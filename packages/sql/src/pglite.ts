@@ -2,6 +2,7 @@ import type { PGliteInterface } from "@electric-sql/pglite";
 
 import { clientConnection } from "./connection.ts";
 import type { Connection, Driver } from "./connection.ts";
+import { databaseErrorFields, reportingQueryErrors } from "./query-error.ts";
 
 type Passthrough = (value: string) => string;
 
@@ -19,26 +20,28 @@ export function pgliteConnection(db: PGliteInterface): Connection {
 // need their own oid's parser.
 function textDriver(db: PGliteInterface): Driver {
   const passthroughs = new Map<string, Readonly<Record<number, Passthrough>>>();
+  const run: Driver["query"] = async (sql, parameters) => {
+    let parsers = passthroughs.get(sql);
+    if (parsers === undefined) {
+      const described = await db.describeQuery(sql);
+      const oids = [...described.queryParams, ...described.resultFields].map(
+        (field) => field.dataTypeID,
+      );
+      parsers = Object.fromEntries(oids.map((oid) => [oid, asText]));
+      passthroughs.set(sql, parsers);
+    }
+    const result = await db.query<(string | null)[]>(sql, [...parameters], {
+      rowMode: "array",
+      parsers,
+      serializers: parsers,
+    });
+    return {
+      fields: result.fields.map((field) => ({ name: field.name, typeOid: field.dataTypeID })),
+      rows: result.rows,
+    };
+  };
   return {
-    query: async (sql, parameters) => {
-      let parsers = passthroughs.get(sql);
-      if (parsers === undefined) {
-        const described = await db.describeQuery(sql);
-        const oids = [...described.queryParams, ...described.resultFields].map(
-          (field) => field.dataTypeID,
-        );
-        parsers = Object.fromEntries(oids.map((oid) => [oid, asText]));
-        passthroughs.set(sql, parsers);
-      }
-      const result = await db.query<(string | null)[]>(sql, [...parameters], {
-        rowMode: "array",
-        parsers,
-        serializers: parsers,
-      });
-      return {
-        fields: result.fields.map((field) => ({ name: field.name, typeOid: field.dataTypeID })),
-        rows: result.rows,
-      };
-    },
+    query: async (sql, parameters) =>
+      reportingQueryErrors(async () => run(sql, parameters), databaseErrorFields),
   };
 }
