@@ -51,6 +51,7 @@ function queryOn(sql: Sql | TransactionSql): DriverQuery {
         typeOid: column.type,
       })),
       rows: rows.map((row) => row.map((value) => (value === null ? null : value.toString()))),
+      rowCount: result.count ?? 0,
     };
   };
 }

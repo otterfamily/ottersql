@@ -47,6 +47,7 @@ function textDriver(db: PGliteInterface): Driver {
         return {
           fields: result.fields.map((field) => ({ name: field.name, typeOid: field.dataTypeID })),
           rows: result.rows,
+          rowCount: result.rowCount ?? 0,
         };
       }, databaseErrorFields);
   return {

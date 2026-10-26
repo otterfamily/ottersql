@@ -12,6 +12,7 @@ interface BunSqlTransaction {
     readonly raw: () => Promise<
       readonly (readonly (Uint8Array | null)[])[] & {
         readonly columns?: readonly { readonly name: string; readonly type: number }[];
+        readonly count: number | null;
       }
     >;
   };
@@ -61,6 +62,7 @@ function queryOn(sql: BunSqlTransaction): DriverQuery {
         typeOid: column.type,
       })),
       rows: result.map((row) => row.map((value) => (value === null ? null : text.decode(value)))),
+      rowCount: result.count ?? 0,
     };
   };
 }

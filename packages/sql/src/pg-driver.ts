@@ -15,6 +15,7 @@ interface PgQueryConfig {
 interface PgResult {
   readonly fields: readonly { readonly name: string; readonly dataTypeID: number }[];
   readonly rows: readonly (readonly (string | null)[])[];
+  readonly rowCount: number | null;
 }
 
 /**
@@ -48,6 +49,7 @@ export function pgQuery(query: (config: PgQueryConfig) => Promise<PgResult>): Dr
     return {
       fields: result.fields.map((field) => ({ name: field.name, typeOid: field.dataTypeID })),
       rows: result.rows,
+      rowCount: result.rowCount ?? 0,
     };
   };
 }

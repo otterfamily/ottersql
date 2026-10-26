@@ -7,6 +7,11 @@ export interface QueryResult {
   readonly fields: readonly { readonly name: string; readonly typeOid: number }[];
   /** Rows as arrays in column order, so columns with the same name survive; values in text format. */
   readonly rows: readonly (readonly (string | null)[])[];
+  /**
+   * The count in the statement's command tag: rows inserted, updated, deleted or merged, or rows
+   * a SELECT returned; 0 for a statement whose tag has none, such as CREATE TABLE.
+   */
+  readonly rowCount: number;
 }
 
 /** Runs one statement. Rejects with a `QueryError` when Postgres reports an error. */

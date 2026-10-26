@@ -33,6 +33,15 @@ Queries run on a `Connection`, made from the driver the application already uses
 - Bun.sql: `bunSqlConnection(sql)` from `@ottersql/sql/bun-sql`, for a client created with `{ prepare: false }` (Bun receives prepared statements' values of some types in binary)
 - PGlite: `pgliteConnection(db)` from `@ottersql/sql/pglite`
 
+## Running queries
+
+Each query in a `.sql` file is a function of the connection and its parameters:
+
+- `userById(db, { id })` resolves with the rows.
+- `userById.one(db, { id })` resolves with the only row, and rejects unless there is exactly one.
+- `userById.maybeOne(db, { id })` resolves with the only row or `null`.
+- `deleteExpired.affected(db)` resolves with how many rows the statement wrote, as Postgres counts them.
+
 ## Transactions
 
 ```ts

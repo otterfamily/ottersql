@@ -119,6 +119,18 @@ describe("connections over Bun.sql", () => {
     await expect(runInBun(bunScript(url, body), tmpdir())).resolves.toBe('[["order"]]\n');
   });
 
+  test("count the rows a statement writes", async () => {
+    const url = await postgresDatabase();
+    const body = `const sql = new SQL(URL, { prepare: false });
+      const db = bunSqlConnection(sql);
+      await rawQuery(db, "create table letters (letter text)", []);
+      const inserted = await rawQuery(db, "insert into letters values ('a'), ('b')", []);
+      const deleted = await rawQuery(db, "delete from letters where letter = 'z'", []);
+      await sql.end();
+      console.log(JSON.stringify([inserted.rowCount, deleted.rowCount]));`;
+    await expect(runInBun(bunScript(url, body), tmpdir())).resolves.toBe("[2,0]\n");
+  });
+
   test("refuse a client that prepares statements, whose values may arrive in binary", async () => {
     const url = await postgresDatabase();
     const body = `const sql = new SQL(URL);

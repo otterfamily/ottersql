@@ -1,5 +1,5 @@
 import { rawQuery } from "./connection.ts";
-import type { Connection, Transaction } from "./connection.ts";
+import type { Connection, QueryResult, Transaction } from "./connection.ts";
 import { columnDecoder } from "./decode.ts";
 import { encodeParameter } from "./encode.ts";
 import { typeInfos } from "./type-info.ts";
@@ -17,6 +17,11 @@ export interface TypedQuery<Params, Row> {
   readonly one: (...args: QueryArguments<Params>) => Promise<Row>;
   /** The only row, or `null` for none; rejects when the query returns more than one. */
   readonly maybeOne: (...args: QueryArguments<Params>) => Promise<Row | null>;
+  /**
+   * How many rows the statement inserted, updated, deleted or merged, or a SELECT returned, as
+   * Postgres counts them; its rows are not decoded.
+   */
+  readonly affected: (...args: QueryArguments<Params>) => Promise<number>;
 }
 
 /** Parameters by name and a row by column name, as `defineQuery` sees them before the content mapper types them. */
@@ -66,6 +71,26 @@ function decodeRow(
   return decoded;
 }
 
+/** `result`'s rows as records of decoded values, looking up unknown types through `connection`. */
+async function decodedRows(
+  connection: Connection | Transaction,
+  result: QueryResult,
+): Promise<QueryRow[]> {
+  const problem = columnNamesProblem(result.fields.map(({ name }) => name));
+  if (problem !== null) {
+    throw new TypeError(problem);
+  }
+  const types = await typeInfos(
+    connection,
+    result.fields.map((field) => field.typeOid),
+  );
+  const columns = result.fields.map((field) => ({
+    name: field.name,
+    decode: columnDecoder(field.name, types.get(field.typeOid) ?? textType),
+  }));
+  return result.rows.map((row) => decodeRow(row, columns));
+}
+
 /**
  * Wraps SQL with `$n` placeholders so it runs with named parameters and decoded rows. The content
  * mapper declares each query's precise types; at run time they are plain records.
@@ -76,23 +101,14 @@ export function defineQuery(
 ): TypedQuery<QueryParams | undefined, QueryRow> {
   type Params = QueryParams;
   type Row = QueryRow;
-  const run = async (connection: Connection | Transaction, params?: Params): Promise<Row[]> => {
-    const values = parameterNames.map((name) => encodeParameter(parameterValue(params, name)));
-    const result = await rawQuery(connection, sql, values);
-    const problem = columnNamesProblem(result.fields.map(({ name }) => name));
-    if (problem !== null) {
-      throw new TypeError(problem);
-    }
-    const types = await typeInfos(
+  const execute = async (connection: Connection | Transaction, params?: Params) =>
+    rawQuery(
       connection,
-      result.fields.map((field) => field.typeOid),
+      sql,
+      parameterNames.map((name) => encodeParameter(parameterValue(params, name))),
     );
-    const columns = result.fields.map((field) => ({
-      name: field.name,
-      decode: columnDecoder(field.name, types.get(field.typeOid) ?? textType),
-    }));
-    return result.rows.map((row) => decodeRow(row, columns));
-  };
+  const run = async (connection: Connection | Transaction, params?: Params): Promise<Row[]> =>
+    decodedRows(connection, await execute(connection, params));
   return Object.assign(run, {
     one: async (connection: Connection | Transaction, params?: Params): Promise<Row> => {
       const rows = await run(connection, params);
@@ -111,6 +127,10 @@ export function defineQuery(
         throw new Error(`expected at most one row, got ${String(rows.length)}`);
       }
       return rows[0] ?? null;
+    },
+    affected: async (connection: Connection | Transaction, params?: Params): Promise<number> => {
+      const { rowCount } = await execute(connection, params);
+      return rowCount;
     },
   });
 }
