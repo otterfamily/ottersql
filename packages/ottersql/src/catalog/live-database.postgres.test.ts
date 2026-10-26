@@ -28,6 +28,8 @@ const schemaSql = `${benchmarkSchemaSql};
     body text storage external compression pglz
   ) with (fillfactor = 70);
   create index scratch_body on app.scratch (body) with (fillfactor = 50);
+  comment on index app.scratch_body is 'By body';
+  comment on constraint item_positive on app.item is 'Positive owners';
   create collation app.c_like (provider = libc, locale = 'C');
   create text search dictionary app.plain_dict (template = simple, stopwords = english);
   create text search configuration app.plain (copy = simple);

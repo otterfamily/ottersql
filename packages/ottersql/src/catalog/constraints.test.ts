@@ -12,6 +12,7 @@ describe("keys", () => {
       include: [],
       withoutOverlaps: false,
       deferral: "not deferrable",
+      comment: null,
     });
   });
 
@@ -36,6 +37,7 @@ describe("keys", () => {
         nullsNotDistinct: false,
         withoutOverlaps: false,
         deferral: "not deferrable",
+        comment: null,
       },
       {
         name: "t_c_key",
@@ -44,6 +46,7 @@ describe("keys", () => {
         nullsNotDistinct: true,
         withoutOverlaps: false,
         deferral: "initially deferred",
+        comment: null,
       },
     ]);
   });
@@ -73,6 +76,7 @@ describe("keys", () => {
         period: false,
         deferral: "not deferrable",
         enforcement: "not valid",
+        comment: null,
       },
       {
         name: "child_loose_fkey",
@@ -85,6 +89,7 @@ describe("keys", () => {
         period: false,
         deferral: "not deferrable",
         enforcement: "not enforced",
+        comment: null,
       },
       {
         name: "child_parent_fkey",
@@ -97,6 +102,7 @@ describe("keys", () => {
         period: false,
         deferral: "initially immediate",
         enforcement: "validated",
+        comment: null,
       },
     ]);
   });
@@ -116,6 +122,7 @@ describe("keys", () => {
         include: ["b"],
         withoutOverlaps: false,
         deferral: "initially deferred",
+        comment: null,
       },
       [
         {
@@ -125,6 +132,7 @@ describe("keys", () => {
           nullsNotDistinct: false,
           withoutOverlaps: false,
           deferral: "not deferrable",
+          comment: null,
         },
       ],
     ]);
@@ -179,9 +187,42 @@ describe("exclusion constraints", () => {
         {
           name: "no_overlap",
           definition: "EXCLUDE USING gist (during WITH &&) DEFERRABLE INITIALLY DEFERRED",
+          comment: null,
         },
       ],
       indexes: [],
     });
+  });
+});
+
+describe("comments on constraints and indexes", () => {
+  test("reads them with each constraint and index", async () => {
+    const catalog = await loadCatalog(`
+      create table parent (id int primary key);
+      create table t (
+        id int constraint t_pk primary key, code text constraint t_code unique,
+        parent_id int constraint t_parent references parent,
+        during tsrange, constraint t_spans exclude using gist (during with &&),
+        constraint t_positive check (id > 0)
+      );
+      create index t_lower on t (lower(code));
+      comment on constraint t_pk on t is 'Primary';
+      comment on constraint t_code on t is 'Unique';
+      comment on constraint t_parent on t is 'Parent';
+      comment on constraint t_spans on t is 'No overlap';
+      comment on constraint t_positive on t is 'Positive';
+      comment on index t_lower is 'Lookup';
+    `);
+    const commented = table(catalog, "t");
+    expect(
+      [
+        commented.primaryKey,
+        ...commented.uniqueConstraints,
+        ...commented.foreignKeys,
+        ...commented.exclusionConstraints,
+        ...commented.checks,
+        ...commented.indexes,
+      ].map((item) => item?.comment?.text),
+    ).toStrictEqual(["Primary", "Unique", "Parent", "No overlap", "Positive", "Lookup"]);
   });
 });

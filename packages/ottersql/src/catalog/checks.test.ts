@@ -18,6 +18,7 @@ describe("check constraints", () => {
         notNullColumns: [],
         noInherit: false,
         enforcement: "validated",
+        comment: null,
       },
       {
         name: "t_positive",
@@ -27,6 +28,7 @@ describe("check constraints", () => {
         notNullColumns: [],
         noInherit: false,
         enforcement: "not valid",
+        comment: null,
       },
     ]);
   });

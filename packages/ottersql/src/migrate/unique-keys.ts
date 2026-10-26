@@ -1,9 +1,18 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Catalog, Table, UniqueConstraint } from "../catalog/index.ts";
+import { constraintCommentChange } from "./comments.ts";
 import { dropConstraint } from "./constraints.ts";
 import { indexBackedKey, keyIndex, withoutOverlapsReason } from "./key-indexes.ts";
-import { alterTable, createIndex, deferral, exceedsNameLimit, identifier } from "./sql-text.ts";
+import {
+  alterTable,
+  constraintComment,
+  createIndex,
+  deferral,
+  exceedsNameLimit,
+  identifier,
+  uncommented,
+} from "./sql-text.ts";
 import { combine, manual, matchByName, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
@@ -17,7 +26,9 @@ type Direction = "widens" | "narrows";
  */
 export function uniqueChanges(before: Table, after: Table, from: Catalog): Changes {
   const { added, removed, kept } = matchByName(before.uniqueConstraints, after.uniqueConstraints);
-  const changed = kept.filter(([old, current]) => !isDeepStrictEqual(old, current));
+  const changed = kept.filter(
+    ([old, current]) => !isDeepStrictEqual(uncommented(old), uncommented(current)),
+  );
   const replaced = replacements(removed, added);
   const isReplaced = (key: UniqueConstraint): boolean =>
     replaced.some(([old, current]) => old === key || current === key);
@@ -29,6 +40,9 @@ export function uniqueChanges(before: Table, after: Table, from: Catalog): Chang
       .filter((key) => !isReplaced(key))
       .map((key) => indexBackedKey(after, key, "addUnique")),
     ...[...replaced, ...changed].map(([old, current]) => swapKey(after, { old, current }, from)),
+    ...kept
+      .filter((pair) => !changed.includes(pair))
+      .map(([old, current]) => constraintCommentChange(after, old, current)),
   ]);
 }
 
@@ -49,9 +63,9 @@ function replacements(
   return pairs;
 }
 
-/** What a key says apart from its name and columns: included columns, NULLS NOT DISTINCT, deferral. */
+/** What a key does apart from its name and columns: included columns, NULLS NOT DISTINCT, deferral. */
 function rest(key: UniqueConstraint): object {
-  return { ...key, name: null, columns: null };
+  return { ...uncommented(key), name: null, columns: null };
 }
 
 function direction(old: UniqueConstraint, current: UniqueConstraint): Direction | null {
@@ -137,7 +151,7 @@ function swapSteps(
     step({
       kind: "addUnique",
       object: objectName(table, current.name),
-      statements: [drop, alterTable(table, attach)],
+      statements: [drop, alterTable(table, attach), ...constraintComment(table, current)],
       phase,
       reversal: way === "widens" ? "lossy" : "reversible",
       lock: "access exclusive",

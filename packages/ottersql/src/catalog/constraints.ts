@@ -2,6 +2,7 @@ import { array, boolean, fields, nullable, string } from "./catalog-json.ts";
 import type { Field, Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
 import { columnNames } from "./columns.ts";
+import { parseComment } from "./comments.ts";
 import {
   constraintState,
   constraintStateFields,
@@ -10,7 +11,7 @@ import {
 } from "./constraint-state.ts";
 import type { ConstraintStateRow } from "./constraint-state.ts";
 import type { CatalogFeatures } from "./features.ts";
-import type { ExclusionConstraint, ForeignKey } from "./keys.ts";
+import type { ForeignKey } from "./keys.ts";
 import type { Table } from "./model.ts";
 
 /**
@@ -25,6 +26,7 @@ export function keysJson(relationOid: string, features: CatalogFeatures): string
     'include', ${columnNames("key_index.indrelid", "(key_index.indkey::int2[])[key_index.indnkeyatts : key_index.indnatts - 1]")},
     'nullsNotDistinct', key_index.indnullsnotdistinct,
     'period', ${period},
+    'comment', obj_description(key_con.oid, 'pg_constraint'),
     ${constraintStateFields("key_con", features)}`;
   const indexedOf = (contype: string): string => `
     from pg_constraint key_con join pg_index key_index on key_index.indexrelid = key_con.conindid
@@ -46,6 +48,7 @@ export function keysJson(relationOid: string, features: CatalogFeatures): string
         'onDelete', key_con.confdeltype,
         'onDeleteColumns', ${columnNames("key_con.conrelid", "coalesce(key_con.confdelsetcols, '{}')")},
         'period', ${period},
+        'comment', obj_description(key_con.oid, 'pg_constraint'),
         ${constraintStateFields("key_con", features)}
       ) order by key_con.conname)
       from pg_constraint key_con
@@ -55,7 +58,8 @@ export function keysJson(relationOid: string, features: CatalogFeatures): string
     ), '[]') as "foreignKeys",
     coalesce((
       select json_agg(json_build_object(
-        'name', key_con.conname, 'definition', pg_get_constraintdef(key_con.oid)
+        'name', key_con.conname, 'definition', pg_get_constraintdef(key_con.oid),
+        'comment', obj_description(key_con.oid, 'pg_constraint')
       ) order by key_con.conname)
       from pg_constraint key_con
       where key_con.conrelid = ${relationOid} and key_con.contype = 'x'
@@ -66,7 +70,13 @@ export interface KeyRows {
   readonly primaryKey: IndexedKeyRow | null;
   readonly uniqueConstraints: readonly IndexedKeyRow[];
   readonly foreignKeys: readonly ForeignKeyRow[];
-  readonly exclusionConstraints: readonly ExclusionConstraint[];
+  readonly exclusionConstraints: readonly ExclusionRow[];
+}
+
+interface ExclusionRow {
+  readonly name: string;
+  readonly definition: string;
+  readonly comment: string | null;
 }
 
 interface IndexedKeyRow extends ConstraintStateRow {
@@ -75,6 +85,7 @@ interface IndexedKeyRow extends ConstraintStateRow {
   readonly include: readonly string[];
   readonly nullsNotDistinct: boolean;
   readonly period: boolean;
+  readonly comment: string | null;
 }
 
 interface ForeignKeyRow extends ConstraintStateRow {
@@ -88,6 +99,7 @@ interface ForeignKeyRow extends ConstraintStateRow {
   readonly onDelete: string;
   readonly onDeleteColumns: readonly string[];
   readonly period: boolean;
+  readonly comment: string | null;
 }
 
 const indexedKeyRow: Shape<IndexedKeyRow> = (value, path) => {
@@ -99,12 +111,17 @@ const indexedKeyRow: Shape<IndexedKeyRow> = (value, path) => {
     include: field("include", array(string)),
     nullsNotDistinct: field("nullsNotDistinct", boolean),
     period: field("period", boolean),
+    comment: field("comment", nullable(string)),
   };
 };
 
-const exclusionRow: Shape<ExclusionConstraint> = (value, path) => {
+const exclusionRow: Shape<ExclusionRow> = (value, path) => {
   const field = fields(value, path);
-  return { name: field("name", string), definition: field("definition", string) };
+  return {
+    name: field("name", string),
+    definition: field("definition", string),
+    comment: field("comment", nullable(string)),
+  };
 };
 
 const foreignKeyRow: Shape<ForeignKeyRow> = (value, path) => {
@@ -121,6 +138,7 @@ const foreignKeyRow: Shape<ForeignKeyRow> = (value, path) => {
     onDelete: field("onDelete", string),
     onDeleteColumns: field("onDeleteColumns", array(string)),
     period: field("period", boolean),
+    comment: field("comment", nullable(string)),
   };
 };
 
@@ -147,6 +165,7 @@ export function parseKeys(
             include: rows.primaryKey.include,
             withoutOverlaps: rows.primaryKey.period,
             deferral: parseDeferral(rows.primaryKey),
+            comment: parseComment(rows.primaryKey.comment),
           },
     uniqueConstraints: rows.uniqueConstraints.map((row) => ({
       name: row.name,
@@ -155,9 +174,13 @@ export function parseKeys(
       nullsNotDistinct: row.nullsNotDistinct,
       withoutOverlaps: row.period,
       deferral: parseDeferral(row),
+      comment: parseComment(row.comment),
     })),
     foreignKeys: rows.foreignKeys.map((row) => parseForeignKey(row)),
-    exclusionConstraints: rows.exclusionConstraints,
+    exclusionConstraints: rows.exclusionConstraints.map((row) => ({
+      ...row,
+      comment: parseComment(row.comment),
+    })),
   };
 }
 
@@ -186,5 +209,6 @@ function parseForeignKey(row: ForeignKeyRow): ForeignKey {
     period: row.period,
     deferral: parseDeferral(row),
     enforcement: parseEnforcement(row),
+    comment: parseComment(row.comment),
   };
 }

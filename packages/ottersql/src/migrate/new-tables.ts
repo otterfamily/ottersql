@@ -1,18 +1,20 @@
 import { findTable } from "../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
-import { addCheck, addForeignKey } from "./constraints.ts";
+import { addCheck, addForeignKey } from "./add-constraints.ts";
 import {
   alterTable,
   checkDefinition,
   columnDefinition,
   columnList,
   columnSqlName,
+  constraintComment,
   createIndex,
   createSequence,
   deferral,
   enforcement,
   foreignKeyDefinition,
   identifier,
+  indexComment,
   keyColumnList,
   literal,
   qualified,
@@ -33,8 +35,15 @@ export function newTable(table: Table, from: Catalog, unplanned: ReadonlySet<str
     : usesUnplanned(`${table.schema}.${table.name}`, used, "create the table");
 }
 
+/** The comments of a new table, its columns, and the constraints and indexes `CREATE TABLE` makes. */
 function comments(table: Table): string[] {
   const name = qualified(table.schema, table.name);
+  const inline = [
+    ...(table.primaryKey === null ? [] : [table.primaryKey]),
+    ...table.uniqueConstraints,
+    ...table.checks.filter((check) => check.enforcement !== "not valid"),
+    ...table.exclusionConstraints,
+  ];
   return [
     ...(table.comment === null
       ? []
@@ -46,6 +55,8 @@ function comments(table: Table): string[] {
             `COMMENT ON COLUMN ${columnSqlName(table, column.name)} IS ${literal(column.comment.text)}`,
           ],
     ),
+    ...inline.flatMap((constraint) => constraintComment(table, constraint)),
+    ...table.indexes.flatMap((index) => indexComment(table, index)),
   ];
 }
 
@@ -153,7 +164,7 @@ function addToEmptyTable(table: Table, key: ForeignKey): Changes {
     step({
       kind: "addForeignKey",
       object: objectName(table, key.name),
-      statements: [statement],
+      statements: [statement, ...constraintComment(table, key)],
       phase: "expand",
       reversal: "reversible",
       lock: "share row exclusive",

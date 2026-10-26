@@ -1,6 +1,7 @@
-import { array, boolean, fields, string } from "./catalog-json.ts";
+import { array, boolean, fields, nullable, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { columnNames } from "./columns.ts";
+import { parseComment } from "./comments.ts";
 import { constraintState, constraintStateFields, parseEnforcement } from "./constraint-state.ts";
 import type { ConstraintStateRow } from "./constraint-state.ts";
 import type { CatalogFeatures } from "./features.ts";
@@ -30,6 +31,7 @@ export function checksJson(relationOid: string, features: CatalogFeatures): stri
       ${checkFields("check_con", "check_con.conrelid", features)},
       'columns', check_columns.names,
       'noInherit', check_con.connoinherit,
+      'comment', obj_description(check_con.oid, 'pg_constraint'),
       'quotedColumns', array(select quote_ident(check_name) from unnest(check_columns.names) as check_name)
     ) order by check_con.conname)
     from pg_constraint check_con
@@ -56,6 +58,7 @@ export interface TableCheckRow extends CheckBaseRow {
   readonly columns: readonly string[];
   readonly noInherit: boolean;
   readonly quotedColumns: readonly string[];
+  readonly comment: string | null;
 }
 
 export const checkBaseRow: Shape<CheckBaseRow> = (value, path) => {
@@ -74,6 +77,7 @@ export const tableCheckRow: Shape<TableCheckRow> = (value, path) => {
     columns: field("columns", array(string)),
     noInherit: field("noInherit", boolean),
     quotedColumns: field("quotedColumns", array(string)),
+    comment: field("comment", nullable(string)),
   };
 };
 
@@ -90,6 +94,7 @@ export function parseTableCheck(row: TableCheckRow): Check {
     allowedValues: column === undefined || values === null ? null : { column, values },
     notNullColumns: notNullColumns(row),
     noInherit: row.noInherit,
+    comment: parseComment(row.comment),
   };
 }
 

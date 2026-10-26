@@ -1,45 +1,55 @@
 import { isDeepStrictEqual } from "node:util";
 
-import type { Check, Enforcement, ForeignKey, PrimaryKey, Table } from "../catalog/index.ts";
+import type {
+  Check,
+  Comment,
+  Enforcement,
+  ForeignKey,
+  PrimaryKey,
+  Table,
+} from "../catalog/index.ts";
+import { addCheck, addForeignKey, validateStep } from "./add-constraints.ts";
+import { constraintCommentChange } from "./comments.ts";
 import { exclusionChanges } from "./exclusion-constraints.ts";
 import { indexBackedKey } from "./key-indexes.ts";
 import type { Step } from "./plan.ts";
 import {
   alterTable,
   checkDefinition,
-  enforcement,
   exceedsNameLimit,
-  foreignKeyDefinition,
   identifier,
+  uncommented,
 } from "./sql-text.ts";
 import { combine, manual, matchByName, noChanges, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 /**
  * Checks, foreign keys, primary keys and exclusion constraints; unique keys are planned in
- * unique-keys.ts. Constraints
- * added to a table that has rows hold for new rows first and are validated in a step of
- * their own, which blocks no writes; unique and primary keys are built as indexes concurrently.
- * Adding one tightens what the app may write, so it waits for the deploy; dropping one loosens it,
- * so it runs before.
+ * unique-keys.ts. Constraints added to a table that has rows hold for new rows first and are
+ * validated in a step of their own, which blocks no writes; unique and primary keys are built as
+ * indexes concurrently. Adding one tightens what the app may write, so it waits for the deploy;
+ * dropping one loosens it, so it runs before.
  */
 export function constraintChanges(before: Table, after: Table): Changes {
   const drop = (item: { readonly name: string }): Changes =>
     dropConstraint(after, item.name, { kind: "dropConstraint", phase: "expand" });
   return combine([
     keyedChanges(before.checks, after.checks, {
+      table: after,
       drop,
       add: (check) => addCheck(after, check),
       validate: (check) => validateStep(after, check.name, "validateCheck"),
       redefine: (old, current) => replaceCheck(after, old, current),
     }),
     keyedChanges(before.foreignKeys, after.foreignKeys, {
+      table: after,
       drop: (key) => dropConstraint(after, key.name, { kind: "dropForeignKey", phase: "expand" }),
       add: (key) => addForeignKey(after, key),
       validate: (key) => validateStep(after, key.name, "validateForeignKey"),
       redefine: (old, current) => replaceForeignKey(after, old, current),
     }),
     keyedChanges(primaryKeys(before), primaryKeys(after), {
+      table: after,
       drop,
       add: (key) => indexBackedKey(after, key, "addPrimaryKey"),
       redefine: (_old, current) =>
@@ -57,6 +67,8 @@ function primaryKeys(table: Table): PrimaryKey[] {
 }
 
 interface KeyedPlan<Item> {
+  /** The table the constraints belong to, as `to` has it. */
+  readonly table: Table;
   readonly add: (item: Item) => Changes;
   readonly drop: (item: Item) => Changes;
   /** Validates an item that was NOT VALID and is otherwise unchanged. */
@@ -67,21 +79,29 @@ interface KeyedPlan<Item> {
 
 /**
  * Constraints only one side has are added or dropped; one whose definition changed under the same
- * name is redefined, except one that only became validated, which is validated in place.
+ * name is redefined, except one that only became validated, which is validated in place. A
+ * constraint made anew takes its comment with it; one kept only has its comment changed.
  */
-function keyedChanges<Item extends { readonly name: string; readonly enforcement?: Enforcement }>(
-  before: readonly Item[],
-  after: readonly Item[],
-  plan: KeyedPlan<Item>,
-): Changes {
+function keyedChanges<
+  Item extends {
+    readonly name: string;
+    readonly enforcement?: Enforcement;
+    readonly comment: Comment | null;
+  },
+>(before: readonly Item[], after: readonly Item[], plan: KeyedPlan<Item>): Changes {
   const { added, removed, kept } = matchByName(before, after);
-  const changed = kept.filter(([old, current]) => !isDeepStrictEqual(old, current));
+  const changed = kept.filter(
+    ([old, current]) => !isDeepStrictEqual(uncommented(old), uncommented(current)),
+  );
   const validated = changed.filter(
     ([old, current]) =>
       plan.validate !== undefined &&
       old.enforcement === "not valid" &&
       current.enforcement === "validated" &&
-      isDeepStrictEqual({ ...old, enforcement: null }, { ...current, enforcement: null }),
+      isDeepStrictEqual(
+        { ...uncommented(old), enforcement: null },
+        { ...uncommented(current), enforcement: null },
+      ),
   );
   const redefined = changed.filter((pair) => !validated.includes(pair));
   return combine([
@@ -89,6 +109,9 @@ function keyedChanges<Item extends { readonly name: string; readonly enforcement
     ...added.map((item) => plan.add(item)),
     ...validated.map(([, current]) => plan.validate?.(current) ?? noChanges),
     ...redefined.map(([old, current]) => plan.redefine(old, current)),
+    ...kept
+      .filter((pair) => !redefined.includes(pair))
+      .map(([old, current]) => constraintCommentChange(plan.table, old, current)),
   ]);
 }
 
@@ -113,81 +136,6 @@ export function dropConstraint(
       lock: "access exclusive",
     }),
   );
-}
-
-interface Addition {
-  readonly table: Table;
-  readonly name: string;
-  readonly definition: string;
-  readonly kind: "check" | "foreignKey";
-  readonly enforcement: Enforcement;
-}
-
-/** Adds a constraint for new rows only, then validates existing rows unless it is meant to stay unvalidated. */
-function addThenValidate(addition: Addition): Changes {
-  const { table, name, kind } = addition;
-  const object = objectName(table, name);
-  const unvalidated =
-    addition.enforcement === "validated" ? " NOT VALID" : enforcement(addition.enforcement);
-  const add = step({
-    kind: kind === "check" ? "addCheck" : "addForeignKey",
-    object,
-    statements: [
-      alterTable(table, `ADD CONSTRAINT ${identifier(name)} ${addition.definition}${unvalidated}`),
-    ],
-    phase: "contract",
-    reversal: "reversible",
-    lock: kind === "check" ? "access exclusive" : "share row exclusive",
-  });
-  if (addition.enforcement !== "validated") {
-    return only(add);
-  }
-  const validate = validateStep(
-    table,
-    name,
-    kind === "check" ? "validateCheck" : "validateForeignKey",
-  );
-  return combine([only(add), validate]);
-}
-
-/** Checks existing rows against a constraint added NOT VALID, which lets reads and writes go on. */
-function validateStep(
-  table: Table,
-  name: string,
-  kind: "validateCheck" | "validateForeignKey",
-): Changes {
-  const statement = alterTable(table, `VALIDATE CONSTRAINT ${identifier(name)}`);
-  return only(
-    step({
-      kind,
-      object: objectName(table, name),
-      statements: [statement],
-      phase: "contract",
-      reversal: "reversible",
-      lock: "share update exclusive",
-      reason: "Checking existing rows takes a lock that lets reads and writes go on",
-    }),
-  );
-}
-
-export function addCheck(table: Table, check: Check): Changes {
-  return addThenValidate({
-    table,
-    name: check.name,
-    definition: checkDefinition(check),
-    kind: "check",
-    enforcement: check.enforcement,
-  });
-}
-
-export function addForeignKey(table: Table, key: ForeignKey): Changes {
-  return addThenValidate({
-    table,
-    name: key.name,
-    definition: foreignKeyDefinition(key),
-    kind: "foreignKey",
-    enforcement: key.enforcement,
-  });
 }
 
 /**

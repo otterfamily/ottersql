@@ -1,6 +1,7 @@
 import type {
   Check,
   Column,
+  Comment,
   Deferral,
   Enforcement,
   ForeignKey,
@@ -163,6 +164,32 @@ export function alterTable(table: QualifiedName, action: string): string {
 
 export function columnSqlName(table: QualifiedName, column: string): string {
   return `${qualified(table.schema, table.name)}.${identifier(column)}`;
+}
+
+interface Commented {
+  readonly name: string;
+  readonly comment: Comment | null;
+}
+
+/** The statement that comments a constraint of `table` as it is, or none for one without a comment. */
+export function constraintComment(table: QualifiedName, constraint: Commented): string[] {
+  return constraint.comment === null
+    ? []
+    : [
+        `COMMENT ON CONSTRAINT ${identifier(constraint.name)} ON ${qualifiedName(table)} IS ${literal(constraint.comment.text)}`,
+      ];
+}
+
+/** The statement that comments an index of `table` as it is, or none for one without a comment. */
+export function indexComment(table: QualifiedName, index: Commented): string[] {
+  return index.comment === null
+    ? []
+    : [`COMMENT ON INDEX ${qualified(table.schema, index.name)} IS ${literal(index.comment.text)}`];
+}
+
+/** `item` with its comment left out, to compare what it does apart from what it says. */
+export function uncommented<Item extends { readonly comment: Comment | null }>(item: Item): Item {
+  return { ...item, comment: null };
 }
 
 /** Re-runnable: a run that dropped the index but failed before recording it finds it gone. */

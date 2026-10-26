@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { Catalog, ForeignKey, Index, Table } from "../catalog/index.ts";
 import { columnChanges } from "./columns.ts";
-import { commentChange } from "./comments.ts";
+import { commentChange, indexCommentChange } from "./comments.ts";
 import { constraintChanges, dropConstraint } from "./constraints.ts";
 import { newTable } from "./new-tables.ts";
 import {
@@ -10,7 +10,9 @@ import {
   dropIndexStatement,
   exceedsNameLimit,
   identifier,
+  indexComment,
   qualified,
+  uncommented,
 } from "./sql-text.ts";
 import {
   combine,
@@ -139,11 +141,20 @@ function changeTable(before: Table, after: Table, { from, to, unplanned }: Sides
  */
 function indexChanges(before: Table, after: Table): Changes {
   const { added, removed, kept } = matchByName(before.indexes, after.indexes);
-  const changed = kept.filter(([old, current]) => !isDeepStrictEqual(old, current));
+  const changed = kept.filter(
+    ([old, current]) => !isDeepStrictEqual(uncommented(old), uncommented(current)),
+  );
   return combine([
-    ...added.map((index) => buildIndex(after, index, "expand")),
+    // Built concurrently in a step of its own, so its comment follows in another.
+    ...added.flatMap((index) => [
+      buildIndex(after, index, "expand"),
+      indexCommentChange(after, { name: index.name, comment: null }, index),
+    ]),
     ...removed.map((index) => dropIndex(after, index)),
     ...changed.map(([old, current]) => rebuildIndex(after, old, current)),
+    ...kept
+      .filter((pair) => !changed.includes(pair))
+      .map(([old, current]) => indexCommentChange(after, old, current)),
   ]);
 }
 
@@ -160,6 +171,7 @@ function rebuildIndex(table: Table, old: Index, current: Index): Changes {
     object: objectName(table, current.name),
     statements: [
       `ALTER INDEX ${qualified(table.schema, temporary)} RENAME TO ${identifier(current.name)}`,
+      ...indexComment(table, current),
     ],
     phase: "contract",
     reversal: "reversible",

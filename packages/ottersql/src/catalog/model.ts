@@ -130,6 +130,7 @@ export interface Check {
   /** NO INHERIT: it holds for this table's own rows, not for those of tables inheriting from it. */
   readonly noInherit: boolean;
   readonly enforcement: Enforcement;
+  readonly comment: Comment | null;
 }
 
 /** A range type the schema defines; its multirange type is created with it, in the same schema. */
@@ -187,6 +188,7 @@ export interface Index {
   readonly predicate: string | null;
   /** Storage parameters as Postgres prints them, such as `fillfactor=50`. */
   readonly options: readonly string[];
+  readonly comment: Comment | null;
 }
 
 export type IndexKey = (

@@ -1,5 +1,5 @@
 import type { Index, PrimaryKey, Table, UniqueConstraint } from "../catalog/index.ts";
-import { alterTable, createIndex, deferral, identifier } from "./sql-text.ts";
+import { alterTable, constraintComment, createIndex, deferral, identifier } from "./sql-text.ts";
 import { manual, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
@@ -24,6 +24,7 @@ export function keyIndex(key: PrimaryKey | UniqueConstraint): Index {
     include: key.include,
     predicate: null,
     options: [],
+    comment: null,
   };
 }
 
@@ -57,7 +58,7 @@ export function indexBackedKey(
     step({
       kind,
       object,
-      statements: [add],
+      statements: [add, ...constraintComment(table, key)],
       phase: "contract",
       reversal: "reversible",
       lock: "access exclusive",

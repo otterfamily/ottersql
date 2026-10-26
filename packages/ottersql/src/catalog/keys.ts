@@ -1,4 +1,4 @@
-import type { Deferral, Enforcement } from "./model.ts";
+import type { Comment, Deferral, Enforcement } from "./model.ts";
 
 export interface PrimaryKey {
   readonly name: string;
@@ -7,6 +7,7 @@ export interface PrimaryKey {
   /** The last column is WITHOUT OVERLAPS (Postgres 18): rows may share the others while it does not overlap. */
   readonly withoutOverlaps: boolean;
   readonly deferral: Deferral;
+  readonly comment: Comment | null;
 }
 
 export interface UniqueConstraint {
@@ -17,12 +18,14 @@ export interface UniqueConstraint {
   /** The last column is WITHOUT OVERLAPS (Postgres 18): rows may share the others while it does not overlap. */
   readonly withoutOverlaps: boolean;
   readonly deferral: Deferral;
+  readonly comment: Comment | null;
 }
 
 /** An EXCLUDE constraint, as Postgres prints it from `EXCLUDE USING` on, deferral included. */
 export interface ExclusionConstraint {
   readonly name: string;
   readonly definition: string;
+  readonly comment: Comment | null;
 }
 
 export interface ForeignKey {
@@ -45,6 +48,7 @@ export interface ForeignKey {
   readonly period: boolean;
   readonly deferral: Deferral;
   readonly enforcement: Enforcement;
+  readonly comment: Comment | null;
 }
 
 export type ForeignKeyAction = "no action" | "restrict" | "cascade" | "set null" | "set default";
