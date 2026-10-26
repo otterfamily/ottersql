@@ -1,4 +1,6 @@
 import type { Capabilities } from "./capabilities.ts";
+import type { Partition } from "./partitions.ts";
+import type { Trigger } from "./triggers.ts";
 
 export interface Catalog {
   readonly capabilities: Capabilities;
@@ -27,18 +29,10 @@ export interface Table {
   readonly checks: readonly Check[];
   readonly indexes: readonly Index[];
   readonly triggers: readonly Trigger[];
+  /** The partition key of a partitioned table as Postgres prints it, such as `RANGE (at)`. */
+  readonly partitionedBy: string | null;
+  readonly partitionOf: Partition | null;
   readonly comment: Comment | null;
-}
-
-export type TriggerEvent = "insert" | "update" | "delete" | "truncate";
-
-/** A trigger the schema declares on a table; Postgres's internal ones, such as foreign keys', are left out. */
-export interface Trigger {
-  readonly name: string;
-  readonly timing: "before" | "after" | "instead of";
-  readonly events: readonly TriggerEvent[];
-  /** FOR EACH ROW, rather than once per statement. */
-  readonly forEachRow: boolean;
 }
 
 export interface Column {

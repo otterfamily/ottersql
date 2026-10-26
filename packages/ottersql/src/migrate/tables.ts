@@ -5,6 +5,7 @@ import { columnChanges } from "./columns.ts";
 import { commentChange } from "./comments.ts";
 import { constraintChanges, dropConstraint } from "./constraints.ts";
 import { inlineConstraints, newTableConstraints } from "./new-table-constraints.ts";
+import { isPartitioned } from "./partitions.ts";
 import {
   columnDefinition,
   columnSqlName,
@@ -24,8 +25,16 @@ function withKey(tables: readonly Table[]): { readonly name: string; readonly ta
   return tables.map((table) => ({ name: `${table.schema}.${table.name}`, table }));
 }
 
+/** Changes to tables that are neither partitioned nor partitions on either side; partitions.ts lists those. */
 export function tableChanges(from: Catalog, to: Catalog): Changes {
-  const { added, removed, kept } = matchByName(withKey(from.tables), withKey(to.tables));
+  const partitioned = new Set(
+    withKey([...from.tables, ...to.tables].filter((table) => isPartitioned(table))).map(
+      ({ name }) => name,
+    ),
+  );
+  const plain = (catalog: Catalog): { readonly name: string; readonly table: Table }[] =>
+    withKey(catalog.tables).filter(({ name }) => !partitioned.has(name));
+  const { added, removed, kept } = matchByName(plain(from), plain(to));
   const created = added.filter(
     ({ table }) => !removed.some((old) => sameColumns(old.table, table)),
   );

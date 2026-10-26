@@ -6,6 +6,8 @@ export type { OpenSchema } from "./load-catalog.ts";
 export { SchemaError } from "./schema-error.ts";
 export type { SchemaPosition } from "./schema-error.ts";
 export type { Capabilities } from "./capabilities.ts";
+export type { Partition } from "./partitions.ts";
+export type { Trigger, TriggerEvent } from "./triggers.ts";
 export type {
   Annotation,
   Catalog,
@@ -34,8 +36,6 @@ export type {
   Schema,
   Sequence,
   Table,
-  Trigger,
-  TriggerEvent,
   TypeRef,
   UniqueConstraint,
   View,

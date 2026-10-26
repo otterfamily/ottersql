@@ -1,6 +1,16 @@
 import { boolean, fields, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
-import type { Trigger, TriggerEvent } from "./model.ts";
+
+export type TriggerEvent = "insert" | "update" | "delete" | "truncate";
+
+/** A trigger the schema declares on a table; Postgres's internal ones, such as foreign keys', are left out. */
+export interface Trigger {
+  readonly name: string;
+  readonly timing: "before" | "after" | "instead of";
+  readonly events: readonly TriggerEvent[];
+  /** FOR EACH ROW, rather than once per statement. */
+  readonly forEachRow: boolean;
+}
 
 export interface TriggerRow {
   readonly name: string;

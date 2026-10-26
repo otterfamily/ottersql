@@ -1,5 +1,6 @@
 import type { Catalog } from "../catalog/index.ts";
 import { enumChanges } from "./enums.ts";
+import { partitionChanges } from "./partitions.ts";
 import { phases } from "./plan.ts";
 import type { Plan, Step } from "./plan.ts";
 import { schemaChanges } from "./schemas.ts";
@@ -59,6 +60,7 @@ export function planMigration(from: Catalog, to: Catalog): Plan {
     schemaChanges(from, to),
     enumChanges(from, to),
     tableChanges(from, to),
+    partitionChanges(from, to),
     unplannedChanges(from, to),
   ]);
   return { steps: steps.toSorted((left, right) => rank(left) - rank(right)), manual };

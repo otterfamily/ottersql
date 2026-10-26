@@ -28,6 +28,31 @@ describe("schemas left out", () => {
 });
 
 describe("tables", () => {
+  test("reads how a table is partitioned, and the bounds of its partitions", async () => {
+    const catalog = await loadCatalog(`
+      create table events (id int8, at date) partition by range (at);
+      create table events_2026 partition of events for values from ('2026-01-01') to ('2027-01-01');
+      create table plain (id int8);
+    `);
+    expect(
+      ["events", "events_2026", "plain"].map((name) => {
+        const { partitionedBy, partitionOf } = table(catalog, name);
+        return { partitionedBy, partitionOf };
+      }),
+    ).toStrictEqual([
+      { partitionedBy: "RANGE (at)", partitionOf: null },
+      {
+        partitionedBy: null,
+        partitionOf: {
+          schema: "public",
+          table: "events",
+          bound: "FOR VALUES FROM ('2026-01-01') TO ('2027-01-01')",
+        },
+      },
+      { partitionedBy: null, partitionOf: null },
+    ]);
+  });
+
   test("starts every load from an empty database", async () => {
     await loadCatalog(`create table left_behind (a int);`);
     const catalog = await loadCatalog(`create table fresh (a int);`);
