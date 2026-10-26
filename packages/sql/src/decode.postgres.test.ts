@@ -10,6 +10,17 @@ const test = base.extend<{ drivers: readonly Connection[] }>({
   drivers: [openDrivers, { scope: "file" }],
 });
 
+/** Every message in `error`'s chain of causes: where a value from a row or a parameter must not appear. */
+function errorChainText(error: unknown): string {
+  const messages: string[] = [];
+  let current = error;
+  while (current instanceof Error) {
+    messages.push(current.message);
+    current = current.cause;
+  }
+  return messages.join("\n");
+}
+
 async function selectOne(connection: Connection, expression: string): Promise<unknown> {
   const row = await defineQuery(`select ${expression} as v`, []).one(connection);
   return row["v"];
@@ -107,19 +118,19 @@ describe("decoding values (ADR 0008)", () => {
     }
   });
 
-  test.for<readonly [string, string, string]>([
-    ["infinite date", "'infinity'::date", 'Column "v": "infinity" cannot be decoded as date'],
-    ["time 24:00", "'24:00:00'::time", 'Column "v": "24:00:00" cannot be decoded as time'],
-    [
-      "infinite date in an array",
-      "array['infinity']::date[]",
-      'Column "v": "{infinity}" cannot be decoded as date[]',
-    ],
+  test.for<readonly [string, string, string, string]>([
+    ["infinite date", "'infinity'::date", "infinity", "date"],
+    ["time 24:00", "'24:00:00'::time", "24:00:00", "time"],
+    ["infinite date in an array", "array['infinity']::date[]", "infinity", "date[]"],
   ])(
-    "rejects a value its type cannot hold exactly, naming the column: %s",
-    async ([, expression, message], { drivers }) => {
+    "rejects a value its type cannot hold exactly, naming the column but not the value: %s",
+    async ([, expression, value, type], { drivers }) => {
       for (const connection of drivers) {
-        await expect(selectOne(connection, expression)).rejects.toThrow(new DecodeError(message));
+        const rejected = selectOne(connection, expression);
+        await expect(rejected).rejects.toThrow(
+          new DecodeError(`Column "v" has a value that cannot be decoded as ${type}`),
+        );
+        await expect(rejected.catch(errorChainText)).resolves.not.toContain(value);
       }
     },
   );
@@ -129,7 +140,7 @@ describe("decoding values (ADR 0008)", () => {
     try {
       await db.exec("set bytea_output = escape");
       await expect(selectOne(pgliteConnection(db), "'abc'::bytea")).rejects.toThrow(
-        new DecodeError('Column "v": "abc" cannot be decoded as bytea'),
+        new DecodeError('Column "v" has a value that cannot be decoded as bytea'),
       );
     } finally {
       await db.close();
@@ -138,6 +149,18 @@ describe("decoding values (ADR 0008)", () => {
 });
 
 describe("encoding parameters", () => {
+  test("rejects a value it cannot send, naming its kind but not its text", async ({ drivers }) => {
+    const secret = "4111 1111 1111 1111";
+    const card = { toString: () => secret };
+    for (const connection of drivers) {
+      const rejected = defineQuery("select $1::text", ["v"])(connection, { v: card });
+      await expect(rejected).rejects.toThrow(
+        new TypeError("cannot send an Object as a Postgres parameter"),
+      );
+      await expect(rejected.catch(errorChainText)).resolves.not.toContain(secret);
+    }
+  });
+
   test.for<readonly [string, string, unknown, unknown]>([
     ["int8 from a number", "int8", 42, "42"],
     ["int8 from a bigint", "int8", 9_223_372_036_854_775_807n, "9223372036854775807"],

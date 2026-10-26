@@ -111,7 +111,7 @@ function parsePostgresInterval(text: string): Interval {
   const tokens = text.split(" ");
   const clock = clockToken.exec(tokens.at(-1) ?? "")?.groups;
   return {
-    ...calendarParts(clock === undefined ? tokens : tokens.slice(0, -1), text),
+    ...calendarParts(clock === undefined ? tokens : tokens.slice(0, -1)),
     microseconds:
       clock === undefined
         ? 0n
@@ -125,24 +125,22 @@ function parsePostgresInterval(text: string): Interval {
   };
 }
 
-function calendarParts(tokens: readonly string[], text: string): Pick<Interval, "months" | "days"> {
+function calendarParts(tokens: readonly string[]): Pick<Interval, "months" | "days"> {
   let months = 0;
   let days = 0;
   for (let index = 0; index < tokens.length; index += TOKENS_PER_PART) {
     const amount = Number(tokens[index]);
-    const unit = intervalUnit(tokens[index + 1], text);
+    const unit = intervalUnit(tokens[index + 1]);
     months += amount * monthsPerUnit[unit];
     days += unit === "day" ? amount : 0;
   }
   return { months, days };
 }
 
-function intervalUnit(token: string | undefined, text: string): keyof typeof monthsPerUnit {
+function intervalUnit(token: string | undefined): keyof typeof monthsPerUnit {
   const unit = token?.replace(/s$/v, "");
   if (unit !== "year" && unit !== "mon" && unit !== "day") {
-    throw new TypeError(
-      `unsupported interval format "${text}"; set IntervalStyle to postgres or iso_8601`,
-    );
+    throw new TypeError("unsupported interval format; set IntervalStyle to postgres or iso_8601");
   }
   return unit;
 }
@@ -211,7 +209,7 @@ class LiteralReader {
 
   #expect(character: string): void {
     if (this.#peek() !== character) {
-      throw new TypeError(`expected ${character} at ${String(this.#position)} in ${this.#text}`);
+      throw new TypeError(`expected ${character} at ${String(this.#position)}`);
     }
     this.#position += 1;
   }
@@ -256,7 +254,7 @@ class LiteralReader {
       text += this.#peek();
       this.#position += 1;
     }
-    throw new TypeError(`unterminated quoted value in ${this.#text}`);
+    throw new TypeError("unterminated quoted value");
   }
 
   #unquoted(stops: string): string {

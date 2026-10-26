@@ -64,3 +64,16 @@ A `Connection` runs only typed queries. Tools built on ottersql run SQL as it is
 ## Errors
 
 An error Postgres reports rejects with a `QueryError`, the same whatever the driver: `code` is the SQLSTATE (`"23505"` for a unique violation), with `constraint`, `table`, `column`, `schema`, `detail` and `hint` where Postgres gives them, and the driver's own error as `cause`.
+
+`code`, `constraint`, `table`, `column` and `schema` name things in the schema and never hold values. `message`, `detail`, `hint` and `cause` can: a unique violation's `detail` is `Key (email)=(otter@example.com) already exists.`, and a driver's error can carry the parameters. Where personal data must stay out of logs and responses, pass on the safe fields:
+
+```ts
+} catch (error) {
+  if (error instanceof QueryError) {
+    logger.error({ code: error.code, constraint: error.constraint, table: error.table }, "query failed");
+  }
+  throw error;
+}
+```
+
+ottersql's own errors, such as a value that does not fit its column's type, name the column and the type but never the value, and ottersql writes no logs.

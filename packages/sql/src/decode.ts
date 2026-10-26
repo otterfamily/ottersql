@@ -18,8 +18,8 @@ type Decode = (text: string) => unknown;
 
 /**
  * The decoder of one column's values, from Postgres's text output into the JavaScript value ADR
- * 0008 assigns its type. It throws a `DecodeError` naming the column and the value when the value
- * does not fit. Choosing it once per result leaves only the conversion to do per value.
+ * 0008 assigns its type. It throws a `DecodeError` naming the column and the type, but not the
+ * value, when the value does not fit. Choosing it once per result leaves only the conversion to do per value.
  */
 export function columnDecoder(column: string, type: TypeInfo): (text: string | null) => unknown {
   const decode = valueDecoder(type);
@@ -29,10 +29,11 @@ export function columnDecoder(column: string, type: TypeInfo): (text: string | n
     }
     try {
       return decode(text);
-    } catch (error) {
+    } catch {
+      // Neither the value nor the parser's error, which quotes it, goes into the error: errors end
+      // up in logs, and a row can hold personal data.
       throw new DecodeError(
-        `Column "${column}": "${text}" cannot be decoded as ${typeName(type)}`,
-        { cause: error },
+        `Column "${column}" has a value that cannot be decoded as ${typeName(type)}`,
       );
     }
   };

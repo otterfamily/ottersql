@@ -51,7 +51,8 @@ function encodeObject(value: unknown): string {
       return text;
     }
   }
-  throw new TypeError(`cannot send ${String(value)} as a Postgres parameter`);
+  // The kind of value, not its text, which can be personal data.
+  throw new TypeError(`cannot send ${kindOf(value)} as a Postgres parameter`);
 }
 
 function encodeBound(bound: unknown): string | null {
@@ -91,4 +92,12 @@ function isRange(value: unknown): value is {
     "lowerInclusive" in value &&
     "upperInclusive" in value
   );
+}
+
+/** `a Map`, `an Object`: the constructor's name with its article. */
+function kindOf(value: unknown): string {
+  const name: unknown =
+    typeof value === "object" && value !== null ? value.constructor?.name : typeof value;
+  const kind = typeof name === "string" && name !== "" ? name : "object";
+  return `${/^[aeiou]/iv.test(kind) ? "an" : "a"} ${kind}`;
 }

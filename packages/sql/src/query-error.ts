@@ -1,8 +1,16 @@
-/** What Postgres reports about an error, in the fields of its protocol's ErrorResponse. */
+/**
+ * What Postgres reports about an error, in the fields of its protocol's ErrorResponse. `code` and
+ * the names of the object the error is about hold no values from rows or parameters, so they are
+ * safe to log and to answer with. `message`, `detail` and `hint` can quote values, as a unique
+ * violation's detail quotes the key: keep them out of responses, and out of logs that must not
+ * hold personal data.
+ */
 export interface QueryErrorFields {
   /** The SQLSTATE, such as `"23505"` for a unique violation. */
   readonly code: string;
+  /** Can quote values, as `invalid input syntax for type uuid: "…"` does. */
   readonly message: string;
+  /** Can quote values: `Key (email)=(…) already exists.`, `Failing row contains (…)`. */
   readonly detail: string | null;
   readonly hint: string | null;
   /** The object the error is about, where Postgres names one. */
@@ -14,8 +22,8 @@ export interface QueryErrorFields {
 
 /**
  * An error Postgres reported for a statement, the same whatever the driver. The driver's own
- * error is its `cause`. Errors that never reached Postgres, such as a refused connection, are not
- * QueryErrors.
+ * error is its `cause`, which can hold the statement's parameters. Errors that never reached
+ * Postgres, such as a refused connection, are not QueryErrors.
  */
 export class QueryError extends Error implements QueryErrorFields {
   override readonly name = "QueryError";
