@@ -35,26 +35,20 @@ export function stepHash(step: Step): string {
     .digest("hex");
 }
 
+function stepKey(migration: string, step: number): string {
+  return `${migration}#${String(step)}`;
+}
+
 /**
  * The steps of `steps` that have not run, after checking that the history is a prefix of them:
- * every step that ran comes before every step that has not, and its file is unchanged.
+ * every step that ran is still there, unchanged, and comes before every step that has not.
  */
 export function notYetApplied(
   steps: readonly PendingStep[],
   history: readonly AppliedStep[],
 ): PendingStep[] {
-  const applied = new Map(
-    history.map(({ migration, step, hash }) => [`${migration}#${String(step)}`, hash]),
-  );
-  const ran = steps.map(({ migration, index, hash }) => {
-    const recorded = applied.get(`${migration}#${String(index)}`);
-    if (recorded !== undefined && recorded !== hash) {
-      throw new MigrationHistoryError(
-        `${migration} step ${String(index)} was edited after it was applied; add a new migration instead`,
-      );
-    }
-    return recorded !== undefined;
-  });
+  refuseGone(steps, history);
+  const ran = whetherRan(steps, history);
   const first = ran.indexOf(false);
   const later = first === -1 ? -1 : ran.indexOf(true, first);
   const [notRun, run] = [steps[first], steps[later]];
@@ -66,4 +60,31 @@ export function notYetApplied(
     );
   }
   return first === -1 ? [] : steps.slice(first);
+}
+
+/** Refuses a history with a step no file has any more, since what it did is then unknown. */
+function refuseGone(steps: readonly PendingStep[], history: readonly AppliedStep[]): void {
+  const present = new Set(steps.map(({ migration, index }) => stepKey(migration, index)));
+  const gone = history.find(({ migration, step }) => !present.has(stepKey(migration, step)));
+  if (gone !== undefined) {
+    throw new MigrationHistoryError(
+      `${gone.migration} step ${String(gone.step)} was applied, but no migration file has it; restore the file`,
+    );
+  }
+}
+
+/** Whether each of `steps` ran, refusing one that changed after it ran. */
+function whetherRan(steps: readonly PendingStep[], history: readonly AppliedStep[]): boolean[] {
+  const applied = new Map(
+    history.map(({ migration, step, hash }) => [stepKey(migration, step), hash]),
+  );
+  return steps.map(({ migration, index, hash }) => {
+    const recorded = applied.get(stepKey(migration, index));
+    if (recorded !== undefined && recorded !== hash) {
+      throw new MigrationHistoryError(
+        `${migration} step ${String(index)} was edited after it was applied; add a new migration instead`,
+      );
+    }
+    return recorded !== undefined;
+  });
 }

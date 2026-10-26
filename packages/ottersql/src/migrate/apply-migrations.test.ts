@@ -17,6 +17,14 @@ function newer(file: MigrationFile): MigrationFile {
   return { name: "20261026000000_change.sql", text: file.text };
 }
 
+/** A migration file written by hand, a step for each statement. */
+function handWritten(statements: readonly string[]): MigrationFile {
+  return {
+    name: "20261026120000_by_hand.sql",
+    text: statements.map((sql) => `${header("custom", "public.users")}\n${sql};\n`).join(""),
+  };
+}
+
 function header(kind: string, object: string): string {
   return `-- ottersql:step kind=${kind} object="${object}" phase=expand reversal=lossy transaction=inside lock="none"`;
 }
@@ -180,6 +188,20 @@ describe("applyMigrations on PGlite", () => {
       later: (file: MigrationFile): MigrationFile[] => [file, newer(file)],
       message:
         "20261025000000_change.sql is older than 20261026000000_change.sql, which was applied; regenerate it on top of the applied migrations",
+    },
+    {
+      problem: "an applied migration that is gone",
+      first: (file: MigrationFile): MigrationFile[] => [file],
+      later: (): MigrationFile[] => [],
+      message:
+        "20261025000000_change.sql step 0 was applied, but no migration file has it; restore the file",
+    },
+    {
+      problem: "an applied step that is gone from its migration",
+      first: (): MigrationFile[] => [handWritten(["select 1", "select 2"])],
+      later: (): MigrationFile[] => [handWritten(["select 1"])],
+      message:
+        "20261026120000_by_hand.sql step 1 was applied, but no migration file has it; restore the file",
     },
   ])("refuses $problem", async ({ first, later, message }) => {
     const schema = await openSchema(users, migratedObjects);

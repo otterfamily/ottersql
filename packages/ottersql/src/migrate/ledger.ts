@@ -40,13 +40,17 @@ export async function createLedger(connection: Connection): Promise<void> {
   );
 }
 
-/** The steps that ran, or none when the database never ran any; it writes nothing. */
+/** The steps that ran, in file and step order, or none when the database never ran any; it writes nothing. */
 export async function readLedger(connection: Connection): Promise<AppliedStep[]> {
   const exists = await rawQuery(connection, `select to_regclass('${ledger}') is not null`, []);
   if (exists.rows[0]?.[0] !== "t") {
     return [];
   }
-  const { rows } = await rawQuery(connection, `select migration, step, hash from ${ledger}`, []);
+  const { rows } = await rawQuery(
+    connection,
+    `select migration, step, hash from ${ledger} order by migration, step`,
+    [],
+  );
   return rows.map(([migration, step, hash]) => ({
     migration: migration ?? "",
     step: Number(step),
