@@ -1,5 +1,6 @@
 import { loadCatalog, openSchema } from "../catalog/index.ts";
 import type { Catalog } from "../catalog/index.ts";
+import { migratedObjects } from "./ledger.ts";
 import { readMigration } from "./migration-file.ts";
 import { planMigration } from "./plan-migration.ts";
 import type { Plan } from "./plan.ts";
@@ -24,7 +25,7 @@ async function replayedCatalog(files: readonly MigrationFile[]): Promise<Catalog
 
 /** The schema `statements` build when run in order on an empty database, in PGlite. */
 export async function replay(statements: readonly string[]): Promise<Catalog> {
-  const schema = await openSchema("", { alsoRuns: statements });
+  const schema = await openSchema("", { alsoRuns: statements, ...migratedObjects });
   try {
     for (const sql of statements) {
       await schema.run(sql);
@@ -43,5 +44,5 @@ export async function pendingChanges(
   files: readonly MigrationFile[],
   schemaSql: string,
 ): Promise<Plan> {
-  return planMigration(await replayedCatalog(files), await loadCatalog(schemaSql));
+  return planMigration(await replayedCatalog(files), await loadCatalog(schemaSql, migratedObjects));
 }

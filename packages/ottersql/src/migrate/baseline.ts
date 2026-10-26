@@ -1,7 +1,7 @@
 import { readCatalog } from "../catalog/index.ts";
 import type { Connection } from "../sql/index.ts";
 import { deployOrder, MigrationHistoryError } from "./history.ts";
-import { readLedger, recordAll } from "./ledger.ts";
+import { migratedObjects, readLedger, recordAll } from "./ledger.ts";
 import { replay } from "./migrations.ts";
 import type { MigrationFile } from "./migrations.ts";
 import { planMigration } from "./plan-migration.ts";
@@ -14,7 +14,7 @@ import { exclusively } from "./run-lock.ts";
  * functions, are listed in `manual` for a person to write as steps.
  */
 export async function planBaseline(connection: Connection): Promise<Plan> {
-  return planMigration(await replay([]), await readCatalog(connection));
+  return planMigration(await replay([]), await readCatalog(connection, migratedObjects));
 }
 
 /**
@@ -36,7 +36,7 @@ export async function baselineMigrations(
     const steps = deployOrder(files);
     const difference = planMigration(
       await replay(steps.flatMap(({ step }) => step.statements)),
-      await readCatalog(connection),
+      await readCatalog(connection, migratedObjects),
     );
     if (difference.steps.length > 0 || difference.manual.length > 0) {
       return difference;

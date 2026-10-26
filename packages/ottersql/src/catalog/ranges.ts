@@ -3,7 +3,7 @@ import { fields, nullable, queryRows, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
 import type { RangeType } from "./model.ts";
-import { userObject } from "./scope.ts";
+import { scopeParameters, userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 
@@ -26,7 +26,10 @@ const rangeRow: Shape<RangeRow> = (value, path) => {
   };
 };
 
-export async function readRanges(transaction: Transaction): Promise<RangeType[]> {
+export async function readRanges(
+  transaction: Transaction,
+  omitSchemas: readonly string[],
+): Promise<RangeType[]> {
   const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, t.typname as name, m.typname as multirange,
         ${typeRefJson("r.rngsubtype")} as subtype,
@@ -39,6 +42,7 @@ export async function readRanges(transaction: Transaction): Promise<RangeType[]>
     orderBy: "rows.schema, rows.name",
     row: rangeRow,
     label: "ranges",
+    parameters: scopeParameters(omitSchemas),
   });
   return rows.map((row) => ({
     schema: row.schema,

@@ -1,5 +1,5 @@
 import type { Transaction } from "../sql/index.ts";
-import { fields, number, queryRows } from "./catalog-json.ts";
+import { CatalogShapeError, fields, number, queryRows } from "./catalog-json.ts";
 import type { Capabilities } from "./model.ts";
 
 // Since Postgres 10, server_version_num is major * 10000 + minor.
@@ -12,7 +12,7 @@ export async function readCapabilities(transaction: Transaction): Promise<Capabi
     label: "capabilities",
   });
   if (versionNum === undefined) {
-    throw new Error("server_version_num is not set");
+    throw new CatalogShapeError("server_version_num is not set");
   }
   return {
     engine: "postgres",

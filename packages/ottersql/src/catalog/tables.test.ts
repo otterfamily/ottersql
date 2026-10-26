@@ -3,17 +3,27 @@ import { describe, expect, test } from "vitest";
 import { loadCatalog } from "./index.ts";
 import { table } from "./test-helpers.ts";
 
-describe("ottersql's own schema", () => {
-  test("is left out, so a migration never plans to drop the record of applied steps", async () => {
-    const catalog = await loadCatalog(`
-      create schema ottersql;
-      create table ottersql.applied_steps (plan text);
-      create table users (id int8);
-    `);
-    expect(catalog.tables.map(({ schema, name }) => `${schema}.${name}`)).toStrictEqual([
-      "public.users",
-    ]);
-  });
+describe("schemas left out", () => {
+  test.for([
+    { options: {}, tables: ["audit.events", "ottersql.applied_steps", "public.users"] },
+    { options: { omitSchemas: ["ottersql"] }, tables: ["audit.events", "public.users"] },
+    { options: { omitSchemas: ["ottersql", "audit"] }, tables: ["public.users"] },
+  ])(
+    "reads every user schema but those it is told to omit: $options",
+    async ({ options, tables }) => {
+      const catalog = await loadCatalog(
+        `
+        create schema ottersql;
+        create table ottersql.applied_steps (plan text);
+        create schema audit;
+        create table audit.events (id int8);
+        create table users (id int8);
+      `,
+        options,
+      );
+      expect(catalog.tables.map(({ schema, name }) => `${schema}.${name}`)).toStrictEqual(tables);
+    },
+  );
 });
 
 describe("tables", () => {

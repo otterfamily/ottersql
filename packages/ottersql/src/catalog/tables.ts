@@ -2,12 +2,13 @@ import type { Transaction } from "../sql/index.ts";
 import { queryRows } from "./catalog-json.ts";
 import type { CatalogFeatures } from "./features.ts";
 import type { Table } from "./model.ts";
-import { userObject } from "./scope.ts";
+import { scopeParameters, userObject } from "./scope.ts";
 import { parseTable, tableRow, tablePartsJson } from "./table-parts.ts";
 
 export async function readTables(
   transaction: Transaction,
   features: CatalogFeatures,
+  omitSchemas: readonly string[],
 ): Promise<Table[]> {
   const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, c.relname as name,
@@ -17,6 +18,7 @@ export async function readTables(
     orderBy: "rows.schema, rows.name",
     row: tableRow,
     label: "tables",
+    parameters: scopeParameters(omitSchemas),
   });
   return rows.map((row) => parseTable(row));
 }

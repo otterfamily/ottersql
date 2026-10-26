@@ -1,9 +1,16 @@
+import type { CatalogOptions } from "../catalog/index.ts";
 import { rawQuery } from "../sql/driver.ts";
 import type { Connection, Transaction } from "../sql/index.ts";
 import type { Step } from "./plan.ts";
 
-// The catalog leaves the ottersql schema out, so migrations never plan changes to this table.
-const ledger = "ottersql.applied_steps";
+const LEDGER_SCHEMA = "ottersql";
+const ledger = `${LEDGER_SCHEMA}.applied_steps`;
+
+/**
+ * What migrations read of a database's catalog: everything but the ledger's schema, so they never
+ * plan changes to the record of what they did.
+ */
+export const migratedObjects: CatalogOptions = { omitSchemas: [LEDGER_SCHEMA] };
 
 /** A step that ran, with the hash of what it did. */
 export interface AppliedStep {
@@ -21,7 +28,7 @@ export interface PendingStep {
 }
 
 export async function createLedger(connection: Connection): Promise<void> {
-  await rawQuery(connection, "create schema if not exists ottersql", []);
+  await rawQuery(connection, `create schema if not exists ${LEDGER_SCHEMA}`, []);
   await rawQuery(
     connection,
     `create table if not exists ${ledger} (

@@ -6,7 +6,7 @@ import type { CheckBaseRow } from "./checks.ts";
 import { parseComment } from "./comments.ts";
 import type { CatalogFeatures } from "./features.ts";
 import type { Domain } from "./model.ts";
-import { userObject } from "./scope.ts";
+import { scopeParameters, userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 import { callsVolatile } from "./volatility.ts";
@@ -41,6 +41,7 @@ const domainRow: Shape<DomainRow> = (value, path) => {
 export async function readDomains(
   transaction: Transaction,
   features: CatalogFeatures,
+  omitSchemas: readonly string[],
 ): Promise<Domain[]> {
   const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, t.typname as name,
@@ -56,6 +57,7 @@ export async function readDomains(
     orderBy: "rows.schema, rows.name",
     row: domainRow,
     label: "domains",
+    parameters: scopeParameters(omitSchemas),
   });
   return rows.map((row) => ({
     schema: row.schema,

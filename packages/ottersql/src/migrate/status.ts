@@ -2,7 +2,7 @@ import { readCatalog } from "../catalog/index.ts";
 import type { Connection } from "../sql/index.ts";
 import type { StepRef } from "./apply-migrations.ts";
 import { deployOrder, notYetApplied } from "./history.ts";
-import { readLedger } from "./ledger.ts";
+import { migratedObjects, readLedger } from "./ledger.ts";
 import { replay } from "./migrations.ts";
 import type { MigrationFile } from "./migrations.ts";
 import { planMigration } from "./plan-migration.ts";
@@ -37,7 +37,7 @@ export async function migrationStatus(
   const pending = new Set(notYetApplied(steps, await readLedger(connection)));
   const applied = steps.filter((step) => !pending.has(step));
   const expected = await replay(applied.flatMap(({ step }) => step.statements));
-  const drift = planMigration(expected, await readCatalog(connection));
+  const drift = planMigration(expected, await readCatalog(connection, migratedObjects));
   return {
     steps: steps.map((each) => ({
       migration: each.migration,

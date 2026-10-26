@@ -5,7 +5,7 @@ import { columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
 import type { ColumnBaseRow } from "./columns.ts";
 import { parseComment } from "./comments.ts";
 import type { View } from "./model.ts";
-import { userObject } from "./scope.ts";
+import { scopeParameters, userObject } from "./scope.ts";
 
 interface ViewRow {
   readonly schema: string;
@@ -26,7 +26,10 @@ const viewRow: Shape<ViewRow> = (value, path) => {
   };
 };
 
-export async function readViews(transaction: Transaction): Promise<View[]> {
+export async function readViews(
+  transaction: Transaction,
+  omitSchemas: readonly string[],
+): Promise<View[]> {
   const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, c.relname as name, c.relkind = 'm' as materialized,
         ${columnsJson("c.oid")} as columns,
@@ -36,6 +39,7 @@ export async function readViews(transaction: Transaction): Promise<View[]> {
     orderBy: "rows.schema, rows.name",
     row: viewRow,
     label: "views",
+    parameters: scopeParameters(omitSchemas),
   });
   return rows.map((row) => ({
     schema: row.schema,

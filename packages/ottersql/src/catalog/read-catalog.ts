@@ -9,12 +9,21 @@ import { readRoutines } from "./routines.ts";
 import { readTables } from "./tables.ts";
 import { readViews } from "./views.ts";
 
+/** What the catalog reads: the objects of every user schema but those it is told to leave out. */
+export interface CatalogOptions {
+  /** Schemas whose objects are left out, such as a tool's own record of what it did. */
+  readonly omitSchemas?: readonly string[];
+}
+
 /**
  * Reads the catalog of the database `connection` reaches: PGlite running a schema.sql, or a real
  * database through its driver. Throws a `CatalogShapeError` naming the field when the catalog does
  * not have the shape ottersql reads.
  */
-export async function readCatalog(connection: Connection): Promise<Catalog> {
+export async function readCatalog(
+  connection: Connection,
+  { omitSchemas = [] }: CatalogOptions = {},
+): Promise<Catalog> {
   // Postgres prints a type or a name in an expression without its schema when the search_path
   // finds it, so the session's search_path, which schema.sql may set, would decide what migrations
   // say; with public alone, everything outside public is named with its schema. Repeatable read
@@ -24,12 +33,12 @@ export async function readCatalog(connection: Connection): Promise<Catalog> {
       const features = await readFeatures(transaction);
       return {
         capabilities: await readCapabilities(transaction),
-        tables: await readTables(transaction, features),
-        enums: await readEnums(transaction),
-        ranges: await readRanges(transaction),
-        domains: await readDomains(transaction, features),
-        views: await readViews(transaction),
-        routines: await readRoutines(transaction),
+        tables: await readTables(transaction, features, omitSchemas),
+        enums: await readEnums(transaction, omitSchemas),
+        ranges: await readRanges(transaction, omitSchemas),
+        domains: await readDomains(transaction, features, omitSchemas),
+        views: await readViews(transaction, omitSchemas),
+        routines: await readRoutines(transaction, omitSchemas),
       };
     },
     { isolation: "repeatable read", readOnly: true, settings: { search_path: "public" } },

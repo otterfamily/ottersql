@@ -3,11 +3,12 @@ import { describe, expect, test } from "vitest";
 import { openSchema } from "../catalog/index.ts";
 import { pgliteConnection } from "../sql/pglite.ts";
 import { applyMigrations } from "./index.ts";
+import { migratedObjects } from "./ledger.ts";
 import { approvalRequired, migrationFrom, step, users } from "./test-migrate.ts";
 
 describe("applyMigrations approval", () => {
   test("runs nothing while a pending step cannot be undone, until those pending steps are approved", async () => {
-    const schema = await openSchema(users);
+    const schema = await openSchema(users, migratedObjects);
     try {
       const connection = pgliteConnection(schema.database);
       const file = await migrationFrom(users, "create table users (id int8 primary key)");
@@ -23,7 +24,7 @@ describe("applyMigrations approval", () => {
   });
 
   test("refuses an approval given for other pending steps", async () => {
-    const schema = await openSchema(users);
+    const schema = await openSchema(users, migratedObjects);
     try {
       const connection = pgliteConnection(schema.database);
       const file = await migrationFrom(users, "create table users (id int8 primary key)");
@@ -47,7 +48,7 @@ describe("applyMigrations approval", () => {
   });
 
   test("needs no approval for steps that can be undone", async () => {
-    const schema = await openSchema(users);
+    const schema = await openSchema(users, migratedObjects);
     try {
       const connection = pgliteConnection(schema.database);
       const file = await migrationFrom(users, `${users}; create index on users (email)`);

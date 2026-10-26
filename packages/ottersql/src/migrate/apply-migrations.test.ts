@@ -4,6 +4,7 @@ import { loadCatalog, openSchema } from "../catalog/index.ts";
 import { pgliteConnection } from "../sql/pglite.ts";
 import { applyMigrations } from "./index.ts";
 import type { MigrationFile } from "./index.ts";
+import { migratedObjects } from "./ledger.ts";
 import { migrationFrom, step, users, withSortedColumns } from "./test-migrate.ts";
 
 const target = `create table users (id int8 primary key, email text not null unique);
@@ -19,7 +20,7 @@ function header(kind: string, object: string): string {
 
 describe("applyMigrations on PGlite", () => {
   test("brings the database to the target schema, and skips what it already applied", async () => {
-    const schema = await openSchema(users);
+    const schema = await openSchema(users, migratedObjects);
     try {
       const connection = pgliteConnection(schema.database);
       const file = await migrationFrom(users, target);
@@ -40,7 +41,7 @@ describe("applyMigrations on PGlite", () => {
   });
 
   test("runs one phase at a time: expand before the deploy, contract after", async () => {
-    const schema = await openSchema(users);
+    const schema = await openSchema(users, migratedObjects);
     try {
       const connection = pgliteConnection(schema.database);
       const file = await migrationFrom(
@@ -69,7 +70,7 @@ describe("applyMigrations on PGlite", () => {
   test("runs one migration's contract steps before the next migration's expand steps", async () => {
     const nullable = "create table users (id int8 primary key, email text)";
     const required = "create table users (id int8 primary key, email text not null)";
-    const schema = await openSchema(nullable);
+    const schema = await openSchema(nullable, migratedObjects);
     try {
       const connection = pgliteConnection(schema.database);
       const files = [
@@ -109,7 +110,7 @@ describe("applyMigrations on PGlite", () => {
   });
 
   test("lets a step that has not run be fixed in a migration that partly ran", async () => {
-    const schema = await openSchema("");
+    const schema = await openSchema("", migratedObjects);
     try {
       const connection = pgliteConnection(schema.database);
       const broken = {
@@ -154,7 +155,7 @@ describe("applyMigrations on PGlite", () => {
         "20261025000000_change.sql is older than 20261026000000_change.sql, which was applied; regenerate it on top of the applied migrations",
     },
   ])("refuses $problem", async ({ first, later, message }) => {
-    const schema = await openSchema(users);
+    const schema = await openSchema(users, migratedObjects);
     try {
       const connection = pgliteConnection(schema.database);
       const file = await migrationFrom(users, `${users}; create index on users (email)`);

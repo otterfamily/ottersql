@@ -3,7 +3,7 @@ import { array, fields, nullable, queryRows, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
 import type { Enum } from "./model.ts";
-import { userObject } from "./scope.ts";
+import { scopeParameters, userObject } from "./scope.ts";
 
 const enumRow: Shape<EnumRow> = (value, path) => {
   const field = fields(value, path);
@@ -15,7 +15,10 @@ const enumRow: Shape<EnumRow> = (value, path) => {
   };
 };
 
-export async function readEnums(transaction: Transaction): Promise<Enum[]> {
+export async function readEnums(
+  transaction: Transaction,
+  omitSchemas: readonly string[],
+): Promise<Enum[]> {
   const rows = await queryRows(transaction, {
     select: `select n.nspname as schema, t.typname as name,
         array(select e.enumlabel from pg_enum e where e.enumtypid = t.oid order by e.enumsortorder)
@@ -26,6 +29,7 @@ export async function readEnums(transaction: Transaction): Promise<Enum[]> {
     orderBy: "rows.schema, rows.name",
     row: enumRow,
     label: "enums",
+    parameters: scopeParameters(omitSchemas),
   });
   return rows.map((row) => ({
     schema: row.schema,

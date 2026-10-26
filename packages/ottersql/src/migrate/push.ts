@@ -4,6 +4,7 @@ import type { ApplyOptions } from "./apply-migrations.ts";
 import { checkApproval } from "./approval.ts";
 import { stepHash } from "./history.ts";
 import type { PendingStep } from "./ledger.ts";
+import { migratedObjects } from "./ledger.ts";
 import { planMigration } from "./plan-migration.ts";
 import type { ManualChange, Step } from "./plan.ts";
 import { runStep } from "./run-step.ts";
@@ -31,7 +32,10 @@ export async function pushSchema(
   schemaSql: string,
   options: PushOptions = {},
 ): Promise<PushResult> {
-  const plan = planMigration(await readCatalog(connection), await loadCatalog(schemaSql));
+  const plan = planMigration(
+    await readCatalog(connection, migratedObjects),
+    await loadCatalog(schemaSql, migratedObjects),
+  );
   if (plan.manual.length > 0) {
     return { applied: [], failed: null, manual: plan.manual };
   }

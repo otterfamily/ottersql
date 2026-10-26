@@ -1,5 +1,5 @@
 import type { Transaction } from "../sql/index.ts";
-import { boolean, fields, queryRows } from "./catalog-json.ts";
+import { boolean, CatalogShapeError, fields, queryRows } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 
 /**
@@ -26,7 +26,7 @@ export async function readFeatures(transaction: Transaction): Promise<CatalogFea
     label: "features",
   });
   if (features === undefined) {
-    throw new Error("the features query returned no row");
+    throw new CatalogShapeError("the features query returned no row");
   }
   return features;
 }
