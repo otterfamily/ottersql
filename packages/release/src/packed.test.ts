@@ -1,4 +1,4 @@
-import { cp, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,16 +38,33 @@ async function versionOf(name: string): Promise<string> {
   return versionIn(join(playground, "node_modules", name));
 }
 
+/** The tarball npm would get of each published package, by name, written to `directory`. */
+async function packedPackages(directory: string): Promise<Record<string, string>> {
+  await succeeded("pnpm", ["build"], root);
+  const sources = await publishedPackages(root);
+  return Object.fromEntries(
+    await Promise.all(sources.map(async ({ directory: source }) => pack(source, directory))),
+  );
+}
+
+/** Settings that make `pnpm install` take the packages from their tarballs. */
+async function useTarballs(
+  project: string,
+  tarballs: Readonly<Record<string, string>>,
+): Promise<void> {
+  // The packages depend on each other by a version npm does not have until they are published.
+  const overrides = Object.entries(tarballs).map(([name, file]) => `  "${name}": "file:${file}"`);
+  await writeFile(join(project, "pnpm-workspace.yaml"), `overrides:\n${overrides.join("\n")}\n`);
+}
+
 /**
  * The playground, outside the workspace, with every ottersql package installed from the tarball
  * npm would get: only what the packages publish is there, so nothing reaches the TypeScript sources.
  */
-async function installedPlayground(directory: string): Promise<string> {
-  await succeeded("pnpm", ["build"], root);
-  const sources = await publishedPackages(root);
-  const tarballs: Record<string, string> = Object.fromEntries(
-    await Promise.all(sources.map(async ({ directory: source }) => pack(source, directory))),
-  );
+async function installedPlayground(
+  directory: string,
+  tarballs: Readonly<Record<string, string>>,
+): Promise<string> {
   const project = join(directory, "project");
   await cp(playground, project, { recursive: true, filter: (path) => !left.has(basename(path)) });
   const manifest = {
@@ -61,19 +78,53 @@ async function installedPlayground(directory: string): Promise<string> {
     },
   };
   await writeFile(join(project, "package.json"), JSON.stringify(manifest));
-  // The packages depend on each other by a version npm does not have until they are published.
-  const overrides = Object.entries(tarballs).map(([name, file]) => `  "${name}": "file:${file}"`);
-  await writeFile(join(project, "pnpm-workspace.yaml"), `overrides:\n${overrides.join("\n")}\n`);
+  await useTarballs(project, tarballs);
   await succeeded("pnpm", ["install", "--prefer-offline"], project);
   return project;
 }
 
-const test = base.extend<{ project: string }>({
-  project: [
+/** A project that installs ottersql and pg alone, as a deploy that leaves out dev dependencies does. */
+async function installedForProduction(
+  directory: string,
+  tarballs: Readonly<Record<string, string>>,
+): Promise<string> {
+  const project = join(directory, "production");
+  await mkdir(project);
+  const pg = await versionIn(join(root, "examples", "migrations", "node_modules", "pg"));
+  const manifest = {
+    name: "production",
+    private: true,
+    type: "module",
+    dependencies: { pg, ...tarballs },
+  };
+  await writeFile(join(project, "package.json"), JSON.stringify(manifest));
+  await useTarballs(project, tarballs);
+  await succeeded("pnpm", ["install", "--prefer-offline"], project);
+  return project;
+}
+
+const test = base.extend<{
+  packed: { directory: string; tarballs: Readonly<Record<string, string>> };
+  project: string;
+  production: string;
+}>({
+  packed: [
     async ({}, use) => {
       const directory = await mkdtemp(join(tmpdir(), "ottersql-packed-"));
-      await use(await installedPlayground(directory));
+      await use({ directory, tarballs: await packedPackages(directory) });
       await rm(directory, { recursive: true, force: true });
+    },
+    { scope: "file" },
+  ],
+  project: [
+    async ({ packed }, use) => {
+      await use(await installedPlayground(packed.directory, packed.tarballs));
+    },
+    { scope: "file" },
+  ],
+  production: [
+    async ({ packed }, use) => {
+      await use(await installedForProduction(packed.directory, packed.tarballs));
     },
     { scope: "file" },
   ],
@@ -114,5 +165,25 @@ describe("the packages as npm installs them", () => {
   test("run .sql imports in Bun, through the same register entry", async ({ project }) => {
     const args = ["--preload", "ottersql/register", "app.ts"];
     await expect(succeeded(bunExecutable, args, project)).resolves.toContain("Otter");
+  });
+
+  test("load the migrate and catalog entries without PGlite, which only development needs", async ({
+    production,
+  }) => {
+    const script =
+      'for (const entry of ["ottersql/migrate", "ottersql/catalog"]) console.log(typeof (await import(entry)))';
+    await expect(succeeded("node", ["--eval", script], production)).resolves.toBe(
+      "object\nobject\n",
+    );
+  });
+
+  test("apply migrations without PGlite, reaching the database first", async ({ production }) => {
+    const args = ["exec", "ottersql", "migrate", "apply", "--json"];
+    const { exitCode, stdout } = await run("pnpm", args, production);
+    const json: unknown = JSON.parse(stdout);
+    expect({ exitCode, json }).toMatchObject({
+      exitCode: 2,
+      json: { ok: false, code: "database.url_missing" },
+    });
   });
 });

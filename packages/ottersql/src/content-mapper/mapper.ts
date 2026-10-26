@@ -1,10 +1,11 @@
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { dirname, join, resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 
 import { SchemaError } from "../catalog/index.ts";
 import { holdsQueries } from "../sql/query-file.ts";
 import { METHOD_NOT_FOUND, RpcError } from "./json-rpc.ts";
+import { defaultSchemaPath, migrationsDirectory } from "./project-layout.ts";
 import { DiagnosticCode } from "./render.ts";
 import type { RenderedFile } from "./render.ts";
 import { openQuerySession } from "./session.ts";
@@ -13,14 +14,6 @@ import type { QuerySession } from "./session.ts";
 interface Project {
   readonly schemaPath: string;
   readonly schemaHash: string;
-}
-
-/** Where a project keeps its schema when its tsconfig gives no `schema` option, relative to the tsconfig. */
-export const defaultSchemaPath = "db/schema.sql";
-
-/** Where a project keeps its migrations: the `migrations` directory next to its schema (#27). */
-export function migrationsDirectory(schemaPath: string): string {
-  return join(dirname(schemaPath), "migrations");
 }
 
 /** Answers one request of TypeScript's content mapper protocol. */

@@ -1,7 +1,7 @@
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
-import { defaultSchemaPath, migrationsDirectory } from "../content-mapper/mapper.ts";
+import { defaultSchemaPath, migrationsDirectory } from "../content-mapper/project-layout.ts";
 import {
   LockWaitTimeoutError,
   MigrationFileError,
