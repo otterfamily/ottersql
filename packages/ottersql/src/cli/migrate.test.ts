@@ -107,6 +107,47 @@ describe("ottersql migrate generate", () => {
   });
 });
 
+describe("reading the tsconfig", () => {
+  test.for([
+    {
+      name: "a --project that does not exist",
+      files: {},
+      args: ["--project", "missing.json"],
+      code: "project.tsconfig_unreadable",
+      where: { file: "missing.json" },
+    },
+    {
+      name: "a tsconfig that is not JSON",
+      files: { "tsconfig.json": '{\n  "compilerOptions": {\n}' },
+      args: [],
+      code: "project.tsconfig_invalid",
+      where: { file: "tsconfig.json", line: 3 },
+    },
+    {
+      name: "an extends that cannot be found",
+      files: { "tsconfig.json": '{ "extends": "./base.json" }' },
+      args: [],
+      code: "project.tsconfig_unreadable",
+      where: { file: "base.json" },
+    },
+    {
+      name: "an extends of a package that is not installed",
+      files: { "tsconfig.json": '{ "extends": "@otter/tsconfig" }' },
+      args: [],
+      code: "project.tsconfig_invalid",
+      where: { file: "tsconfig.json" },
+    },
+  ])("refuses $name with exit code 2, naming the file", async ({ files, args, code, where }) => {
+    const root = await project({ ...files, "db/schema.sql": users });
+    const { exitCode, json } = await ottersqlJson(root, ["migrate", "check", ...args]);
+    expect({ exitCode, code: at(json, "code"), where: at(json, "where") }).toStrictEqual({
+      exitCode: 2,
+      code,
+      where,
+    });
+  });
+});
+
 describe("ottersql migrate check", () => {
   test("finds the steps the migrations miss, with exit code 4", async () => {
     const root = await project({ "db/schema.sql": "" });

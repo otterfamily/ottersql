@@ -95,4 +95,41 @@ describe("ottersql push", () => {
       fix: `Show the steps to the user and ask them to run \`ottersql push --approve ${String(at(json, "result", "approval"))}\` in their own terminal; an agent cannot approve them`,
     });
   });
+
+  test("names the step Postgres rejected and its SQLSTATE, with exit code 1", async () => {
+    const env = {
+      DATABASE_URL: await postgresDatabase(`${users}insert into users values (1, null);`),
+    };
+    const root = await project({
+      "db/schema.sql": "create table users (id int8 primary key, email text not null);\n",
+    });
+    const { exitCode, json } = await ottersqlJson(root, ["push"], { env });
+    expect({
+      exitCode,
+      code: at(json, "code"),
+      failed: at(json, "result", "failed"),
+    }).toStrictEqual({
+      exitCode: 1,
+      code: "push.step_failed",
+      failed: {
+        kind: "validateCheck",
+        object: "public.users.ottersql_not_null_email",
+        sqlstate: "23514",
+        message:
+          'check constraint "ottersql_not_null_email" of relation "users" is violated by some row',
+      },
+    });
+  });
+
+  test("refuses an approval an agent passes, before connecting, with exit code 3", async () => {
+    const root = await project({ "db/schema.sql": users });
+    const { exitCode, json } = await ottersqlJson(root, ["push", "--approve", "0123abcd"], {
+      env: { DATABASE_URL: "postgres://localhost:1/app" },
+      agent: "claude",
+    });
+    expect({ exitCode, code: at(json, "code") }).toStrictEqual({
+      exitCode: 3,
+      code: "push.approval_by_agent",
+    });
+  });
 });
