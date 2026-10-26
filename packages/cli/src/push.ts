@@ -6,7 +6,7 @@ import type { Approvable } from "./approval.ts";
 import { planResult, schemaRefusal } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
-import { requireLocal, withSession } from "./database.ts";
+import { withSession } from "./database.ts";
 import type { Outcome } from "./outcome.ts";
 import { locate, readSchema } from "./project.ts";
 
@@ -20,12 +20,18 @@ const pushing: Approvable = { command: "ottersql push", namespace: "push" };
  */
 export async function push(context: Context, command: Push): Promise<Outcome> {
   refuseApprovalByAgent(context, command.approve, pushing);
-  requireLocal(context.env, "push");
   const layout = await locate(context.cwd, command.project);
   const schema = await readSchema(layout);
   try {
-    const result = await withSession(context.env, async (connection) =>
-      pushSchema(connection, schema, command.approve === null ? {} : { approve: command.approve }),
+    const result = await withSession(
+      context.env,
+      async (connection) =>
+        pushSchema(
+          connection,
+          schema,
+          command.approve === null ? {} : { approve: command.approve },
+        ),
+      { onlyLocal: "push" },
     );
     return reported(result);
   } catch (error) {

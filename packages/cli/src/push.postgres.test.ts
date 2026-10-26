@@ -1,5 +1,5 @@
 import { postgresDatabase } from "@ottersql/testing";
-import { describe, expect, test } from "vitest";
+import { describe, expect, onTestFinished, test, vi } from "vitest";
 
 import { at, ottersqlJson, project } from "./test-cli.ts";
 
@@ -43,6 +43,25 @@ describe("ottersql push", () => {
       code: "push.not_local",
     });
   });
+
+  test.for([
+    { url: "postgres:///app", PGHOST: "db.example.com" },
+    { url: "postgres://localhost/app?host=db.example.com", PGHOST: undefined },
+  ])(
+    "refuses $url when the driver would connect elsewhere (PGHOST=$PGHOST)",
+    async ({ url, PGHOST }) => {
+      vi.stubEnv("PGHOST", PGHOST);
+      onTestFinished(() => {
+        vi.unstubAllEnvs();
+      });
+      const root = await project({ "db/schema.sql": withName });
+      const { exitCode, json } = await ottersqlJson(root, ["push"], { env: { DATABASE_URL: url } });
+      expect({ exitCode, code: at(json, "code") }).toStrictEqual({
+        exitCode: 2,
+        code: "push.not_local",
+      });
+    },
+  );
 
   test("runs nothing while a change is left to a person, with exit code 4", async () => {
     const env = { DATABASE_URL: await postgresDatabase(users) };

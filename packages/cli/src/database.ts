@@ -12,8 +12,14 @@ import { CommandError } from "./outcome.ts";
 export async function withSession<Result>(
   env: Context["env"],
   use: (connection: Connection) => Promise<Result>,
+  { onlyLocal }: { readonly onlyLocal?: string } = {},
 ): Promise<Result> {
-  const client = await connect(databaseUrl(env));
+  const client = new Client({ connectionString: databaseUrl(env) });
+  if (onlyLocal !== undefined) {
+    // The host the driver will use, which also comes from PGHOST when the URL names none.
+    requireLocal(client.host, onlyLocal);
+  }
+  await connect(client);
   try {
     return await use(pgConnection(client));
   } finally {
@@ -34,11 +40,9 @@ function databaseUrl(env: Context["env"]): string {
   return url;
 }
 
-async function connect(url: string): Promise<Client> {
+async function connect(client: Client): Promise<void> {
   try {
-    const client = new Client({ connectionString: url });
     await client.connect();
-    return client;
   } catch (error) {
     throw new CommandError({
       kind: "failed",
@@ -50,21 +54,19 @@ async function connect(url: string): Promise<Client> {
   }
 }
 
-const localHosts: ReadonlySet<string> = new Set(["", "localhost", "127.0.0.1", "[::1]"]);
+const localHosts: ReadonlySet<string> = new Set(["localhost", "127.0.0.1", "::1"]);
 
 /**
- * Refuses a DATABASE_URL that is not on this machine: a host name or address elsewhere, rather
- * than localhost, a loopback address or a Unix socket. Names such as a Docker Compose service are
+ * Refuses a host that is not this machine: a host name or address elsewhere, rather than
+ * localhost, a loopback address or a Unix socket. Names such as a Docker Compose service are
  * refused too, since nothing tells them from a server elsewhere.
  */
-export function requireLocal(env: Context["env"], command: string): void {
-  const url = URL.parse(databaseUrl(env));
-  const host = url === null ? null : (url.searchParams.get("host") ?? url.hostname);
-  if (host === null || !(localHosts.has(host) || host.startsWith("/"))) {
+function requireLocal(host: string, command: string): void {
+  if (!(localHosts.has(host) || host.startsWith("/"))) {
     throw new CommandError({
       kind: "invalid",
       code: `${command}.not_local`,
-      why: `${command} changes the database directly, without migrations, so it runs only on a database on this machine, and DATABASE_URL points ${host === null ? "to an address it cannot read" : `to ${host}`}`,
+      why: `${command} changes the database directly, without migrations, so it runs only on a database on this machine, and DATABASE_URL points to ${host}`,
       fix: "Change that database through migrations: `ottersql migrate generate <name>` and `ottersql migrate apply`",
     });
   }
