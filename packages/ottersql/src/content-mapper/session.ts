@@ -175,19 +175,13 @@ async function analyze(
   description: StatementDescription,
 ): Promise<DescribedStatement> {
   const { fields, parameterTypes, tree } = description;
-  const types = await cached(
-    context.types,
-    [...parameterTypes, ...fields.map((column) => column.dataTypeID)],
-    // The same database always gives the same connection, so this opens nothing.
-    async (oids) => readTypeRefs(pgliteConnection(context.db), oids),
-  );
   // A computed column reports table oid 0, which no lookup can find.
   const tableOids = fields.map((column) => column.tableID).filter((oid) => oid !== 0);
-  const relations = await cached(
-    context.relations,
-    [...tableOids, ...relationOids(tree)],
-    async (oids) => readRelations(pgliteConnection(context.db), oids),
-  );
+  await lookUp(context, {
+    types: [...parameterTypes, ...fields.map((column) => column.dataTypeID)],
+    relations: [...tableOids, ...relationOids(tree)],
+  });
+  const { types, relations } = context;
   const facts = { ...relationFacts(context.catalog, relations), ...context.builtIns };
   const proven = tree === null ? null : statementNullability(tree, facts);
   return {
@@ -203,19 +197,39 @@ async function analyze(
   };
 }
 
-/** Reads only the oids not yet in `cache`, and adds them to it. */
-async function cached<Value>(
-  cache: Map<number, Value>,
-  oids: readonly number[],
-  read: (missing: readonly number[]) => Promise<ReadonlyMap<number, Value>>,
-): Promise<ReadonlyMap<number, Value>> {
-  const missing = [...new Set(oids)].filter((oid) => !cache.has(oid));
-  if (missing.length > 0) {
-    for (const [oid, value] of await read(missing)) {
-      cache.set(oid, value);
-    }
+/** Reads the types and relations the session has not looked up yet into its maps. */
+async function lookUp(
+  context: Context,
+  oids: { readonly types: readonly number[]; readonly relations: readonly number[] },
+): Promise<void> {
+  const types = missing(context.types, oids.types);
+  const relations = missing(context.relations, oids.relations);
+  if (types.length === 0 && relations.length === 0) {
+    return;
   }
-  return cache;
+  // Postgres would print each lookup's own parse tree too, which takes longer than the lookup.
+  await context.db.exec("set debug_print_rewritten = off");
+  // The same database always gives the same connection, so this opens nothing.
+  const connection = pgliteConnection(context.db);
+  try {
+    store(context.types, types.length === 0 ? [] : await readTypeRefs(connection, types));
+    store(
+      context.relations,
+      relations.length === 0 ? [] : await readRelations(connection, relations),
+    );
+  } finally {
+    await context.db.exec("set debug_print_rewritten = on");
+  }
+}
+
+function missing(known: ReadonlyMap<number, unknown>, oids: readonly number[]): number[] {
+  return [...new Set(oids)].filter((oid) => !known.has(oid));
+}
+
+function store<Value>(known: Map<number, Value>, read: Iterable<readonly [number, Value]>): void {
+  for (const [oid, value] of read) {
+    known.set(oid, value);
+  }
 }
 
 // Bounds the per-session cache; old entries are mostly SQL from earlier edits.
