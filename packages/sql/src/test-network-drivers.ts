@@ -4,10 +4,10 @@ import { Pool } from "pg";
 import pgPromise from "pg-promise";
 import postgres from "postgres";
 
+import type { Connection } from "./connection.ts";
 import { pgPromiseConnection } from "./pg-promise.ts";
 import { pgConnection } from "./pg.ts";
-import { postgresConnection } from "./postgres.ts";
-import type { Connection } from "./values.ts";
+import { postgresJsConnection } from "./postgres-js.ts";
 
 // The proxy speaks plain WebSocket to Postgres without TLS, which Neon's own hosts never do; and
 // the container asks for SCRAM, so the driver cannot send the password with its first messages.
@@ -41,7 +41,7 @@ export async function openNetworkDrivers(
   return {
     connections: [
       pgConnection(pool),
-      postgresConnection(sql),
+      postgresJsConnection(sql),
       pgPromiseConnection(promised),
       pgConnection(neon.pool),
     ],

@@ -29,6 +29,8 @@ Queries run on a `Connection`, made from the driver the application already uses
 - node-postgres: `pgConnection(pool)` from `@ottersql/sql/pg`
 - pg-promise: `pgPromiseConnection(db)` from `@ottersql/sql/pg-promise`, for its database object
 - Neon's serverless driver: `pgConnection(pool)` from `@ottersql/sql/pg`, for its WebSocket `Pool` and `Client`, which follow node-postgres
-- postgres.js: `postgresConnection(sql)` from `@ottersql/sql/postgres`
+- postgres.js: `postgresJsConnection(sql)` from `@ottersql/sql/postgres-js`
 - Bun.sql: `bunSqlConnection(sql)` from `@ottersql/sql/bun-sql`, for a client created with `{ prepare: false }` (Bun receives prepared statements' values of some types in binary)
 - PGlite: `pgliteConnection(db)` from `@ottersql/sql/pglite`
+
+A `Connection` runs only typed queries. Tools built on ottersql run SQL as it is with `rawQuery` from `@ottersql/sql/driver`, which also has `driverConnection` for drivers ottersql has no adapter for.

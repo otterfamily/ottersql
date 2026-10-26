@@ -1,9 +1,9 @@
 import { PGlite } from "@electric-sql/pglite";
 import { createPostgresDatabase } from "@ottersql/testing";
 
+import type { Connection } from "./connection.ts";
 import { pgliteConnection } from "./pglite.ts";
 import { openNetworkDrivers } from "./test-network-drivers.ts";
-import type { Connection } from "./values.ts";
 
 /**
  * A Vitest fixture with one connection per driver: PGlite in process, and node-postgres,

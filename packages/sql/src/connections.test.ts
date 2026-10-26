@@ -7,7 +7,7 @@ import { describe, expect, test } from "vitest";
 import { pgPromiseConnection } from "./pg-promise.ts";
 import { pgConnection } from "./pg.ts";
 import { pgliteConnection } from "./pglite.ts";
-import { postgresConnection } from "./postgres.ts";
+import { postgresJsConnection } from "./postgres-js.ts";
 
 describe("driver adapters", () => {
   test("give one connection per driver object, so its type lookups are kept between calls", async () => {
@@ -18,7 +18,7 @@ describe("driver adapters", () => {
     try {
       expect(pgConnection(pool)).toBe(pgConnection(pool));
       expect(pgliteConnection(db)).toBe(pgliteConnection(db));
-      expect(postgresConnection(sql)).toBe(postgresConnection(sql));
+      expect(postgresJsConnection(sql)).toBe(postgresJsConnection(sql));
       expect(pgPromiseConnection(promised)).toBe(pgPromiseConnection(promised));
     } finally {
       await promised.$pool.end();
@@ -26,5 +26,10 @@ describe("driver adapters", () => {
       await pool.end();
       await db.close();
     }
+  });
+
+  test("expose no way to run SQL outside typed queries", () => {
+    const pool = new Pool();
+    expect(pgConnection(pool)).not.toHaveProperty("query");
   });
 });

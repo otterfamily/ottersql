@@ -1,22 +1,15 @@
 import type { Sql } from "postgres";
 
-import type { Connection } from "./values.ts";
-
-const connections = new WeakMap<Sql, Connection>();
+import { clientConnection } from "./connection.ts";
+import type { Connection, Driver } from "./connection.ts";
 
 /**
  * A `Connection` over postgres.js, receiving every value as text. The same client gives the same
  * connection, which remembers the types it has looked up. Prepared statements follow the client's
  * own `prepare` option.
  */
-export function postgresConnection(sql: Sql): Connection {
-  const known = connections.get(sql);
-  if (known !== undefined) {
-    return known;
-  }
-  const connection = textConnection(sql);
-  connections.set(sql, connection);
-  return connection;
+export function postgresJsConnection(sql: Sql): Connection {
+  return clientConnection(sql, () => textDriver(sql));
 }
 
 /** Postgres's `unknown` type: the parameter's type is left to Postgres, as with pg's text values. */
@@ -26,7 +19,7 @@ const UNKNOWN_OID = 705;
 // are typed `unknown` because postgres.js otherwise serializes them again by the type Postgres
 // infers, which breaks the text ottersql already wrote (JSON would be quoted twice, booleans and
 // timestamps rewritten).
-function textConnection(sql: Sql): Connection {
+function textDriver(sql: Sql): Driver {
   return {
     query: async (text, parameters) => {
       const values = parameters.map((value) =>

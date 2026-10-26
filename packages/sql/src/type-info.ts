@@ -1,4 +1,5 @@
-import type { Connection } from "./values.ts";
+import { cacheKey, rawQuery } from "./connection.ts";
+import type { Connection } from "./connection.ts";
 
 /** How values of a Postgres type are decoded. */
 export type TypeInfo =
@@ -117,15 +118,15 @@ interface PgTypeRow {
   readonly base: number;
 }
 
-const knownByConnection = new WeakMap<Connection, Map<number, PgTypeRow>>();
+const knownByConnection = new WeakMap<object, Map<number, PgTypeRow>>();
 
 /** The decoding information for each oid, looking up oids that are not built in through `connection`. */
 export async function typeInfos(
   connection: Connection,
   oids: readonly number[],
 ): Promise<ReadonlyMap<number, TypeInfo>> {
-  const known = knownByConnection.get(connection) ?? new Map<number, PgTypeRow>();
-  knownByConnection.set(connection, known);
+  const known = knownByConnection.get(cacheKey(connection)) ?? new Map<number, PgTypeRow>();
+  knownByConnection.set(cacheKey(connection), known);
   await lookUp(connection, known, oids);
   return new Map(oids.map((oid) => [oid, typeInfo(oid, known)]));
 }
@@ -182,7 +183,8 @@ async function readPgTypes(
   connection: Connection,
   oids: readonly number[],
 ): Promise<ReadonlyMap<number, PgTypeRow>> {
-  const { rows } = await connection.query(
+  const { rows } = await rawQuery(
+    connection,
     `select t.oid, n.nspname, t.typname, t.typtype,
        case when t.typinput = 'array_in'::regproc then t.typelem else 0 end,
        coalesce(r.rngsubtype, multi.rngsubtype, 0), t.typbasetype

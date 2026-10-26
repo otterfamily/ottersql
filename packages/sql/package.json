@@ -18,11 +18,12 @@
   "exports": {
     ".": "./src/index.ts",
     "./bun-sql": "./src/bun-sql.ts",
+    "./driver": "./src/driver.ts",
     "./esbuild": "./src/esbuild.ts",
     "./pg": "./src/pg.ts",
     "./pg-promise": "./src/pg-promise.ts",
     "./pglite": "./src/pglite.ts",
-    "./postgres": "./src/postgres.ts",
+    "./postgres-js": "./src/postgres-js.ts",
     "./register": {
       "bun": "./src/register-bun.ts",
       "default": "./src/register.ts"
@@ -38,11 +39,12 @@
     "exports": {
       ".": "./dist/index.js",
       "./bun-sql": "./dist/bun-sql.js",
+      "./driver": "./dist/driver.js",
       "./esbuild": "./dist/esbuild.js",
       "./pg": "./dist/pg.js",
       "./pg-promise": "./dist/pg-promise.js",
       "./pglite": "./dist/pglite.js",
-      "./postgres": "./dist/postgres.js",
+      "./postgres-js": "./dist/postgres-js.js",
       "./register": {
         "bun": "./dist/register-bun.js",
         "default": "./dist/register.js"

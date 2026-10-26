@@ -5,11 +5,13 @@ import { postgresDatabase, runInBun } from "@ottersql/testing";
 import { Pool } from "pg";
 import { describe, expect, test } from "vitest";
 
+import { rawQuery } from "./connection.ts";
 import { encodeParameter } from "./encode.ts";
 import { json } from "./index.ts";
 import { pgConnection } from "./pg.ts";
 
 const adapter = JSON.stringify(fileURLToPath(import.meta.resolve("./bun-sql.ts")));
+const driver = JSON.stringify(fileURLToPath(import.meta.resolve("./driver.ts")));
 
 /** Statements whose values cover every way Postgres prints the types ottersql decodes. */
 const statements = [
@@ -42,6 +44,7 @@ const statements = [
 function bunScript(url: string, body: string): string {
   return [
     `import { bunSqlConnection } from ${adapter};`,
+    `import { rawQuery } from ${driver};`,
     'const { SQL } = require("bun");',
     body.replaceAll("URL", JSON.stringify(url)),
   ].join("\n");
@@ -54,7 +57,7 @@ describe("connections over Bun.sql", () => {
     const viaPg = [];
     try {
       for (const { sql, parameters } of statements) {
-        viaPg.push(await pgConnection(pool).query(sql, parameters));
+        viaPg.push(await rawQuery(pgConnection(pool), sql, parameters));
       }
     } finally {
       await pool.end();
@@ -62,7 +65,7 @@ describe("connections over Bun.sql", () => {
     const body = `const sql = new SQL(URL, { prepare: false });
       const results = [];
       for (const { sql: text, parameters } of ${JSON.stringify(statements)}) {
-        results.push(await bunSqlConnection(sql).query(text, parameters));
+        results.push(await rawQuery(bunSqlConnection(sql), text, parameters));
       }
       await sql.end();
       console.log(JSON.stringify(results));`;

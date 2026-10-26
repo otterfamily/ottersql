@@ -1,4 +1,5 @@
 import type { Connection } from "@ottersql/sql";
+import { rawQuery } from "@ottersql/sql/driver";
 
 /**
  * Reads a JSON value the catalog queries return as a `Value`, or throws saying where it is not one.
@@ -73,7 +74,8 @@ export async function queryRows<Row>(
   connection: Connection,
   query: CatalogQuery<Row>,
 ): Promise<readonly Row[]> {
-  const { rows } = await connection.query(
+  const { rows } = await rawQuery(
+    connection,
     `select coalesce(json_agg(rows${query.orderBy === undefined ? "" : ` order by ${query.orderBy}`}), '[]')::text
     from (${query.select}) as rows`,
     query.parameters ?? [],

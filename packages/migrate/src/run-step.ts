@@ -2,6 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import type { QualifiedName } from "@ottersql/catalog";
 import type { Connection } from "@ottersql/sql";
+import { rawQuery } from "@ottersql/sql/driver";
 
 import { writeBlockingLocks } from "./plan.ts";
 import type { OutsideStep, Step } from "./plan.ts";
@@ -89,21 +90,22 @@ async function runOnce(connection: Connection, run: Run, timeout: Timeouts): Pro
 }
 /** The step and what follows it commit together, so a step is never applied without being recorded. */
 async function runInside(connection: Connection, run: Run, timeout: Timeouts): Promise<void> {
-  await connection.query("begin", []);
+  await rawQuery(connection, "begin", []);
   try {
     // Like SET LOCAL, set_config(..., true) ends with the transaction, and RDS Proxy does not pin
     // a connection for it.
-    await connection.query(
+    await rawQuery(
+      connection,
       "select set_config('lock_timeout', $1, true), set_config('statement_timeout', $2, true)",
       [timeout.lock, timeout.statement],
     );
     for (const sql of run.step.statements) {
-      await connection.query(sql, []);
+      await rawQuery(connection, sql, []);
     }
     await run.done?.();
-    await connection.query("commit", []);
+    await rawQuery(connection, "commit", []);
   } catch (error) {
-    await connection.query("rollback", []);
+    await rawQuery(connection, "rollback", []);
     throw error;
   }
 }
@@ -117,20 +119,21 @@ async function runOutside(
   { step, done }: { readonly step: OutsideStep; readonly done?: () => Promise<void> },
   timeout: Timeouts,
 ): Promise<void> {
-  await connection.query(
+  await rawQuery(
+    connection,
     "select set_config('lock_timeout', $1, false), set_config('statement_timeout', $2, false)",
     [timeout.lock, timeout.statement],
   );
   try {
     if (await needsBuilding(connection, step)) {
       for (const sql of step.statements) {
-        await connection.query(sql, []);
+        await rawQuery(connection, sql, []);
       }
     }
     await done?.();
   } finally {
-    await connection.query("reset lock_timeout", []);
-    await connection.query("reset statement_timeout", []);
+    await rawQuery(connection, "reset lock_timeout", []);
+    await rawQuery(connection, "reset statement_timeout", []);
   }
 }
 
@@ -144,7 +147,8 @@ async function needsBuilding(connection: Connection, step: OutsideStep): Promise
   }
   const left = await leftIndex(connection, step.cleanup);
   if (left === "invalid") {
-    await connection.query(
+    await rawQuery(
+      connection,
       `DROP INDEX CONCURRENTLY ${qualified(step.cleanup.schema, step.cleanup.name)}`,
       [],
     );
@@ -157,7 +161,8 @@ async function leftIndex(
   connection: Connection,
   index: QualifiedName,
 ): Promise<"none" | "invalid" | "valid"> {
-  const { rows } = await connection.query(
+  const { rows } = await rawQuery(
+    connection,
     `select i.indisvalid from pg_index i
       join pg_class c on c.oid = i.indexrelid join pg_namespace n on n.oid = c.relnamespace
     where n.nspname = $1 and c.relname = $2`,

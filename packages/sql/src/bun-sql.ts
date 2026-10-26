@@ -1,4 +1,5 @@
-import type { Connection } from "./values.ts";
+import { clientConnection } from "./connection.ts";
+import type { Connection } from "./connection.ts";
 
 /** The part of a Bun `SQL` client this file uses; ottersql does not depend on Bun's types. */
 export interface BunSql {
@@ -15,7 +16,6 @@ export interface BunSql {
   };
 }
 
-const connections = new WeakMap<BunSql, Connection>();
 const text = new TextDecoder();
 
 /**
@@ -29,11 +29,7 @@ export function bunSqlConnection(sql: BunSql): Connection {
       "Create the Bun SQL client with { prepare: false }: Bun receives prepared statements' values of some types in binary, and ottersql decodes values from text",
     );
   }
-  const known = connections.get(sql);
-  if (known !== undefined) {
-    return known;
-  }
-  const connection: Connection = {
+  return clientConnection(sql, () => ({
     query: async (query, parameters) => {
       const result = await sql.unsafe(query, parameters).raw();
       return {
@@ -44,7 +40,5 @@ export function bunSqlConnection(sql: BunSql): Connection {
         rows: result.map((row) => row.map((value) => (value === null ? null : text.decode(value)))),
       };
     },
-  };
-  connections.set(sql, connection);
-  return connection;
+  }));
 }

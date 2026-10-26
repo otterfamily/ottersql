@@ -1,9 +1,10 @@
 import { describe, expect, test as base } from "vitest";
 
+import { rawQuery } from "./connection.ts";
+import type { Connection } from "./connection.ts";
 import { openDrivers } from "./test-drivers.ts";
 import { builtInOids, typeInfos } from "./type-info.ts";
 import type { TypeInfo } from "./type-info.ts";
-import type { Connection } from "./values.ts";
 
 const test = base.extend<{ drivers: readonly Connection[] }>({
   drivers: [openDrivers, { scope: "file" }],
@@ -27,7 +28,8 @@ function expectedTypeInfo([typtype, name, element, subtype]: readonly (
 describe("built-in types", () => {
   test("match what pg_type says about their oids", async ({ drivers }) => {
     for (const connection of drivers) {
-      const { rows } = await connection.query(
+      const { rows } = await rawQuery(
+        connection,
         `select t.oid, t.typtype, t.typname, element.typname, subtype.typname
          from pg_type t
          left join pg_type element on element.oid = t.typelem and t.typinput = 'array_in'::regproc

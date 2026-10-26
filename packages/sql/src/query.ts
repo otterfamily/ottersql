@@ -1,8 +1,9 @@
+import { rawQuery } from "./connection.ts";
+import type { Connection } from "./connection.ts";
 import { columnDecoder } from "./decode.ts";
 import { encodeParameter } from "./encode.ts";
 import { typeInfos } from "./type-info.ts";
 import type { TypeInfo } from "./type-info.ts";
-import type { Connection } from "./values.ts";
 
 /** A query's arguments: the connection, then its parameters unless it has none (`undefined`). */
 export type QueryArguments<Params> = Params extends undefined
@@ -77,7 +78,7 @@ export function defineQuery(
   type Row = QueryRow;
   const run = async (connection: Connection, params?: Params): Promise<Row[]> => {
     const values = parameterNames.map((name) => encodeParameter(parameterValue(params, name)));
-    const result = await connection.query(sql, values);
+    const result = await rawQuery(connection, sql, values);
     const problem = columnNamesProblem(result.fields.map(({ name }) => name));
     if (problem !== null) {
       throw new TypeError(problem);

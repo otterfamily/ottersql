@@ -1,6 +1,7 @@
 import { setTimeout as sleep } from "node:timers/promises";
 
 import type { Connection } from "@ottersql/sql";
+import { rawQuery } from "@ottersql/sql/driver";
 
 import type { Step } from "./plan.ts";
 
@@ -42,20 +43,23 @@ export async function exclusively<Result>(
   try {
     return await use();
   } finally {
-    await connection.query("select pg_advisory_unlock(hashtextextended($1, 0))", [LOCK_NAME]);
+    await rawQuery(connection, "select pg_advisory_unlock(hashtextextended($1, 0))", [LOCK_NAME]);
   }
 }
 
 async function tryLock(connection: Connection): Promise<boolean> {
-  const { rows } = await connection.query("select pg_try_advisory_lock(hashtextextended($1, 0))", [
-    LOCK_NAME,
-  ]);
+  const { rows } = await rawQuery(
+    connection,
+    "select pg_try_advisory_lock(hashtextextended($1, 0))",
+    [LOCK_NAME],
+  );
   return rows[0]?.[0] === "t";
 }
 
 export async function createLedger(connection: Connection): Promise<void> {
-  await connection.query("create schema if not exists ottersql", []);
-  await connection.query(
+  await rawQuery(connection, "create schema if not exists ottersql", []);
+  await rawQuery(
+    connection,
     `create table if not exists ${ledger} (
       migration text not null, step int4 not null, hash text not null, kind text not null,
       object text not null, applied_at timestamptz not null default now(),
@@ -67,11 +71,11 @@ export async function createLedger(connection: Connection): Promise<void> {
 
 /** The steps that ran, or none when the database never ran any; it writes nothing. */
 export async function readLedger(connection: Connection): Promise<AppliedStep[]> {
-  const exists = await connection.query(`select to_regclass('${ledger}') is not null`, []);
+  const exists = await rawQuery(connection, `select to_regclass('${ledger}') is not null`, []);
   if (exists.rows[0]?.[0] !== "t") {
     return [];
   }
-  const { rows } = await connection.query(`select migration, step, hash from ${ledger}`, []);
+  const { rows } = await rawQuery(connection, `select migration, step, hash from ${ledger}`, []);
   return rows.map(([migration, step, hash]) => ({
     migration: migration ?? "",
     step: Number(step),
@@ -80,7 +84,8 @@ export async function readLedger(connection: Connection): Promise<AppliedStep[]>
 }
 
 export async function record(connection: Connection, pending: PendingStep): Promise<void> {
-  await connection.query(
+  await rawQuery(
+    connection,
     `insert into ${ledger} (migration, step, hash, kind, object) values ($1, $2, $3, $4, $5)`,
     [
       pending.migration,
@@ -98,14 +103,14 @@ export async function recordAll(
   steps: readonly PendingStep[],
 ): Promise<void> {
   await createLedger(connection);
-  await connection.query("begin", []);
+  await rawQuery(connection, "begin", []);
   try {
     for (const step of steps) {
       await record(connection, step);
     }
-    await connection.query("commit", []);
+    await rawQuery(connection, "commit", []);
   } catch (error) {
-    await connection.query("rollback", []);
+    await rawQuery(connection, "rollback", []);
     throw error;
   }
 }
