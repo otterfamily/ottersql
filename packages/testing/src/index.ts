@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import { PGlite } from "@electric-sql/pglite";
 import { Client } from "pg";
+import { GenericContainer, Wait } from "testcontainers";
 import { inject, onTestFinished } from "vitest";
 
 declare module "vitest" {
@@ -14,6 +15,8 @@ declare module "vitest" {
     postgresAdminUrl: string;
     /** The major version that container runs. */
     postgresMajor: number;
+    /** Where other containers reach that container, as `host:port`. */
+    postgresContainerAddress: string;
   }
 }
 
@@ -58,6 +61,36 @@ export async function createPostgresDatabase(
       await withClient(adminUrl, async (client) =>
         client.query(`drop database ${name} with (force)`),
       );
+    },
+  };
+}
+
+/** The port wsproxy listens on unless told otherwise. */
+const WEB_SOCKET_PROXY_PORT = 80;
+
+/** Neon's WebSocket proxy; it is published only as `latest`, so it is pinned by digest. */
+const WEB_SOCKET_PROXY_IMAGE =
+  "ghcr.io/neondatabase/wsproxy@sha256:7f2e2149aa6a57ba382a140102fba44f5053f3e44389ccc18adcecf896054efb";
+
+/**
+ * A WebSocket proxy to the shared Postgres container, as Neon's serverless driver connects
+ * through, that runs until `stop` is called. `url` takes the form of the driver's `wsProxy` option:
+ * no protocol, and the container's address already appended.
+ */
+export async function startWebSocketProxy(): Promise<{
+  readonly url: string;
+  readonly stop: () => Promise<void>;
+}> {
+  const address = inject("postgresContainerAddress");
+  const container = await new GenericContainer(WEB_SOCKET_PROXY_IMAGE)
+    .withEnvironment({ ALLOW_ADDR_REGEX: `^${address.replaceAll(".", String.raw`\.`)}$` })
+    .withExposedPorts(WEB_SOCKET_PROXY_PORT)
+    .withWaitStrategy(Wait.forLogMessage("Starting server"))
+    .start();
+  return {
+    url: `${container.getHost()}:${String(container.getMappedPort(WEB_SOCKET_PROXY_PORT))}/v1?address=${address}`,
+    stop: async () => {
+      await container.stop();
     },
   };
 }

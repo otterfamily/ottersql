@@ -17,7 +17,8 @@
   "dependencies": {
     "@electric-sql/pglite": "catalog:",
     "@testcontainers/postgresql": "catalog:",
-    "pg": "catalog:"
+    "pg": "catalog:",
+    "testcontainers": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

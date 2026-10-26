@@ -22,6 +22,8 @@ export async function setup(project: TestProject): Promise<() => Promise<void>> 
   const container = await new PostgreSqlContainer(image).start();
   project.provide("postgresAdminUrl", container.getConnectionUri());
   project.provide("postgresMajor", Number(major));
+  const [network = "bridge"] = container.getNetworkNames();
+  project.provide("postgresContainerAddress", `${container.getIpAddress(network)}:5432`);
   return async () => {
     await container.stop();
   };

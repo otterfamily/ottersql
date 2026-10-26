@@ -59,6 +59,7 @@
   },
   "devDependencies": {
     "@electric-sql/pglite": "catalog:",
+    "@neondatabase/serverless": "catalog:",
     "@ottersql/testing": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",

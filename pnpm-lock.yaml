@@ -170,6 +170,9 @@ catalogs:
     '@electric-sql/pglite-pgvector':
       specifier: ^0.0.12
       version: 0.0.12
+    '@neondatabase/serverless':
+      specifier: ^1.2.0
+      version: 1.2.0
     '@ottersql/catalog':
       specifier: workspace:*
       version: workspace:*
@@ -239,6 +242,9 @@ catalogs:
     std-env:
       specifier: ^4.3.0
       version: 4.3.0
+    testcontainers:
+      specifier: ^12.2.1
+      version: 12.2.1
     typescript:
       specifier: 7.1.0-beta
       version: 7.1.0-beta
@@ -478,6 +484,9 @@ importers:
       '@electric-sql/pglite':
         specifier: 'catalog:'
         version: 0.5.11
+      '@neondatabase/serverless':
+        specifier: 'catalog:'
+        version: 1.2.0
       '@ottersql/testing':
         specifier: 'catalog:'
         version: link:../testing
@@ -529,6 +538,9 @@ importers:
       pg:
         specifier: 'catalog:'
         version: 8.23.1
+      testcontainers:
+        specifier: 'catalog:'
+        version: 12.2.1(supports-color@8.1.1)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -1000,6 +1012,10 @@ packages:
     peerDependencies:
       '@emnapi/core': ^1.7.1 || ^2.0.0-alpha.4
       '@emnapi/runtime': ^1.7.1 || ^2.0.0-alpha.4
+
+  '@neondatabase/serverless@1.2.0':
+    resolution: {integrity: sha512-tnaqgixUengZQNd9ZrS3ytQfamJzLKY8QxgqWQTNHHtB+KrFQWk77JTbbpg4RD+J3qE4eO2lVytvGDX5Kj6FdQ==}
+    engines: {node: '>=19.0.0'}
 
   '@next/env@16.4.3':
     resolution: {integrity: sha512-a7tz1QCcWWkwC/rPJcPMJk/UNRu9CFhDd3OHYE5hddbJrs8BqRTalxI6GlKCWEGzRLHN+S/B7a4PAHCtm25aBQ==}
@@ -3893,6 +3909,8 @@ snapshots:
       '@emnapi/runtime': 1.11.2
       '@tybys/wasm-util': 0.10.4
     optional: true
+
+  '@neondatabase/serverless@1.2.0': {}
 
   '@next/env@16.4.3': {}
 

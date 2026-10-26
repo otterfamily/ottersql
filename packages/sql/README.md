@@ -27,6 +27,7 @@ Each `.sql` file becomes a module that exports its queries. Load it with:
 Queries run on a `Connection`, made from the driver the application already uses:
 
 - node-postgres: `pgConnection(pool)` from `@ottersql/sql/pg`
+- Neon's serverless driver: `pgConnection(pool)` from `@ottersql/sql/pg`, for its WebSocket `Pool` and `Client`, which follow node-postgres
 - postgres.js: `postgresConnection(sql)` from `@ottersql/sql/postgres`
 - Bun.sql: `bunSqlConnection(sql)` from `@ottersql/sql/bun-sql`, for a client created with `{ prepare: false }` (Bun receives prepared statements' values of some types in binary)
 - PGlite: `pgliteConnection(db)` from `@ottersql/sql/pglite`
