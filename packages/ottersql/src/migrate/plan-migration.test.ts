@@ -49,6 +49,20 @@ describe("planMigration, run on PGlite to the target schema", () => {
       ],
     },
     {
+      change:
+        "adds a new table's foreign key to a key added after the deploy unvalidated, then validates it, since the table has rows by then",
+      from: users,
+      to: `create table users (id int8 primary key, email text unique);
+        create table posts (id int8 primary key, author_email text references users (email))`,
+      steps: [
+        "expand createTable public.posts (lossy, inside, none)",
+        "contract createIndex public.users.users_email_key (reversible, outside, share update exclusive)",
+        "contract addUnique public.users.users_email_key (reversible, inside, access exclusive)",
+        "contract addForeignKey public.posts.posts_author_email_fkey (reversible, inside, share row exclusive)",
+        "contract validateForeignKey public.posts.posts_author_email_fkey (reversible, inside, share update exclusive)",
+      ],
+    },
+    {
       change: "drops a table after the deploy",
       from: users,
       to: "",

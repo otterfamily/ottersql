@@ -193,7 +193,7 @@ export function addCheck(table: Table, check: Check): Changes {
   });
 }
 
-function addForeignKey(table: Table, key: ForeignKey): Changes {
+export function addForeignKey(table: Table, key: ForeignKey): Changes {
   return addThenValidate({
     table,
     name: key.name,

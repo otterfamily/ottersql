@@ -1,6 +1,6 @@
 import { findTable } from "../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
-import { addCheck } from "./constraints.ts";
+import { addCheck, addForeignKey } from "./constraints.ts";
 import {
   alterTable,
   columnList,
@@ -60,7 +60,8 @@ function hasKey(table: Table, columns: readonly string[]): boolean {
 /**
  * What a new table adds after `CREATE TABLE`: foreign keys, once every table they may refer to
  * exists, and checks meant to skip existing rows, which `CREATE TABLE` cannot write. A foreign key
- * to a key that `from` lacks on an existing table waits until that key is added, after the deploy.
+ * to a key that `from` lacks on an existing table waits until that key is added, after the deploy;
+ * the new app has written rows by then, so it is added as for any table with rows.
  */
 export function newTableConstraints(table: Table, from: Catalog): Changes {
   const unvalidatedChecks = table.checks.filter((check) => check.enforcement === "not valid");
@@ -69,22 +70,23 @@ export function newTableConstraints(table: Table, from: Catalog): Changes {
     return referenced !== undefined && !hasKey(referenced, key.references.columns);
   };
   const foreignKeys = table.foreignKeys.map((key) =>
+    waitsForKey(key) ? addForeignKey(table, key) : addToEmptyTable(table, key),
+  );
+  return combine([...unvalidatedChecks.map((check) => addCheck(table, check)), ...foreignKeys]);
+}
+
+/** A foreign key of a table created in the same run, before the app writes to it: nothing to check yet. */
+function addToEmptyTable(table: Table, key: ForeignKey): Changes {
+  const definition = `${foreignKeyDefinition(key)}${enforcement(key.enforcement)}`;
+  const statement = alterTable(table, `ADD CONSTRAINT ${identifier(key.name)} ${definition}`);
+  return only(
     step({
       kind: "addForeignKey",
       object: objectName(table, key.name),
-      statements: [
-        alterTable(
-          table,
-          `ADD CONSTRAINT ${identifier(key.name)} ${foreignKeyDefinition(key)}${enforcement(key.enforcement)}`,
-        ),
-      ],
-      phase: waitsForKey(key) ? "contract" : "expand",
+      statements: [statement],
+      phase: "expand",
       reversal: "reversible",
       lock: "share row exclusive",
     }),
   );
-  return combine([
-    ...unvalidatedChecks.map((check) => addCheck(table, check)),
-    only(...foreignKeys),
-  ]);
 }
