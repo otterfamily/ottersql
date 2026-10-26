@@ -148,6 +148,24 @@ describe("ottersql types", () => {
     });
   });
 
+  test(`reads \${configDir} in an extended outDir and exclude as the directory of the tsconfig it starts from`, async () => {
+    const root = await project({
+      ...files,
+      "dist/users.sql": files["src/users.sql"],
+      "fixtures/users.sql": files["src/users.sql"],
+      "configs/base.json": JSON.stringify({
+        compilerOptions: { outDir: `\${configDir}/dist` },
+        exclude: [`\${configDir}/fixtures`],
+      }),
+      "tsconfig.json": JSON.stringify({ extends: "./configs/base.json" }),
+    });
+    const { exitCode, json } = await ottersqlJson(root, ["types"]);
+    expect({ exitCode, written: at(json, "result", "written") }).toStrictEqual({
+      exitCode: 0,
+      written: ["src/users.d.sql.ts"],
+    });
+  });
+
   test("is the only command that takes --check", async () => {
     const root = await project(files);
     const { exitCode, json } = await ottersqlJson(root, ["migrate", "check", "--check"]);

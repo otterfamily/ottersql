@@ -26,7 +26,7 @@ type Own = { readonly [Field in keyof Tsconfig]: Tsconfig[Field] | undefined };
 
 /** Reads the tsconfig at `file` and every file it extends. `cwd` is where paths in errors start. */
 export async function readTsconfig(file: string, cwd: string): Promise<Tsconfig> {
-  const merged = await readChain(file, cwd, new Set());
+  const merged = await readChain(file, { cwd, configDir: dirname(file) }, new Set());
   return {
     schema: merged.schema ?? null,
     exclude: merged.exclude ?? null,
@@ -34,19 +34,26 @@ export async function readTsconfig(file: string, cwd: string): Promise<Tsconfig>
   };
 }
 
-async function readChain(file: string, cwd: string, seen: ReadonlySet<string>): Promise<Own> {
+/** Where the reading started: `cwd` for paths in errors, `configDir` for `${configDir}`. */
+interface Start {
+  readonly cwd: string;
+  readonly configDir: string;
+}
+
+async function readChain(file: string, start: Start, seen: ReadonlySet<string>): Promise<Own> {
+  const { cwd } = start;
   if (seen.has(file)) {
     throw invalid(file, cwd, "extends itself");
   }
   const config = await readConfig(file, cwd);
   const bases = await Promise.all(
     extendsOf(config).map(async (spec) =>
-      readChain(resolveExtends(spec, file, cwd), cwd, new Set([...seen, file])),
+      readChain(resolveExtends(spec, file, cwd), start, new Set([...seen, file])),
     ),
   );
   // Later bases override earlier ones, and the file itself overrides them all.
   let merged: Own = { schema: undefined, exclude: undefined, outDir: undefined };
-  for (const own of [...bases, ownFields(config, file)]) {
+  for (const own of [...bases, ownFields(config, file, start.configDir)]) {
     merged = {
       schema: own.schema === undefined ? merged.schema : own.schema,
       exclude: own.exclude ?? merged.exclude,
@@ -85,14 +92,22 @@ async function readConfig(file: string, cwd: string): Promise<unknown> {
   return parsed.value;
 }
 
-function ownFields(config: unknown, file: string): Own {
+const CONFIG_DIR = `\${configDir}`;
+
+function ownFields(config: unknown, file: string, configDir: string): Own {
   const directory = dirname(file);
+  // As TypeScript reads them: relative to the file that sets them, but ${configDir} stands for the
+  // directory of the tsconfig the reading started from, so a shared base can name the project's.
+  const path = (value: string): string =>
+    value.startsWith(CONFIG_DIR)
+      ? resolve(configDir, `.${value.slice(CONFIG_DIR.length)}`)
+      : resolve(directory, value);
   const exclude = strings(field(config, "exclude"));
   const outDir = field(field(config, "compilerOptions"), "outDir");
   return {
     schema: schemaOf(config, directory),
-    exclude: exclude?.map((pattern) => resolve(directory, pattern)),
-    outDir: typeof outDir === "string" ? resolve(directory, outDir) : undefined,
+    exclude: exclude?.map((pattern) => path(pattern)),
+    outDir: typeof outDir === "string" ? path(outDir) : undefined,
   };
 }
 
