@@ -79,6 +79,7 @@ describe("content mapper protocol", () => {
   test.for([
     { label: "the schema file itself", file: "schema.sql" },
     { label: "a migration next to it", file: join("migrations", "20261025000000_init.sql") },
+    { label: "another tool's .sql file, without -- @name", file: join("..", "seed.sql") },
   ])("maps $label to an empty module, since it holds no queries", async ({ file }) => {
     const root = await mkdtemp(join(tmpdir(), "ottersql-mapper-"));
     const mapper = createMapper();

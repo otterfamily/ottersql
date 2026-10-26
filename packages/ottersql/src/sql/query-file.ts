@@ -84,6 +84,15 @@ export function readQueryFile(content: string): QueryFile {
   return { queries, problems };
 }
 
+/**
+ * Whether `content` holds any `-- @name` query, which is what tells a query file from the other
+ * `.sql` files a project keeps, such as another tool's migrations or seed data.
+ */
+export function holdsQueries(content: string): boolean {
+  const all = [...tokens(content)];
+  return all.some((token) => headerName(content, token) !== null);
+}
+
 /** Maps an offset in `query.sql`, such as the position of a Postgres error, to an offset in the file. */
 export function fileOffset(query: Query, sqlOffset: number): number {
   const entry =

@@ -108,6 +108,46 @@ describe("ottersql types", () => {
     });
   });
 
+  test("leaves out .sql files of other tools, which have no -- @name line, and the tsconfig's outDir and exclude", async () => {
+    const root = await project({
+      ...files,
+      "supabase/migrations/001_init.sql": "create table notes (id int8);\n",
+      "supabase/seed.sql": "insert into notes values (1);\n",
+      "dist/users.sql": files["src/users.sql"],
+      "fixtures/users.sql": files["src/users.sql"],
+      "tsconfig.json": JSON.stringify({
+        compilerOptions: { outDir: "dist" },
+        exclude: ["fixtures"],
+        contentMappers: [
+          { package: "ottersql", extensions: [".sql"], options: { schema: "db/schema.sql" } },
+        ],
+      }),
+    });
+    const { exitCode, json } = await ottersqlJson(root, ["types"]);
+    expect({ exitCode, written: at(json, "result", "written") }).toStrictEqual({
+      exitCode: 0,
+      written: ["src/users.d.sql.ts"],
+    });
+  });
+
+  test("reads the schema option through extends, relative to the tsconfig that sets it", async () => {
+    const root = await project({
+      "sql/schema.sql": files["db/schema.sql"],
+      "src/users.sql": files["src/users.sql"],
+      "configs/base.json": JSON.stringify({
+        contentMappers: [
+          { package: "ottersql", extensions: [".sql"], options: { schema: "../sql/schema.sql" } },
+        ],
+      }),
+      "tsconfig.json": JSON.stringify({ extends: "./configs/base.json" }),
+    });
+    const { exitCode, json } = await ottersqlJson(root, ["types", "--check"]);
+    expect({ exitCode, written: at(json, "result", "written") }).toStrictEqual({
+      exitCode: 4,
+      written: ["src/users.d.sql.ts"],
+    });
+  });
+
   test("is the only command that takes --check", async () => {
     const root = await project(files);
     const { exitCode, json } = await ottersqlJson(root, ["migrate", "check", "--check"]);

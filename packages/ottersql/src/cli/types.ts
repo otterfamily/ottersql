@@ -1,5 +1,5 @@
 import { glob, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, dirname, join } from "node:path";
+import { basename, join, matchesGlob, relative } from "node:path";
 
 import {
   declarationFileName,
@@ -7,6 +7,7 @@ import {
   isGeneratedDeclarationFile,
 } from "../content-mapper/index.ts";
 import type { DeclarationFile, DeclarationFileProblem } from "../content-mapper/index.ts";
+import { isQueryFile } from "../content-mapper/mapper.ts";
 import { schemaRefusal } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
@@ -27,7 +28,10 @@ function skipped(name: string): boolean {
   return name === "node_modules" || name.startsWith(".");
 }
 
-/** The project's query files: every `.sql` file but schema.sql and the migrations. */
+/**
+ * The project's query files: the `.sql` files with `-- @name` queries, as the content mapper
+ * decides, outside what the tsconfig excludes and its outDir.
+ */
 async function queryFiles(layout: Layout): Promise<string[]> {
   const found: string[] = [];
   for await (const path of glob("**/*.sql", {
@@ -35,11 +39,24 @@ async function queryFiles(layout: Layout): Promise<string[]> {
     exclude: (name) => skipped(basename(name)),
   })) {
     const file = join(layout.projectDirectory, path);
-    if (file !== layout.schemaFile && dirname(file) !== layout.migrationsDirectory) {
+    if (
+      !isExcluded(layout, file) &&
+      isQueryFile(layout.schemaFile, file, await readFile(file, "utf8"))
+    ) {
       found.push(file);
     }
   }
   return found.toSorted();
+}
+
+/** Whether the tsconfig leaves `file` out, as its exclude patterns or its outDir do. */
+function isExcluded({ excluded }: Layout, file: string): boolean {
+  const { patterns, outDir } = excluded;
+  const inOutDir = outDir !== null && !relative(outDir, file).startsWith("..");
+  return (
+    inOutDir ||
+    patterns.some((pattern) => matchesGlob(file, pattern) || matchesGlob(file, join(pattern, "**")))
+  );
 }
 
 async function render(layout: Layout, files: readonly string[]): Promise<DeclarationFile[]> {

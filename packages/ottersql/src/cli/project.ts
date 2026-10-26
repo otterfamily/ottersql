@@ -1,12 +1,12 @@
-import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { defaultSchemaPath, migrationsDirectory } from "../content-mapper/index.ts";
 import { MigrationFileError, MigrationHistoryError } from "../migrate/index.ts";
 import type { MigrationFile } from "../migrate/index.ts";
 import type { Project } from "./command.ts";
-import { parseJsonc } from "./jsonc.ts";
 import { CommandError } from "./outcome.ts";
+import { CONTENT_MAPPER, readTsconfig } from "./tsconfig.ts";
 
 /** Where a project keeps its schema and migrations, as absolute paths. */
 export interface Layout {
@@ -15,69 +15,35 @@ export interface Layout {
   readonly projectDirectory: string;
   readonly schemaFile: string;
   readonly migrationsDirectory: string;
+  /** What the tsconfig leaves out of the project: its exclude patterns and its outDir. */
+  readonly excluded: { readonly patterns: readonly string[]; readonly outDir: string | null };
 }
 
-const CONTENT_MAPPER = "ottersql";
 const TSCONFIG = "tsconfig.json";
 
 /**
- * Finds schema.sql where the tsconfig's ottersql content mapper looks for it, so editor types and
- * migrations read the same file, and the migrations where the content mapper leaves them untyped.
+ * Finds schema.sql where the tsconfig's ottersql content mapper looks for it, following extends as
+ * TypeScript does, so editor types and migrations read the same file, and the migrations where
+ * the content mapper leaves them untyped.
  */
 export async function locate(cwd: string, project: Project): Promise<Layout> {
-  const tsconfig = resolve(cwd, project ?? TSCONFIG);
-  const text = await readFile(tsconfig, "utf8").catch(() => null);
-  if (text === null && project !== null) {
-    throw new CommandError({
-      kind: "invalid",
-      code: "project.tsconfig_unreadable",
-      why: `Cannot read ${project}`,
-      fix: "Pass --project the path of a tsconfig, or leave it out",
-      where: { file: relative(cwd, tsconfig) },
-    });
-  }
-  const schema = text === null ? defaultSchemaPath : schemaOption(text, relative(cwd, tsconfig));
-  const schemaFile = resolve(dirname(tsconfig), schema);
+  const file = resolve(cwd, project ?? TSCONFIG);
+  const exists = await access(file).then(
+    () => true,
+    () => false,
+  );
+  const tsconfig =
+    exists || project !== null
+      ? await readTsconfig(file, cwd)
+      : { schema: null, exclude: null, outDir: null };
+  const schemaFile = tsconfig.schema ?? resolve(dirname(file), defaultSchemaPath);
   return {
     cwd,
-    projectDirectory: dirname(tsconfig),
+    projectDirectory: dirname(file),
     schemaFile,
     migrationsDirectory: migrationsDirectory(schemaFile),
+    excluded: { patterns: tsconfig.exclude ?? [], outDir: tsconfig.outDir },
   };
-}
-
-function schemaOption(text: string, file: string): string {
-  const parsed = parseJsonc(text);
-  if (!("value" in parsed)) {
-    throw new CommandError({
-      kind: "invalid",
-      code: "project.tsconfig_invalid",
-      why: `${file} is not valid JSON: ${parsed.error}`,
-      fix: "Fix the tsconfig",
-      ...(parsed.offset === null ? {} : { where: { file, line: lineAt(text, parsed.offset) } }),
-    });
-  }
-  const config = parsed.value;
-  const mappers = field(config, "contentMappers");
-  const mapper = isList(mappers)
-    ? mappers.find((entry) => field(entry, "package") === CONTENT_MAPPER)
-    : undefined;
-  const schema = field(field(mapper, "options"), "schema");
-  return typeof schema === "string" ? schema : defaultSchemaPath;
-}
-
-function isList(value: unknown): value is readonly unknown[] {
-  return Array.isArray(value);
-}
-
-function field(value: unknown, name: string): unknown {
-  return typeof value === "object" && value !== null && name in value
-    ? Reflect.get(value, name)
-    : undefined;
-}
-
-function lineAt(text: string, offset: number): number {
-  return text.slice(0, offset).split("\n").length;
 }
 
 /** `path` as output shows it: relative to where the command runs, never absolute. */

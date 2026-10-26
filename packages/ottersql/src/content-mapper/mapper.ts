@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 
 import { SchemaError } from "../catalog/index.ts";
+import { holdsQueries } from "../sql/query-file.ts";
 import { METHOD_NOT_FOUND, RpcError } from "./json-rpc.ts";
 import { DiagnosticCode } from "./render.ts";
 import type { RenderedFile } from "./render.ts";
@@ -85,7 +86,7 @@ async function openProject(state: State, params: unknown): Promise<object> {
 async function transform(state: State, params: unknown): Promise<object> {
   const { projectHandle, fileName, content } = transformParams(params);
   const project = state.projects.get(projectHandle);
-  if (project !== undefined && holdsNoQueries(project, resolve(fileName))) {
+  if (project !== undefined && !isQueryFile(project.schemaPath, resolve(fileName), content)) {
     return transformed({ text: "export {};\n", mappings: [], diagnostics: [] });
   }
   const loaded = await (project === undefined ? undefined : state.sessions.get(project.schemaHash));
@@ -97,8 +98,17 @@ async function transform(state: State, params: unknown): Promise<object> {
   );
 }
 
-function holdsNoQueries(project: Project, file: string): boolean {
-  return file === project.schemaPath || dirname(file) === migrationsDirectory(project.schemaPath);
+/**
+ * Whether `file` holds queries to type: not the schema, not a migration, and with `-- @name`
+ * queries, unlike the `.sql` files other tools keep next to it. Both the content mapper and
+ * `ottersql types` go by it.
+ */
+export function isQueryFile(schemaPath: string, file: string, content: string): boolean {
+  return (
+    file !== schemaPath &&
+    dirname(file) !== migrationsDirectory(schemaPath) &&
+    holdsQueries(content)
+  );
 }
 
 async function load(schemaText: string, schemaPath: string): Promise<Loaded> {
