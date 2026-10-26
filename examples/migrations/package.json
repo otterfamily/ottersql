@@ -11,7 +11,7 @@
     "generate": "ottersql migrate generate",
     "apply": "ottersql migrate apply",
     "typecheck": "tsc -p .",
-    "check": "ottersql migrate check"
+    "test": "ottersql migrate check"
   },
   "dependencies": {
     "ottersql": "catalog:",

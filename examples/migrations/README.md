@@ -36,7 +36,7 @@ export DATABASE_URL=postgres://ottersql:ottersql@localhost:54329/example
 1. Edit `db/schema.sql`, for example add `bio text` to `users`.
 2. `pnpm generate add_bio` writes the next migration to `db/migrations/`.
 3. `pnpm apply --phase expand` and `pnpm apply --phase contract` apply the steps before and after a deploy; `pnpm apply` applies both.
-4. `pnpm check` checks that the migrations build `db/schema.sql`, as CI would.
+4. `pnpm test` checks that the migrations build `db/schema.sql`, as CI would; this repository's CI runs it too.
 
 Add `--json` to any of them to see what an agent reads. A step that cannot be undone, such as dropping a column, stops `apply` with exit code 3 and an approval to pass back with `--approve`; an AI agent cannot pass it, so it has to ask you.
 
