@@ -99,6 +99,29 @@ describe("applyMigrations on Postgres", () => {
     }
   });
 
+  test("gives up waiting for a write-blocking lock outside a transaction too, as inside one", async () => {
+    const url = await postgresDatabase(users);
+    const [migrator, holder] = await Promise.all([connect(url), connect(url)]);
+    try {
+      await holder.query("begin; select * from users");
+      const release = setTimeout(() => {
+        void holder.query("commit");
+      }, 3000);
+      const file = {
+        name: "20261026000000_add_nick.sql",
+        text: '-- ottersql:step kind=custom object="public.users" phase=expand reversal=reversible transaction=outside lock="access exclusive"\nalter table users add column nick text;\n',
+      };
+      const result = await applyMigrations(pgConnection(migrator), [file], {
+        lockTimeout: 200,
+        retries: 0,
+      });
+      clearTimeout(release);
+      expect(result.failed?.code).toBe("55P03");
+    } finally {
+      await Promise.all([migrator.end(), holder.end()]);
+    }
+  });
+
   test("stops at a step that fails, and resumes there once the data is fixed", async () => {
     const url = await postgresDatabase(`${users}; insert into users values (1, null)`);
     const client = await connect(url);

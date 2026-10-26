@@ -10,9 +10,9 @@ import { qualified } from "./sql-text.ts";
 
 export interface RunOptions {
   /**
-   * How long a step in a transaction waits for a lock before giving up and retrying, in
-   * milliseconds. Steps outside a transaction wait as long as they need, since their waits hold up
-   * no other query.
+   * How long a step waits for a lock before giving up and retrying, in milliseconds. Steps outside
+   * a transaction under a lock that lets writes go on, such as building an index concurrently, wait
+   * as long as they need, since their waits hold up no other query.
    */
   readonly lockTimeout?: number;
   /** How many times a step that gave up waiting for a lock, or was ended by a deadlock, is retried. */
@@ -77,11 +77,13 @@ interface Timeouts {
 }
 
 function timeouts(step: Step, settings: Settings): Timeouts {
-  const statement = writeBlockingLocks.has(step.lock) ? settings.statementTimeout : 0;
-  // A step outside a transaction, such as CREATE INDEX CONCURRENTLY, waits at its end for every
-  // older transaction in the database; that wait holds up no other query, and giving it up throws
-  // away the index built so far.
-  const lock = step.transaction === "outside" ? 0 : settings.lockTimeout;
+  const blocksWrites = writeBlockingLocks.has(step.lock);
+  const statement = blocksWrites ? settings.statementTimeout : 0;
+  // A step outside a transaction under a weaker lock, such as CREATE INDEX CONCURRENTLY, waits at
+  // its end for every older transaction in the database; that wait holds up no other query, and
+  // giving it up throws away the index built so far. One that blocks writes holds up every query
+  // queued behind it while it waits, wherever it runs.
+  const lock = step.transaction === "outside" && !blocksWrites ? 0 : settings.lockTimeout;
   return { lock: `${String(lock)}ms`, statement: `${String(statement)}ms` };
 }
 
