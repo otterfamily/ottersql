@@ -2,6 +2,7 @@ import { rawQuery } from "./connection.ts";
 import type { Connection, QueryResult, Transaction } from "./connection.ts";
 import { columnDecoder } from "./decode.ts";
 import { encodeParameter } from "./encode.ts";
+import { RowCountError } from "./row-count-error.ts";
 import { typeInfos } from "./type-info.ts";
 import type { TypeInfo } from "./type-info.ts";
 
@@ -13,9 +14,9 @@ export type QueryArguments<Params> = Params extends undefined
 /** A query from a `.sql` file, typed by the content mapper and run on any `Connection`. */
 export interface TypedQuery<Params, Row> {
   (...args: QueryArguments<Params>): Promise<Row[]>;
-  /** The only row; rejects unless the query returns exactly one. */
+  /** The only row; rejects with a `RowCountError` unless the query returns exactly one. */
   readonly one: (...args: QueryArguments<Params>) => Promise<Row>;
-  /** The only row, or `null` for none; rejects when the query returns more than one. */
+  /** The only row, or `null` for none; rejects with a `RowCountError` when there are more. */
   readonly maybeOne: (...args: QueryArguments<Params>) => Promise<Row | null>;
   /**
    * How many rows the statement inserted, updated, deleted or merged, or a SELECT returned, as
@@ -91,6 +92,19 @@ async function decodedRows(
   return result.rows.map((row) => decodeRow(row, columns));
 }
 
+/** The only row of `result`, or `null` for none; rows are counted before any is decoded. */
+async function onlyRow(
+  connection: Connection | Transaction,
+  result: QueryResult,
+  expected: "exactly one" | "at most one",
+): Promise<QueryRow | null> {
+  if (result.rows.length > 1) {
+    throw new RowCountError(expected, result.rows.length);
+  }
+  const [row] = await decodedRows(connection, result);
+  return row ?? null;
+}
+
 /**
  * Wraps SQL with `$n` placeholders so it runs with named parameters and decoded rows. The content
  * mapper declares each query's precise types; at run time they are plain records.
@@ -111,23 +125,14 @@ export function defineQuery(
     decodedRows(connection, await execute(connection, params));
   return Object.assign(run, {
     one: async (connection: Connection | Transaction, params?: Params): Promise<Row> => {
-      const rows = await run(connection, params);
-      const [row] = rows;
-      if (row === undefined || rows.length > 1) {
-        throw new Error(`expected exactly one row, got ${String(rows.length)}`);
+      const row = await onlyRow(connection, await execute(connection, params), "exactly one");
+      if (row === null) {
+        throw new RowCountError("exactly one", 0);
       }
       return row;
     },
-    maybeOne: async (
-      connection: Connection | Transaction,
-      params?: Params,
-    ): Promise<Row | null> => {
-      const rows = await run(connection, params);
-      if (rows.length > 1) {
-        throw new Error(`expected at most one row, got ${String(rows.length)}`);
-      }
-      return rows[0] ?? null;
-    },
+    maybeOne: async (connection: Connection | Transaction, params?: Params): Promise<Row | null> =>
+      onlyRow(connection, await execute(connection, params), "at most one"),
     affected: async (connection: Connection | Transaction, params?: Params): Promise<number> => {
       const { rowCount } = await execute(connection, params);
       return rowCount;

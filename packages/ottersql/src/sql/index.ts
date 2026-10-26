@@ -1,6 +1,7 @@
 export { DecodeError } from "./decode.ts";
 export { defineQuery } from "./query.ts";
 export { QueryError } from "./query-error.ts";
+export { RowCountError } from "./row-count-error.ts";
 export type { QueryErrorFields } from "./query-error.ts";
 export type { QueryArguments, TypedQuery } from "./query.ts";
 export { json } from "./values.ts";

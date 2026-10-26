@@ -52,8 +52,10 @@ Each query in a `.sql` file is a function of the connection and its parameters:
 
 - `userById(db, { id })` resolves with the rows.
 - `userById.one(db, { id })` resolves with the only row, and rejects unless there is exactly one.
-- `userById.maybeOne(db, { id })` resolves with the only row or `null`.
+- `userById.maybeOne(db, { id })` resolves with the only row or `null`, and rejects when there are more.
 - `deleteExpired.affected(db)` resolves with how many rows the statement wrote, as Postgres counts them.
+
+A wrong number of rows rejects with a `RowCountError` whose `count` says how many there were, before any row is decoded.
 
 ## Transactions
 
