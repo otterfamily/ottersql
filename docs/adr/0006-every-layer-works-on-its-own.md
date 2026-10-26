@@ -1,6 +1,6 @@
 # 0006. Every layer works on its own
 
-- Status: Accepted
+- Status: Accepted; "each ships as its own package" superseded by [0013](0013-one-package-with-an-entry-point-per-layer.md)
 - Date: 2026-10-24
 
 ## Context

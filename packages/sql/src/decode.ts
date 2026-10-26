@@ -111,6 +111,7 @@ export const baseCodecs: Readonly<Record<string, BaseCodec>> = {
   // Postgres accepts any int8, so a number or bigint is as good as the exact string it returns.
   int8: { type: "string", parameterType: "string | number | bigint" },
   interval: { type: "Interval", decode: parseInterval },
+  // Numbers a JavaScript number cannot hold exactly are rounded, as JSON.parse does (ADR 0014).
   json: { type: "unknown", parameterType: "Json", decode: (text): unknown => JSON.parse(text) },
   jsonb: { type: "unknown", parameterType: "Json", decode: (text): unknown => JSON.parse(text) },
   oid: { type: "number", decode: Number },
