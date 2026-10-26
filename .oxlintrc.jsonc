@@ -248,6 +248,74 @@
   },
   "overrides": [
     {
+      "files": ["packages/ottersql/src/sql/**"],
+      // ADR 0013: the runtime and the driver interface are the base every layer builds on.
+      "rules": {
+        "eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["../catalog/*", "../content-mapper/*", "../migrate/*", "../cli/*"],
+                "message": "A layer imports only the layers below it (ADR 0006, ADR 0013).",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      "files": ["packages/ottersql/src/catalog/**"],
+      // ADR 0013: the catalog sits on the runtime only.
+      "rules": {
+        "eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["../content-mapper/*", "../migrate/*", "../cli/*"],
+                "message": "A layer imports only the layers below it (ADR 0006, ADR 0013).",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      "files": ["packages/ottersql/src/content-mapper/**"],
+      // ADR 0013: typed SQL sits on the catalog and the runtime.
+      "rules": {
+        "eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["../migrate/*", "../cli/*"],
+                "message": "A layer imports only the layers below it (ADR 0006, ADR 0013).",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      "files": ["packages/ottersql/src/migrate/**"],
+      // ADR 0013: migrations sit below the command.
+      "rules": {
+        "eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": ["../cli/*"],
+                "message": "A layer imports only the layers below it (ADR 0006, ADR 0013).",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
       "files": ["examples/**"],
       // tsgolint does not run TypeScript's content mappers, so what examples import from .sql files
       // is unresolved for these rules; tsc --runExternalCode checks those imports instead.
@@ -264,19 +332,19 @@
       },
     },
     {
-      "files": ["packages/cli/src/bin.ts"],
+      "files": ["packages/ottersql/src/cli/bin.ts"],
       // The command's entry reads the environment once and passes it in, so that everything else
       // takes it as an argument and tests can give their own.
       "rules": { "node/no-process-env": "off" },
     },
     {
-      "files": ["packages/sql/src/wait.ts"],
+      "files": ["packages/ottersql/src/sql/wait.ts"],
       // The query runtime imports nothing from Node so it runs in browsers with PGlite too, and
       // without node:timers/promises a timer is awaited through a promise made here.
       "rules": { "promise/avoid-new": "off" },
     },
     {
-      "files": ["packages/sql/src/esbuild.ts"],
+      "files": ["packages/ottersql/src/sql/esbuild.ts"],
       // esbuild reads plugin filters as Go regular expressions, which take no flags.
       "rules": {
         "eslint/require-unicode-regexp": "off",
@@ -285,12 +353,15 @@
       },
     },
     {
-      "files": ["packages/sql/src/webpack.ts", "packages/sql/src/test-typescript-loader.ts"],
+      "files": [
+        "packages/ottersql/src/sql/webpack.ts",
+        "packages/ottersql/src/sql/test-typescript-loader.ts",
+      ],
       // webpack takes a loader as a module's default export and calls it with its context as `this`.
       "rules": { "import/no-default-export": "off", "oxc/no-this-in-exported-function": "off" },
     },
     {
-      "files": ["packages/sql/src/register-bun.ts"],
+      "files": ["packages/ottersql/src/sql/register-bun.ts"],
       // Bun asks the plugin for a module synchronously when a .sql file is loaded through require.
       "rules": { "node/no-sync": "off" },
     },

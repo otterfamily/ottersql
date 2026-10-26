@@ -14,4 +14,4 @@ Typed SQL through the TypeScript 7.1 content mapper, to try in an editor.
 
 ## Run it
 
-`pnpm start` runs `app.ts` on an in-process Postgres (PGlite). `--import @ottersql/sql/register` lets Node import `.sql` files.
+`pnpm start` runs `app.ts` on an in-process Postgres (PGlite). `--import ottersql/register` lets Node import `.sql` files.

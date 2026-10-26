@@ -1,0 +1,135 @@
+{
+  "name": "ottersql",
+  "version": "0.1.1",
+  "description": "Typed SQL, safe migrations and an agent-first CLI for Postgres, in one dependency-free package",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/otterfamily/ottersql.git",
+    "directory": "packages/ottersql"
+  },
+  "bin": {
+    "ottersql": "./src/cli/bin.ts"
+  },
+  "files": [
+    "dist",
+    "server.js"
+  ],
+  "type": "module",
+  "imports": {
+    "#query": "./src/sql/query.ts",
+    "#server": "./src/content-mapper/server.ts",
+    "#snapshot-child": "./src/catalog/snapshot-child.ts"
+  },
+  "exports": {
+    ".": "./src/sql/index.ts",
+    "./bun-sql": "./src/sql/bun-sql.ts",
+    "./catalog": "./src/catalog/index.ts",
+    "./content-mapper": "./src/content-mapper/index.ts",
+    "./driver": "./src/sql/driver.ts",
+    "./esbuild": "./src/sql/esbuild.ts",
+    "./migrate": "./src/migrate/index.ts",
+    "./pg": "./src/sql/pg.ts",
+    "./pg-promise": "./src/sql/pg-promise.ts",
+    "./pglite": "./src/sql/pglite.ts",
+    "./postgres-js": "./src/sql/postgres-js.ts",
+    "./register": {
+      "bun": "./src/sql/register-bun.ts",
+      "default": "./src/sql/register.ts"
+    },
+    "./vite": "./src/sql/vite.ts",
+    "./webpack": "./src/sql/webpack.ts"
+  },
+  "publishConfig": {
+    "bin": {
+      "ottersql": "./dist/cli/bin.js"
+    },
+    "imports": {
+      "#query": "./dist/sql/query.js",
+      "#server": "./dist/content-mapper/server.js",
+      "#snapshot-child": "./dist/catalog/snapshot-child.js"
+    },
+    "exports": {
+      ".": "./dist/sql/index.js",
+      "./bun-sql": "./dist/sql/bun-sql.js",
+      "./catalog": "./dist/catalog/index.js",
+      "./content-mapper": "./dist/content-mapper/index.js",
+      "./driver": "./dist/sql/driver.js",
+      "./esbuild": "./dist/sql/esbuild.js",
+      "./migrate": "./dist/migrate/index.js",
+      "./pg": "./dist/sql/pg.js",
+      "./pg-promise": "./dist/sql/pg-promise.js",
+      "./pglite": "./dist/sql/pglite.js",
+      "./postgres-js": "./dist/sql/postgres-js.js",
+      "./register": {
+        "bun": "./dist/sql/register-bun.js",
+        "default": "./dist/sql/register.js"
+      },
+      "./vite": "./dist/sql/vite.js",
+      "./webpack": "./dist/sql/webpack.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p .",
+    "test": "vitest run",
+    "test:postgres": "vitest run postgres.test",
+    "bench": "vitest bench"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "catalog:",
+    "@electric-sql/pglite-pgvector": "catalog:",
+    "@neondatabase/serverless": "catalog:",
+    "@ottersql/testing": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "esbuild": "catalog:",
+    "next": "catalog:",
+    "pg": "catalog:",
+    "pg-promise": "catalog:",
+    "postgres": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:",
+    "webpack": "catalog:"
+  },
+  "peerDependencies": {
+    "@electric-sql/pglite": ">=0.5",
+    "@electric-sql/pglite-pgvector": ">=0.0.12",
+    "pg": ">=8",
+    "pg-promise": ">=12",
+    "postgres": ">=3.4"
+  },
+  "peerDependenciesMeta": {
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "@electric-sql/pglite-pgvector": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "pg-promise": {
+      "optional": true
+    },
+    "postgres": {
+      "optional": true
+    }
+  },
+  "typescript": {
+    "contentMapper": {
+      "compilerOptions": [],
+      "dynamicConfig": true,
+      "exec": [
+        "node",
+        "server.js"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=26"
+  }
+}

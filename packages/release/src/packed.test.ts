@@ -99,7 +99,7 @@ describe("the packages as npm installs them", () => {
   });
 
   test("give the bundler plugins and loader", async ({ project }) => {
-    const entries = ["vite", "esbuild", "webpack"].map((name) => `@ottersql/sql/${name}`);
+    const entries = ["vite", "esbuild", "webpack"].map((name) => `ottersql/${name}`);
     const script = `for (const entry of ${JSON.stringify(entries)}) console.log(Object.values(await import(entry)).map((value) => typeof value).join())`;
     await expect(succeeded("node", ["--eval", script], project)).resolves.toBe(
       "function\nfunction\nfunction\n",
@@ -107,12 +107,12 @@ describe("the packages as npm installs them", () => {
   });
 
   test("run .sql imports through the register hook", async ({ project }) => {
-    const args = ["--import", "@ottersql/sql/register", "app.ts"];
+    const args = ["--import", "ottersql/register", "app.ts"];
     await expect(succeeded("node", args, project)).resolves.toContain("author: 'Otter'");
   });
 
   test("run .sql imports in Bun, through the same register entry", async ({ project }) => {
-    const args = ["--preload", "@ottersql/sql/register", "app.ts"];
+    const args = ["--preload", "ottersql/register", "app.ts"];
     await expect(succeeded(bunExecutable, args, project)).resolves.toContain("Otter");
   });
 });

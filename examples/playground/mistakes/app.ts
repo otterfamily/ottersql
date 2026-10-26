@@ -1,5 +1,5 @@
 // Each line below misuses a typed query on purpose; VS Code underlines it.
-import type { Connection } from "@ottersql/sql";
+import type { Connection } from "ottersql";
 
 import { postsWithAuthors, userById } from "../queries.sql";
 

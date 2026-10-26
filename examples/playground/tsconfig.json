@@ -13,7 +13,7 @@
   },
   "contentMappers": [
     {
-      "package": "@ottersql/content-mapper",
+      "package": "ottersql",
       "extensions": [".sql"],
       "options": {
         "schema": "schema.sql"

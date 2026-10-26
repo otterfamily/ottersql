@@ -1,6 +1,6 @@
 import { readdir, readFile } from "node:fs/promises";
 
-import type { MigrationFile } from "@ottersql/migrate";
+import type { MigrationFile } from "ottersql/migrate";
 
 export const migrationsDirectory = new URL("db/migrations/", import.meta.url);
 export const schemaFile = new URL("db/schema.sql", import.meta.url);

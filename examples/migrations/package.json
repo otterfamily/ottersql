@@ -14,12 +14,11 @@
     "check": "ottersql migrate check"
   },
   "dependencies": {
-    "@ottersql/migrate": "catalog:",
-    "@ottersql/sql": "catalog:",
     "ottersql": "catalog:",
     "pg": "catalog:"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
     "typescript": "catalog:"

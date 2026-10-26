@@ -5,15 +5,14 @@
   "description": "Typed .sql queries to try in an editor and run on PGlite, and how mistakes are reported",
   "type": "module",
   "scripts": {
-    "start": "node --import @ottersql/sql/register app.ts",
+    "start": "node --import ottersql/register app.ts",
     "typecheck": "tsc -p tsconfig.ci.json --runExternalCode"
   },
   "dependencies": {
     "@electric-sql/pglite": "catalog:",
-    "@ottersql/sql": "catalog:"
+    "ottersql": "catalog:"
   },
   "devDependencies": {
-    "@ottersql/content-mapper": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   }

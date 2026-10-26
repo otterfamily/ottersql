@@ -8,9 +8,9 @@ import {
   ApprovalRequiredError,
   MigrationHistoryError,
   pendingChanges,
-} from "@ottersql/migrate";
-import type { ApplyOptions, ApplyResult, MigrationFile } from "@ottersql/migrate";
-import { pgConnection } from "@ottersql/sql/pg";
+} from "ottersql/migrate";
+import type { ApplyOptions, ApplyResult, MigrationFile } from "ottersql/migrate";
+import { pgConnection } from "ottersql/pg";
 import { Client } from "pg";
 
 import { databaseUrl, readMigrations, schemaFile } from "./files.ts";

@@ -29,7 +29,7 @@ jobs:
       - name: Check that the tag names the packages' version
         env:
           TAG: ${{ github.ref_name }}
-        run: test "v$(node --print 'require("./packages/sql/package.json").version')" = "$TAG"
+        run: test "v$(node --print 'require("./packages/ottersql/package.json").version')" = "$TAG"
       - run: pnpm build
       # A tag checks out no branch, which git checks would refuse. Packages already on npm are
       # skipped, so a failed run can run again.

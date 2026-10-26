@@ -3,7 +3,7 @@
 import { readFile } from "node:fs/promises";
 
 import { PGlite } from "@electric-sql/pglite";
-import { pgliteConnection } from "@ottersql/sql/pglite";
+import { pgliteConnection } from "ottersql/pglite";
 
 import {
   createPost,

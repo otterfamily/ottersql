@@ -173,18 +173,6 @@ catalogs:
     '@neondatabase/serverless':
       specifier: ^1.2.0
       version: 1.2.0
-    '@ottersql/catalog':
-      specifier: workspace:*
-      version: workspace:*
-    '@ottersql/content-mapper':
-      specifier: workspace:*
-      version: workspace:*
-    '@ottersql/migrate':
-      specifier: workspace:*
-      version: workspace:*
-    '@ottersql/sql':
-      specifier: workspace:*
-      version: workspace:*
     '@ottersql/testing':
       specifier: workspace:*
       version: workspace:*
@@ -201,9 +189,6 @@ catalogs:
       specifier: ^0.28.2
       version: 0.28.2
     eslint-plugin-regexp:
-      specifier: ^3.3.1
-      version: 3.3.1
-    jsonc-parser:
       specifier: ^3.3.1
       version: 3.3.1
     knip:
@@ -242,9 +227,6 @@ catalogs:
     simple-git-hooks:
       specifier: ^2.14.0
       version: 2.14.0
-    std-env:
-      specifier: ^4.3.0
-      version: 4.3.0
     testcontainers:
       specifier: ^12.2.1
       version: 12.2.1
@@ -257,9 +239,6 @@ catalogs:
     vitest:
       specifier: ^5.0.5
       version: 5.0.5
-    vscode-jsonrpc:
-      specifier: ^10.0.0
-      version: 10.0.0
     webpack:
       specifier: ^5.112.2
       version: 5.112.2
@@ -298,19 +277,16 @@ importers:
 
   examples/migrations:
     dependencies:
-      '@ottersql/migrate':
-        specifier: 'catalog:'
-        version: link:../../packages/migrate
-      '@ottersql/sql':
-        specifier: 'catalog:'
-        version: link:../../packages/sql
       ottersql:
         specifier: 'catalog:'
-        version: link:../../packages/cli
+        version: link:../../packages/ottersql
       pg:
         specifier: 'catalog:'
         version: 8.23.1
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: 'catalog:'
+        version: 0.5.11
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
@@ -326,13 +302,10 @@ importers:
       '@electric-sql/pglite':
         specifier: 'catalog:'
         version: 0.5.11
-      '@ottersql/sql':
+      ottersql:
         specifier: 'catalog:'
-        version: link:../../packages/sql
+        version: link:../../packages/ottersql
     devDependencies:
-      '@ottersql/content-mapper':
-        specifier: 'catalog:'
-        version: link:../../packages/content-mapper
       '@types/node':
         specifier: 'catalog:'
         version: 26.6.5
@@ -340,153 +313,14 @@ importers:
         specifier: 'catalog:'
         version: 7.1.0-beta
 
-  packages/catalog:
-    dependencies:
+  packages/ottersql:
+    devDependencies:
       '@electric-sql/pglite':
         specifier: 'catalog:'
         version: 0.5.11
-      '@ottersql/sql':
-        specifier: 'catalog:'
-        version: link:../sql
-    devDependencies:
       '@electric-sql/pglite-pgvector':
         specifier: 'catalog:'
         version: 0.0.12(@electric-sql/pglite@0.5.11)
-      '@ottersql/testing':
-        specifier: 'catalog:'
-        version: link:../testing
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      '@types/pg':
-        specifier: 'catalog:'
-        version: 8.23.1
-      pg:
-        specifier: 'catalog:'
-        version: 8.23.1
-      typescript:
-        specifier: 'catalog:'
-        version: 7.1.0-beta
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
-
-  packages/cli:
-    dependencies:
-      '@ottersql/catalog':
-        specifier: 'catalog:'
-        version: link:../catalog
-      '@ottersql/content-mapper':
-        specifier: 'catalog:'
-        version: link:../content-mapper
-      '@ottersql/migrate':
-        specifier: 'catalog:'
-        version: link:../migrate
-      '@ottersql/sql':
-        specifier: 'catalog:'
-        version: link:../sql
-      jsonc-parser:
-        specifier: 'catalog:'
-        version: 3.3.1
-      pg:
-        specifier: 'catalog:'
-        version: 8.23.1
-      std-env:
-        specifier: 'catalog:'
-        version: 4.3.0
-    devDependencies:
-      '@ottersql/testing':
-        specifier: 'catalog:'
-        version: link:../testing
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      '@types/pg':
-        specifier: 'catalog:'
-        version: 8.23.1
-      typescript:
-        specifier: 'catalog:'
-        version: 7.1.0-beta
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
-
-  packages/content-mapper:
-    dependencies:
-      '@electric-sql/pglite':
-        specifier: 'catalog:'
-        version: 0.5.11
-      '@ottersql/catalog':
-        specifier: 'catalog:'
-        version: link:../catalog
-      '@ottersql/sql':
-        specifier: 'catalog:'
-        version: link:../sql
-      vscode-jsonrpc:
-        specifier: 'catalog:'
-        version: 10.0.0
-    devDependencies:
-      '@ottersql/testing':
-        specifier: 'catalog:'
-        version: link:../testing
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      typescript:
-        specifier: 'catalog:'
-        version: 7.1.0-beta
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
-
-  packages/migrate:
-    dependencies:
-      '@ottersql/catalog':
-        specifier: 'catalog:'
-        version: link:../catalog
-      '@ottersql/sql':
-        specifier: 'catalog:'
-        version: link:../sql
-    devDependencies:
-      '@ottersql/testing':
-        specifier: 'catalog:'
-        version: link:../testing
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      '@types/pg':
-        specifier: 'catalog:'
-        version: 8.23.1
-      pg:
-        specifier: 'catalog:'
-        version: 8.23.1
-      typescript:
-        specifier: 'catalog:'
-        version: 7.1.0-beta
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
-
-  packages/release:
-    devDependencies:
-      '@ottersql/testing':
-        specifier: 'catalog:'
-        version: link:../testing
-      '@types/node':
-        specifier: 'catalog:'
-        version: 26.6.5
-      typescript:
-        specifier: 'catalog:'
-        version: 7.1.0-beta
-      vitest:
-        specifier: 'catalog:'
-        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
-
-  packages/sql:
-    devDependencies:
-      '@electric-sql/pglite':
-        specifier: 'catalog:'
-        version: 0.5.11
       '@neondatabase/serverless':
         specifier: 'catalog:'
         version: 1.2.0
@@ -532,6 +366,21 @@ importers:
       webpack:
         specifier: 'catalog:'
         version: 5.112.2(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.31)(sharp@0.35.5(@types/node@26.6.5))
+
+  packages/release:
+    devDependencies:
+      '@ottersql/testing':
+        specifier: 'catalog:'
+        version: link:../testing
+      '@types/node':
+        specifier: 'catalog:'
+        version: 26.6.5
+      typescript:
+        specifier: 'catalog:'
+        version: 7.1.0-beta
+      vitest:
+        specifier: 'catalog:'
+        version: 5.0.5(@types/node@26.6.5)(vite@8.3.5(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(yaml@2.9.1))
 
   packages/testing:
     dependencies:
@@ -2576,9 +2425,6 @@ packages:
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
 
-  jsonc-parser@3.3.1:
-    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
-
   keyv@5.6.0:
     resolution: {integrity: sha512-CYDD3SOtsHtyXeEORYRx2qBtpDJFjRTGXUtmNEMGyzYOKj1TE3tycdlho7kA1Ufx9OYWZzg52QFBGALTirzDSw==}
 
@@ -3525,10 +3371,6 @@ packages:
         optional: true
       jsdom:
         optional: true
-
-  vscode-jsonrpc@10.0.0:
-    resolution: {integrity: sha512-USSfxg0vDIpTQqlQBGxF3mBARyoS8cU7LHLpbYNh6dOJt32dlskxPWB0Irrh5TllTmyf7oNLAvqDqzklbwwnpA==}
-    engines: {node: '>=14.17.0'}
 
   walk-up-path@4.0.0:
     resolution: {integrity: sha512-3hu+tD8YzSLGuFYtPRb48vdhKMi0KQV5sn+uWr8+7dMEq/2G/dtLrdDinkLjqq5TIbIBjYJ4Ax/n3YiaW7QM8A==}
@@ -5062,8 +4904,6 @@ snapshots:
 
   json-stable-stringify-without-jsonify@1.0.1: {}
 
-  jsonc-parser@3.3.1: {}
-
   keyv@5.6.0:
     dependencies:
       '@keyv/serialize': 1.1.1
@@ -5920,8 +5760,6 @@ snapshots:
       '@types/node': 26.6.5
     transitivePeerDependencies:
       - msw
-
-  vscode-jsonrpc@10.0.0: {}
 
   walk-up-path@4.0.0: {}
 
