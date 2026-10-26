@@ -137,6 +137,43 @@ describe("retrying transactions", () => {
     }
   });
 
+  test("run the callback again after a serialization failure at commit", async ({ drivers }) => {
+    for (const db of drivers) {
+      // A deferred trigger fails at COMMIT while a sequence, which rollbacks leave alone, counts
+      // fewer than CONFLICTS + 1 attempts.
+      await rawQuery(db, "drop table if exists commits", []);
+      await rawQuery(db, "drop sequence if exists commit_attempts", []);
+      await rawQuery(db, "create sequence commit_attempts", []);
+      await rawQuery(
+        db,
+        `create or replace function conflict_at_commit() returns trigger language plpgsql as $$
+         begin
+           if nextval('commit_attempts') <= ${String(CONFLICTS)} then
+             raise exception 'conflict' using errcode = '40001';
+           end if;
+           return null;
+         end $$`,
+        [],
+      );
+      await rawQuery(db, "create table commits (n int4)", []);
+      await rawQuery(
+        db,
+        `create constraint trigger conflicting after insert on commits deferrable initially deferred
+         for each row execute function conflict_at_commit()`,
+        [],
+      );
+      let attempts = 0;
+      await db.transaction(
+        async (tx) => {
+          attempts += 1;
+          await rawQuery(tx, "insert into commits values (1)", []);
+        },
+        { retry: { attempts: CONFLICTS + 1 } },
+      );
+      expect(attempts).toBe(CONFLICTS + 1);
+    }
+  });
+
   test("give up with the last error once the attempts are used", async ({ drivers }) => {
     for (const db of drivers) {
       let attempts = 0;
