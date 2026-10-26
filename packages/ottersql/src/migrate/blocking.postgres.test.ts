@@ -192,6 +192,15 @@ describe("steps", () => {
         create index orders_user on orders (user_id)`,
     },
     {
+      change: "replacing a changed check and a changed foreign key",
+      from: `${users}; ${orders}; alter table orders add constraint orders_user foreign key (user_id) references users;
+        alter table orders add constraint orders_total check (total >= 0)`,
+      to: `create table users (id int8 primary key, email text, nickname text default 'otter');
+        create table orders (id int8 primary key, user_id int8, total int4);
+        alter table orders add constraint orders_user foreign key (user_id) references users on delete cascade;
+        alter table orders add constraint orders_total check (total > 0)`,
+    },
+    {
       change: "widening varchar columns that an index covers",
       from: `create table names (id int8 primary key, short varchar(20) unique, long varchar(50));
         create index names_long on names (long);

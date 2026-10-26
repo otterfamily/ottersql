@@ -36,13 +36,14 @@ const kindOrder: Readonly<Record<Step["kind"], number>> = {
   addPrimaryKey: 17,
   addForeignKey: 18,
   validateForeignKey: 19,
-  comment: 20,
-  dropDefault: 21,
-  dropColumn: 22,
-  dropTable: 23,
-  dropEnum: 24,
-  dropSchema: 25,
-  custom: 26,
+  replaceConstraint: 20,
+  comment: 21,
+  dropDefault: 22,
+  dropColumn: 23,
+  dropTable: 24,
+  dropEnum: 25,
+  dropSchema: 26,
+  custom: 27,
 };
 
 function rank(step: Step): number {

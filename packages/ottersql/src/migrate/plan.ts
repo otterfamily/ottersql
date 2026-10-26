@@ -64,6 +64,7 @@ export const stepKinds = [
   "addUnique",
   "addPrimaryKey",
   "dropConstraint",
+  "replaceConstraint",
   "createIndex",
   "dropIndex",
   "renameIndex",

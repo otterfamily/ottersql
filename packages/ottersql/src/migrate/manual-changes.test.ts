@@ -19,6 +19,13 @@ const checkedRowByRow =
 const volatileDomainDefault =
   "The domain's default is volatile, so it is computed for every existing row, which rewrites the table under an exclusive lock; add the column with DEFAULT NULL, which overrides it, then drop that default and backfill in batches";
 
+/** The users table, and posts whose foreign key to it is on `column`. */
+function postsReferringBy(column: string): string {
+  return `${users};
+    create table posts (id int8 primary key, a int8, b int8,
+      constraint posts_author foreign key (${column}) references users)`;
+}
+
 describe("planMigration", () => {
   test("leaves nothing to do between equal schemas", async () => {
     const schema = `${users}; create type mood as enum ('ok'); create index on users (email)`;
@@ -212,6 +219,48 @@ describe("planMigration", () => {
   ])("leaves a changed $change to be written by hand", async ({ from, to, object, reason }) => {
     const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
     expect(plan.manual).toStrictEqual([{ object, reason }]);
+  });
+
+  test("leaves a foreign key that now refers to other columns to be changed by hand", async () => {
+    const plan = planMigration(
+      await loadCatalog(postsReferringBy("a")),
+      await loadCatalog(postsReferringBy("b")),
+    );
+    expect(plan).toStrictEqual({
+      steps: [],
+      manual: [
+        {
+          object: "public.posts.posts_author",
+          reason:
+            "A foreign key that now refers from or to other columns would stop rows of the old app or of the new one while both run; change it by hand: add the new key, deploy, then drop the old one",
+        },
+      ],
+    });
+  });
+
+  test("replaces a changed check through one that allows what either check allows", async () => {
+    const plan = planMigration(
+      await loadCatalog(
+        `${users}; alter table users add constraint email_has_at check (email like '%@%')`,
+      ),
+      await loadCatalog(
+        `${users}; alter table users add constraint email_has_at check (email like '%@%.%')`,
+      ),
+    );
+    expect(plan.steps.map((step) => step.statements)).toStrictEqual([
+      [
+        `ALTER TABLE "public"."users" ADD CONSTRAINT "ottersql_old_or_new_email_has_at" CHECK (((email ~~ '%@%'::text)) OR ((email ~~ '%@%.%'::text))) NOT VALID`,
+        'ALTER TABLE "public"."users" DROP CONSTRAINT "email_has_at"',
+      ],
+      [
+        `ALTER TABLE "public"."users" ADD CONSTRAINT "ottersql_new_email_has_at" CHECK ((email ~~ '%@%.%'::text)) NOT VALID`,
+      ],
+      ['ALTER TABLE "public"."users" VALIDATE CONSTRAINT "ottersql_new_email_has_at"'],
+      [
+        'ALTER TABLE "public"."users" DROP CONSTRAINT "ottersql_old_or_new_email_has_at"',
+        'ALTER TABLE "public"."users" RENAME CONSTRAINT "ottersql_new_email_has_at" TO "email_has_at"',
+      ],
+    ]);
   });
 
   test("leaves new and changed functions to be written by hand", async () => {

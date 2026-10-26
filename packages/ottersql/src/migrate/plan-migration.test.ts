@@ -63,6 +63,29 @@ describe("planMigration, run on PGlite to the target schema", () => {
       ],
     },
     {
+      change:
+        "replaces a changed check so that one always holds: old or new across the deploy, then the new one",
+      from: `${users}; alter table users add constraint email_has_at check (email like '%@%')`,
+      to: `${users}; alter table users add constraint email_has_at check (email like '%@%.%')`,
+      steps: [
+        "expand replaceConstraint public.users.email_has_at (lossy, inside, access exclusive)",
+        "contract addCheck public.users.ottersql_new_email_has_at (reversible, inside, access exclusive)",
+        "contract validateCheck public.users.ottersql_new_email_has_at (reversible, inside, share update exclusive)",
+        "contract replaceConstraint public.users.email_has_at (lossy, inside, access exclusive)",
+      ],
+    },
+    {
+      change:
+        "replaces a foreign key whose actions changed after the deploy, the old one holding until the new one does",
+      from: `${users}; create table posts (id int8 primary key, author_id int8 references users)`,
+      to: `${users}; create table posts (id int8 primary key, author_id int8 references users on delete cascade)`,
+      steps: [
+        "contract addForeignKey public.posts.ottersql_new_posts_author_id_fkey (reversible, inside, share row exclusive)",
+        "contract validateForeignKey public.posts.ottersql_new_posts_author_id_fkey (reversible, inside, share update exclusive)",
+        "contract replaceConstraint public.posts.posts_author_id_fkey (lossy, inside, access exclusive)",
+      ],
+    },
+    {
       change: "drops a table after the deploy",
       from: users,
       to: "",

@@ -1,33 +1,16 @@
 import { isDeepStrictEqual } from "node:util";
 
-import type {
-  Check,
-  Enforcement,
-  ForeignKey,
-  Index,
-  PrimaryKey,
-  Table,
-  UniqueConstraint,
-} from "../catalog/index.ts";
+import type { Check, Enforcement, ForeignKey, PrimaryKey, Table } from "../catalog/index.ts";
+import { indexBackedKey } from "./key-indexes.ts";
 import type { Step } from "./plan.ts";
 import {
   alterTable,
-  createIndex,
-  deferral,
   enforcement,
+  exceedsNameLimit,
   foreignKeyDefinition,
   identifier,
 } from "./sql-text.ts";
-import {
-  combine,
-  manual,
-  matchByName,
-  noChanges,
-  objectName,
-  only,
-  outsideStep,
-  step,
-} from "./steps.ts";
+import { combine, manual, matchByName, noChanges, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 /**
@@ -45,18 +28,20 @@ export function constraintChanges(before: Table, after: Table): Changes {
       drop,
       add: (check) => addCheck(after, check),
       validate: (check) => validateStep(after, check.name, "validateCheck"),
+      redefine: (old, current) => replaceCheck(after, old, current),
     }),
     keyedChanges(before.foreignKeys, after.foreignKeys, {
       drop: (key) => dropConstraint(after, key.name, { kind: "dropForeignKey", phase: "expand" }),
       add: (key) => addForeignKey(after, key),
       validate: (key) => validateStep(after, key.name, "validateForeignKey"),
+      redefine: (old, current) => replaceForeignKey(after, old, current),
     }),
     keyedChanges(primaryKeys(before), primaryKeys(after), {
       drop,
       add: (key) => indexBackedKey(after, key, "addPrimaryKey"),
-      redefine: (key) =>
+      redefine: (_old, current) =>
         manual(
-          objectName(after, key.name),
+          objectName(after, current.name),
           "A changed primary key is left to a person: foreign keys often refer to it and its columns must be NOT NULL; write the change by hand",
         ),
     }),
@@ -70,15 +55,15 @@ function primaryKeys(table: Table): PrimaryKey[] {
 interface KeyedPlan<Item> {
   readonly add: (item: Item) => Changes;
   readonly drop: (item: Item) => Changes;
-  /** Validates an item that was NOT VALID and is otherwise unchanged; without it, it is re-added. */
+  /** Validates an item that was NOT VALID and is otherwise unchanged. */
   readonly validate?: (item: Item) => Changes;
-  /** Plans an item whose definition changed; without it, the old one is dropped and the new added. */
-  readonly redefine?: (item: Item) => Changes;
+  /** Plans an item whose definition changed under the same name. */
+  readonly redefine: (old: Item, current: Item) => Changes;
 }
 
 /**
- * A constraint whose definition changed under the same name is dropped and added again, except
- * one that only became validated, which is validated in place.
+ * Constraints only one side has are added or dropped; one whose definition changed under the same
+ * name is redefined, except one that only became validated, which is validated in place.
  */
 function keyedChanges<Item extends { readonly name: string; readonly enforcement?: Enforcement }>(
   before: readonly Item[],
@@ -95,13 +80,11 @@ function keyedChanges<Item extends { readonly name: string; readonly enforcement
       isDeepStrictEqual({ ...old, enforcement: null }, { ...current, enforcement: null }),
   );
   const redefined = changed.filter((pair) => !validated.includes(pair));
-  const { redefine } = plan;
-  const swapped = redefine === undefined ? redefined : [];
   return combine([
-    ...[...removed, ...swapped.map(([old]) => old)].map((item) => plan.drop(item)),
-    ...[...added, ...swapped.map(([, current]) => current)].map((item) => plan.add(item)),
+    ...removed.map((item) => plan.drop(item)),
+    ...added.map((item) => plan.add(item)),
     ...validated.map(([, current]) => plan.validate?.(current) ?? noChanges),
-    ...(redefine === undefined ? [] : redefined.map(([, current]) => redefine(current))),
+    ...redefined.map(([old, current]) => plan.redefine(old, current)),
   ]);
 }
 
@@ -203,56 +186,100 @@ export function addForeignKey(table: Table, key: ForeignKey): Changes {
   });
 }
 
-export function keyIndex(key: PrimaryKey | UniqueConstraint): Index {
-  return {
-    name: key.name,
-    method: "btree",
-    unique: true,
-    nullsNotDistinct: "nullsNotDistinct" in key && key.nullsNotDistinct,
-    keys: key.columns.map((column) => ({
-      kind: "column",
-      column,
-      order: "asc",
-      nulls: "last",
-      operatorClass: null,
-      collation: null,
-    })),
-    include: key.include,
-    predicate: null,
-  };
-}
-
-/** Builds the key's index concurrently, then turns it into the constraint, which only takes a moment. */
-export function indexBackedKey(
+/**
+ * After the deploy, drops the constraint `replaced` and renames `replacement`, which holds by then,
+ * to `name`, in one transaction, so the table is never without one of them.
+ */
+function replaceConstraint(
   table: Table,
-  key: PrimaryKey | UniqueConstraint,
-  kind: "addUnique" | "addPrimaryKey",
+  names: { readonly replaced: string; readonly replacement: string; readonly name: string },
 ): Changes {
-  const object = objectName(table, key.name);
-  const constraint = kind === "addUnique" ? "UNIQUE" : "PRIMARY KEY";
-  const name = identifier(key.name);
-  const build = createIndex(table, keyIndex(key), true);
-  const add = alterTable(
+  const drop = alterTable(table, `DROP CONSTRAINT ${identifier(names.replaced)}`);
+  const rename = alterTable(
     table,
-    `ADD CONSTRAINT ${name} ${constraint} USING INDEX ${name}${deferral(key.deferral)}`,
+    `RENAME CONSTRAINT ${identifier(names.replacement)} TO ${identifier(names.name)}`,
   );
   return only(
-    outsideStep({
-      kind: "createIndex",
-      object,
-      statements: [build],
-      cleanup: { schema: table.schema, name: key.name },
-      phase: "contract",
-      reversal: "reversible",
-      lock: "share update exclusive",
-    }),
     step({
-      kind,
-      object,
-      statements: [add],
+      kind: "replaceConstraint",
+      object: objectName(table, names.name),
+      statements: [drop, rename],
       phase: "contract",
-      reversal: "reversible",
+      reversal: "lossy",
       lock: "access exclusive",
     }),
+  );
+}
+
+/** The temporary names a redefined constraint goes through, or `null` when one would be too long. */
+function swapNames(name: string): { readonly bridge: string; readonly next: string } | null {
+  const names = { bridge: `ottersql_old_or_new_${name}`, next: `ottersql_new_${name}` };
+  return exceedsNameLimit(names.bridge) ? null : names;
+}
+
+/**
+ * A changed check is never missing, and neither app's writes break it. Before the deploy a check
+ * that allows what either the old or the new one allows takes the old one's place, added NOT
+ * VALID since every row already passes the old one; after the deploy the new one is added and
+ * validated under a temporary name, then takes the bridge's place and the name.
+ */
+function replaceCheck(table: Table, old: Check, current: Check): Changes {
+  const names = swapNames(current.name);
+  if (names === null) {
+    return tooLong(table, current.name);
+  }
+  const either = `CHECK ((${old.expression}) OR (${current.expression})) NOT VALID`;
+  const addBridge = alterTable(table, `ADD CONSTRAINT ${identifier(names.bridge)} ${either}`);
+  const dropOld = alterTable(table, `DROP CONSTRAINT ${identifier(old.name)}`);
+  const bridge = step({
+    kind: "replaceConstraint",
+    object: objectName(table, current.name),
+    statements: [addBridge, dropOld],
+    phase: "expand",
+    reversal: "lossy",
+    lock: "access exclusive",
+    reason: "Allows the rows of both the old and the new app until the new check is in place",
+  });
+  return combine([
+    only(bridge),
+    addCheck(table, { ...current, name: names.next }),
+    replaceConstraint(table, {
+      replaced: names.bridge,
+      replacement: names.next,
+      name: current.name,
+    }),
+  ]);
+}
+
+/**
+ * A foreign key whose actions, match or deferral changed is checked the same way on writes, so
+ * the old one holds until the new one, added and validated under a temporary name after the
+ * deploy, takes its place. One that refers from or to other columns has no form both apps' rows
+ * satisfy, so it is left to a person.
+ */
+function replaceForeignKey(table: Table, old: ForeignKey, current: ForeignKey): Changes {
+  const sameColumns =
+    isDeepStrictEqual(old.columns, current.columns) &&
+    isDeepStrictEqual(old.references, current.references);
+  if (!sameColumns) {
+    return manual(
+      objectName(table, current.name),
+      "A foreign key that now refers from or to other columns would stop rows of the old app or of the new one while both run; change it by hand: add the new key, deploy, then drop the old one",
+    );
+  }
+  const names = swapNames(current.name);
+  if (names === null) {
+    return tooLong(table, current.name);
+  }
+  return combine([
+    addForeignKey(table, { ...current, name: names.next }),
+    replaceConstraint(table, { replaced: old.name, replacement: names.next, name: current.name }),
+  ]);
+}
+
+function tooLong(table: Table, name: string): Changes {
+  return manual(
+    objectName(table, name),
+    `The temporary constraint names for "${name}" would be longer than Postgres's 63-byte names; change the constraint by hand`,
   );
 }

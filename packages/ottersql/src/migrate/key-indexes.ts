@@ -1,0 +1,58 @@
+import type { Index, PrimaryKey, Table, UniqueConstraint } from "../catalog/index.ts";
+import { alterTable, createIndex, deferral, identifier } from "./sql-text.ts";
+import { objectName, only, outsideStep, step } from "./steps.ts";
+import type { Changes } from "./steps.ts";
+
+export function keyIndex(key: PrimaryKey | UniqueConstraint): Index {
+  return {
+    name: key.name,
+    method: "btree",
+    unique: true,
+    nullsNotDistinct: "nullsNotDistinct" in key && key.nullsNotDistinct,
+    keys: key.columns.map((column) => ({
+      kind: "column",
+      column,
+      order: "asc",
+      nulls: "last",
+      operatorClass: null,
+      collation: null,
+    })),
+    include: key.include,
+    predicate: null,
+  };
+}
+
+/** Builds the key's index concurrently, then turns it into the constraint, which only takes a moment. */
+export function indexBackedKey(
+  table: Table,
+  key: PrimaryKey | UniqueConstraint,
+  kind: "addUnique" | "addPrimaryKey",
+): Changes {
+  const object = objectName(table, key.name);
+  const constraint = kind === "addUnique" ? "UNIQUE" : "PRIMARY KEY";
+  const name = identifier(key.name);
+  const build = createIndex(table, keyIndex(key), true);
+  const add = alterTable(
+    table,
+    `ADD CONSTRAINT ${name} ${constraint} USING INDEX ${name}${deferral(key.deferral)}`,
+  );
+  return only(
+    outsideStep({
+      kind: "createIndex",
+      object,
+      statements: [build],
+      cleanup: { schema: table.schema, name: key.name },
+      phase: "contract",
+      reversal: "reversible",
+      lock: "share update exclusive",
+    }),
+    step({
+      kind,
+      object,
+      statements: [add],
+      phase: "contract",
+      reversal: "reversible",
+      lock: "access exclusive",
+    }),
+  );
+}

@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Catalog, Table, UniqueConstraint } from "../catalog/index.ts";
-import { dropConstraint, indexBackedKey, keyIndex } from "./constraints.ts";
+import { dropConstraint } from "./constraints.ts";
+import { indexBackedKey, keyIndex } from "./key-indexes.ts";
 import { alterTable, createIndex, deferral, exceedsNameLimit, identifier } from "./sql-text.ts";
 import { combine, manual, matchByName, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
