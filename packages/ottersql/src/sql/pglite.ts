@@ -11,29 +11,23 @@ const asText: Passthrough = (value) => value;
 
 /**
  * A `Connection` over PGlite, receiving every value as text. The same database gives the same
- * connection, which remembers the types and statements it has looked up.
+ * connection, which remembers the types it has looked up.
  */
 export function pgliteConnection(db: PGliteInterface): Connection {
   return clientConnection(db, () => textDriver(db));
 }
 
-// PGlite takes parsers per type oid, so each statement is described once to learn its oids; arrays
-// need their own oid's parser. Describing takes no lock, so it also works inside a transaction,
-// which holds PGlite's.
+// PGlite takes parsers per type oid, so each statement is described to learn its oids; arrays
+// need their own oid's parser. Not remembered per statement: a schema change can give the same
+// SQL other types, and parsers for the old ones would let PGlite parse the new. Describing takes no
+// lock, so it also works inside a transaction, which holds PGlite's.
 function textDriver(db: PGliteInterface): Driver {
-  const passthroughs = new Map<string, Readonly<Record<number, Passthrough>>>();
   const parsersFor = async (sql: string): Promise<Readonly<Record<number, Passthrough>>> => {
-    const known = passthroughs.get(sql);
-    if (known !== undefined) {
-      return known;
-    }
     const described = await db.describeQuery(sql);
     const oids = [...described.queryParams, ...described.resultFields].map(
       (field) => field.dataTypeID,
     );
-    const parsers = Object.fromEntries(oids.map((oid) => [oid, asText]));
-    passthroughs.set(sql, parsers);
-    return parsers;
+    return Object.fromEntries(oids.map((oid) => [oid, asText]));
   };
   const queryOn =
     (target: Pick<Transaction, "query">): DriverQuery =>
