@@ -1,7 +1,8 @@
 import { describe, expect, test } from "vitest";
 
 import { pgliteConnection } from "../sql/pglite.ts";
-import { openSchema, readRelations, readTypeRefs } from "./index.ts";
+import { readRelations, readTypeRefs } from "./by-oid.ts";
+import { openSchema } from "./index.ts";
 import type { OpenSchema } from "./index.ts";
 
 async function oidsOf(

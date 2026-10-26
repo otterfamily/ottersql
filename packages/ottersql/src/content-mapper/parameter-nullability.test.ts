@@ -1,6 +1,6 @@
 import { describe, expect, test as base } from "vitest";
 
-import type { QuerySession } from "./index.ts";
+import type { QuerySession } from "./session.ts";
 import { onlyQuery, openSession } from "./test-session.ts";
 
 const test = base.extend<{ session: QuerySession }>({

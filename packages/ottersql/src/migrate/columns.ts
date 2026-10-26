@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { findDomain } from "../catalog/index.ts";
+import { findDomain } from "../catalog/find.ts";
 import type { Catalog, Column, Domain, Table, TypeRef } from "../catalog/index.ts";
 import { commentChange } from "./comments.ts";
 import {

@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 
-import { isMigrationLabel } from "../migrate/index.ts";
+import { isMigrationLabel } from "../migrate/migration-name.ts";
 
 /** What the command line asks for, parsed once where it enters. */
 export type Command =

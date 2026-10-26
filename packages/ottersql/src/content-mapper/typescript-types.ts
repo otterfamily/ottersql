@@ -1,4 +1,4 @@
-import { findDomain, findEnum, findRange } from "../catalog/index.ts";
+import { findDomain, findEnum, findRange } from "../catalog/find.ts";
 import type { Catalog, NamedTypeRef, TypeRef } from "../catalog/index.ts";
 import { baseCodecs } from "../sql/decode.ts";
 import { rangeSubtypes } from "../sql/type-info.ts";

@@ -1,4 +1,4 @@
-import { findDomain, findTable, sameType } from "../catalog/index.ts";
+import { findDomain, findTable, sameType } from "../catalog/find.ts";
 import type { Catalog, Column, Table, TypeRef } from "../catalog/index.ts";
 import type { Span } from "../sql/query-file.ts";
 import { isIdentifier } from "../sql/query-name.ts";
@@ -8,9 +8,9 @@ import { literalUnion, nullable, tsType } from "./typescript-types.ts";
 import type { SqlTypeImport, TypeContext } from "./typescript-types.ts";
 
 /** `[virtualStart, virtualLength, originalStart, originalLength, kind]`, as TypeScript's content mapper protocol defines it. */
-export type SpanMapping = readonly [number, number, number, number, number];
+type SpanMapping = readonly [number, number, number, number, number];
 
-export interface MapperDiagnostic {
+interface MapperDiagnostic {
   readonly messageText: string;
   readonly start: number;
   readonly length: number;

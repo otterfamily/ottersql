@@ -1,7 +1,7 @@
 import { benchmarkSchemaSql } from "@ottersql/testing/benchmark-schema";
 import { describe, test } from "vitest";
 
-import { openQuerySession } from "./index.ts";
+import { openQuerySession } from "./session.ts";
 
 const queryFile = `
 -- @name byId

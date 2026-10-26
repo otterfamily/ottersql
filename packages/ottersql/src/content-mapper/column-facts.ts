@@ -1,5 +1,6 @@
-import { findTable } from "../catalog/index.ts";
-import type { Catalog, Relation, TriggerEvent } from "../catalog/index.ts";
+import type { Relation } from "../catalog/by-oid.ts";
+import { findTable } from "../catalog/find.ts";
+import type { Catalog, TriggerEvent } from "../catalog/index.ts";
 import { nodesOfType, scalar } from "./node-tree.ts";
 import type { NodeObject } from "./node-tree.ts";
 import type { NullabilityFacts } from "./nullability.ts";

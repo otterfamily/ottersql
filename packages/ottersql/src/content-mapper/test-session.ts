@@ -1,5 +1,5 @@
-import { openQuerySession } from "./index.ts";
-import type { DescribedQuery, QuerySession } from "./index.ts";
+import { openQuerySession } from "./session.ts";
+import type { DescribedQuery, QuerySession } from "./session.ts";
 
 const schemaSql = `
   create type mood as enum ('ok', 'bad');

@@ -1,7 +1,7 @@
 import { describe, expect, test as base } from "vitest";
 
-import { openQuerySession } from "./index.ts";
-import type { QuerySession } from "./index.ts";
+import { openQuerySession } from "./session.ts";
+import type { QuerySession } from "./session.ts";
 
 const schemaSql = `
   create type mood as enum ('ok', 'it''s bad');

@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 
 import { openSchema } from "../catalog/index.ts";
 import type { OpenSchema } from "../catalog/index.ts";
-import { openQuerySession } from "./index.ts";
+import { openQuerySession } from "./session.ts";
 
 // Edge values per argument type: empty and blank text, zero, negatives, NaN, infinities, extremes.
 const edgeValues: Readonly<Record<string, readonly string[]>> = {

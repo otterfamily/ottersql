@@ -1,8 +1,9 @@
 import type { PGlite } from "@electric-sql/pglite";
 
-import { openSchema, readRelations, readTypeRefs } from "../catalog/index.ts";
-import type { Catalog, Relation, TypeRef } from "../catalog/index.ts";
-import type { Connection } from "../sql/index.ts";
+import { readRelations, readTypeRefs } from "../catalog/by-oid.ts";
+import type { Relation } from "../catalog/by-oid.ts";
+import { openSchema } from "../catalog/index.ts";
+import type { Catalog, TypeRef } from "../catalog/index.ts";
 import { pgliteConnection } from "../sql/pglite.ts";
 import { fileOffset, offsetOfPosition, readQueryFile } from "../sql/query-file.ts";
 import type { Query, Span } from "../sql/query-file.ts";
@@ -72,8 +73,6 @@ interface DescribedStatement {
 
 interface Context {
   readonly db: PGlite;
-  /** The same database as `db`, for the catalog lookups that read it as any driver would. */
-  readonly connection: Connection;
   readonly catalog: Catalog;
   readonly builtIns: BuiltInFacts;
   /**
@@ -110,7 +109,6 @@ export async function openQuerySession(
   );
   const context: Context = {
     db,
-    connection: pgliteConnection(db),
     catalog: schema.catalog,
     builtIns: await readBuiltInFacts(db),
     statements: new Map(),
@@ -161,14 +159,15 @@ async function analyze(
   const types = await cached(
     context.types,
     [...parameterTypes, ...fields.map((column) => column.dataTypeID)],
-    async (oids) => readTypeRefs(context.connection, oids),
+    // The same database always gives the same connection, so this opens nothing.
+    async (oids) => readTypeRefs(pgliteConnection(context.db), oids),
   );
   // A computed column reports table oid 0, which no lookup can find.
   const tableOids = fields.map((column) => column.tableID).filter((oid) => oid !== 0);
   const relations = await cached(
     context.relations,
     [...tableOids, ...relationOids(tree)],
-    async (oids) => readRelations(context.connection, oids),
+    async (oids) => readRelations(pgliteConnection(context.db), oids),
   );
   const facts = { ...relationFacts(context.catalog, relations), ...context.builtIns };
   const proven = tree === null ? null : statementNullability(tree, facts);

@@ -1,4 +1,4 @@
-import { findTable } from "../catalog/index.ts";
+import { findTable } from "../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
 import { addCheck } from "./constraints.ts";
 import {

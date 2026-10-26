@@ -1,4 +1,5 @@
-import { emptyMigration, nextMigrationName, renderMigration } from "../migrate/index.ts";
+import { nextMigrationName, renderMigration } from "../migrate/index.ts";
+import { emptyMigration } from "../migrate/migration-file.ts";
 import { changesToSchema, isEmpty, planLines } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";

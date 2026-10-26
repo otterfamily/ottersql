@@ -4,7 +4,7 @@ import { join } from "node:path";
 
 import { describe, expect, test } from "vitest";
 
-import { createMapper } from "./index.ts";
+import { createMapper } from "./mapper.ts";
 
 interface Transformed {
   readonly text: string;
