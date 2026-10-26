@@ -232,7 +232,8 @@ function store<Value>(known: Map<number, Value>, read: Iterable<readonly [number
   }
 }
 
-// Bounds the per-session cache; old entries are mostly SQL from earlier edits.
+// Bounds the per-session cache; the least recently used entries are mostly SQL from earlier edits,
+// while the queries of every open file are used on each request.
 const MAX_CACHED_STATEMENTS = 2000;
 
 async function describeCached(
@@ -241,20 +242,30 @@ async function describeCached(
 ): Promise<DescribedStatement | PostgresError> {
   const known = context.statements.get(sql);
   if (known !== undefined) {
+    remember(context.statements, sql, known);
     return known;
   }
   const description = await describeStatement(context.db, sql);
   const described =
     description.kind === "error" ? description : await analyze(context, description);
-  context.statements.set(sql, described);
-  const [oldest] = context.statements.keys();
-  if (context.statements.size > MAX_CACHED_STATEMENTS && oldest !== undefined) {
-    context.statements.delete(oldest);
-  }
+  remember(context.statements, sql, described);
   return described;
 }
 
-/** Every table, view and other relation the analyzed tree reads from, however deeply nested. */
+/** Makes `sql` the most recently used statement, dropping the least recently used past the bound. */
+function remember(
+  statements: Map<string, DescribedStatement | PostgresError>,
+  sql: string,
+  described: DescribedStatement | PostgresError,
+): void {
+  // A Map keeps insertion order, so the first key is the least recently used.
+  statements.delete(sql);
+  statements.set(sql, described);
+  const [oldest] = statements.keys();
+  if (statements.size > MAX_CACHED_STATEMENTS && oldest !== undefined) {
+    statements.delete(oldest);
+  }
+}
 
 function origin(relation: Relation | undefined, attnum: number): DescribedColumn["origin"] {
   const column = relation?.columns.get(attnum);
