@@ -69,6 +69,7 @@ describe("keys", () => {
         match: "simple",
         onUpdate: "no action",
         onDelete: "no action",
+        onDeleteColumns: [],
         period: false,
         deferral: "not deferrable",
         enforcement: "not valid",
@@ -80,6 +81,7 @@ describe("keys", () => {
         match: "simple",
         onUpdate: "no action",
         onDelete: "no action",
+        onDeleteColumns: [],
         period: false,
         deferral: "not deferrable",
         enforcement: "not enforced",
@@ -91,6 +93,7 @@ describe("keys", () => {
         match: "full",
         onUpdate: "cascade",
         onDelete: "set null",
+        onDeleteColumns: [],
         period: false,
         deferral: "initially immediate",
         enforcement: "validated",
@@ -125,6 +128,22 @@ describe("keys", () => {
         },
       ],
     ]);
+  });
+
+  test("reads the columns ON DELETE SET NULL or SET DEFAULT sets, when it names them", async () => {
+    const catalog = await loadCatalog(`
+      create table parent (tenant int, id int, primary key (tenant, id));
+      create table child (
+        tenant int, parent_id int,
+        foreign key (tenant, parent_id) references parent on delete set null (parent_id)
+      );
+    `);
+    expect(
+      table(catalog, "child").foreignKeys.map(({ onDelete, onDeleteColumns }) => ({
+        onDelete,
+        onDeleteColumns,
+      })),
+    ).toStrictEqual([{ onDelete: "set null", onDeleteColumns: ["parent_id"] }]);
   });
 
   test("reads keys WITHOUT OVERLAPS and foreign keys with PERIOD", async () => {

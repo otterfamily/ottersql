@@ -6,6 +6,7 @@ import { indexBackedKey } from "./key-indexes.ts";
 import type { Step } from "./plan.ts";
 import {
   alterTable,
+  checkDefinition,
   enforcement,
   exceedsNameLimit,
   foreignKeyDefinition,
@@ -173,7 +174,7 @@ export function addCheck(table: Table, check: Check): Changes {
   return addThenValidate({
     table,
     name: check.name,
-    definition: `CHECK (${check.expression})`,
+    definition: checkDefinition(check),
     kind: "check",
     enforcement: check.enforcement,
   });
@@ -231,7 +232,10 @@ function replaceCheck(table: Table, old: Check, current: Check): Changes {
   if (names === null) {
     return tooLong(table, current.name);
   }
-  const either = `CHECK ((${old.expression}) OR (${current.expression})) NOT VALID`;
+  const either = `${checkDefinition({
+    expression: `(${old.expression}) OR (${current.expression})`,
+    noInherit: current.noInherit,
+  })} NOT VALID`;
   const addBridge = alterTable(table, `ADD CONSTRAINT ${identifier(names.bridge)} ${either}`);
   const dropOld = alterTable(table, `DROP CONSTRAINT ${identifier(old.name)}`);
   const bridge = step({

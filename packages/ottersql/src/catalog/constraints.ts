@@ -44,6 +44,7 @@ export function keysJson(relationOid: string, features: CatalogFeatures): string
         'match', key_con.confmatchtype,
         'onUpdate', key_con.confupdtype,
         'onDelete', key_con.confdeltype,
+        'onDeleteColumns', ${columnNames("key_con.conrelid", "coalesce(key_con.confdelsetcols, '{}')")},
         'period', ${period},
         ${constraintStateFields("key_con", features)}
       ) order by key_con.conname)
@@ -85,6 +86,7 @@ interface ForeignKeyRow extends ConstraintStateRow {
   readonly match: string;
   readonly onUpdate: string;
   readonly onDelete: string;
+  readonly onDeleteColumns: readonly string[];
   readonly period: boolean;
 }
 
@@ -117,6 +119,7 @@ const foreignKeyRow: Shape<ForeignKeyRow> = (value, path) => {
     match: field("match", string),
     onUpdate: field("onUpdate", string),
     onDelete: field("onDelete", string),
+    onDeleteColumns: field("onDeleteColumns", array(string)),
     period: field("period", boolean),
   };
 };
@@ -179,6 +182,7 @@ function parseForeignKey(row: ForeignKeyRow): ForeignKey {
     match: decode(matchTypes, row.match, "pg_constraint.confmatchtype"),
     onUpdate: decode(actions, row.onUpdate, "pg_constraint.confupdtype"),
     onDelete: decode(actions, row.onDelete, "pg_constraint.confdeltype"),
+    onDeleteColumns: row.onDeleteColumns,
     period: row.period,
     deferral: parseDeferral(row),
     enforcement: parseEnforcement(row),

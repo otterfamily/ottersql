@@ -1,4 +1,5 @@
 import type {
+  Check,
   Column,
   Deferral,
   Enforcement,
@@ -53,8 +54,13 @@ export function columnDefinition(column: Column): string {
     column.typeSql,
     ...(collation === null ? [] : [`COLLATE ${qualified(collation.schema, collation.name)}`]),
     ...(value === null ? [] : [value]),
-    ...(column.notNull ? ["NOT NULL"] : []),
+    ...(column.notNull ? [column.notNullNoInherit ? "NOT NULL NO INHERIT" : "NOT NULL"] : []),
   ].join(" ");
+}
+
+/** A check as `ADD CONSTRAINT` and `CREATE TABLE` write it, without its name or enforcement. */
+export function checkDefinition(check: Pick<Check, "expression" | "noInherit">): string {
+  return `CHECK (${check.expression})${check.noInherit ? " NO INHERIT" : ""}`;
 }
 
 function valueClause(value: Column["value"]): string | null {
@@ -99,6 +105,7 @@ export function foreignKeyDefinition(key: ForeignKey): string {
     ` REFERENCES ${qualified(references.schema, references.table)} ${foreignKeyColumnList(references.columns, key.period)}`,
     match,
     ` ON UPDATE ${key.onUpdate.toUpperCase()} ON DELETE ${key.onDelete.toUpperCase()}`,
+    key.onDeleteColumns.length > 0 ? ` ${columnList(key.onDeleteColumns)}` : "",
     deferral(key.deferral),
   ].join("");
 }

@@ -36,6 +36,8 @@ export interface ForeignKey {
   readonly match: "simple" | "full" | "partial";
   readonly onUpdate: ForeignKeyAction;
   readonly onDelete: ForeignKeyAction;
+  /** The columns ON DELETE SET NULL or SET DEFAULT sets when it names them; empty for all of them. */
+  readonly onDeleteColumns: readonly string[];
   /**
    * The last column on each side is a PERIOD (Postgres 18): each row must be covered by referenced
    * rows over its whole range.

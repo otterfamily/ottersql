@@ -12,7 +12,16 @@ import {
   exceedsNameLimit,
   identifier,
 } from "./sql-text.ts";
-import { combine, manual, matchByName, noChanges, objectName, only, step } from "./steps.ts";
+import {
+  combine,
+  manual,
+  matchByName,
+  noChanges,
+  notPlanned,
+  objectName,
+  only,
+  step,
+} from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 /** The changes from `before` to `after`, a table of the catalog `to`. */
@@ -196,8 +205,11 @@ function defaultChange(
 }
 
 function notNullChange(table: Table, before: Column, after: Column): Changes {
-  if (before.notNull === after.notNull) {
+  if (before.notNull === after.notNull && before.notNullNoInherit === after.notNullNoInherit) {
     return noChanges;
+  }
+  if (before.notNullNoInherit || after.notNullNoInherit) {
+    return manual(objectName(table, after.name), notPlanned("NOT NULL NO INHERIT"));
   }
   if (after.notNull) {
     return setNotNull(table, after);

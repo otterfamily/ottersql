@@ -19,6 +19,10 @@ const schemaSql = `${benchmarkSchemaSql};
   create table app.base (id int8);
   create table app.child (note text) inherits (app.base);
   create table app.booking (room int, during tsrange, exclude using gist (during with &&));
+  create table app.owner (tenant int, id int, primary key (tenant, id));
+  create table app.item (tenant int, owner_id int,
+    foreign key (tenant, owner_id) references app.owner on delete set null (owner_id),
+    constraint item_positive check (owner_id > 0) no inherit);
   create table app.notes (id int8 primary key, body text collate "C", owner text);
   create function app.touch() returns trigger language plpgsql as 'begin return new; end';
   create function app.twice(n int) returns int language sql immutable return n * 2;

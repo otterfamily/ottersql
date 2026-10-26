@@ -3,6 +3,7 @@ import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
 import { addCheck, addForeignKey } from "./constraints.ts";
 import {
   alterTable,
+  checkDefinition,
   columnList,
   deferral,
   enforcement,
@@ -34,7 +35,7 @@ export function inlineConstraints(table: Table): string[] {
     .filter((check) => check.enforcement !== "not valid")
     .map(
       (check) =>
-        `CONSTRAINT ${identifier(check.name)} CHECK (${check.expression})${enforcement(check.enforcement)}`,
+        `CONSTRAINT ${identifier(check.name)} ${checkDefinition(check)}${enforcement(check.enforcement)}`,
     );
   const exclusions = table.exclusionConstraints.map(
     ({ name, definition }) => `CONSTRAINT ${identifier(name)} ${definition}`,

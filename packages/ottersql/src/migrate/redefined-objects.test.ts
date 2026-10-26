@@ -177,3 +177,54 @@ describe("planMigration of exclusion constraints and keys WITHOUT OVERLAPS", () 
     );
   });
 });
+
+describe("planMigration of NO INHERIT and ON DELETE SET NULL (columns)", () => {
+  test("writes them for a new table as the schema says", async () => {
+    const plan = planMigration(
+      await loadCatalog(""),
+      await loadCatalog(`create table parent (tenant int4, id int4, primary key (tenant, id));
+        create table child (
+          tenant int4 not null no inherit, parent_id int4,
+          constraint positive check (parent_id > 0) no inherit,
+          constraint child_parent foreign key (tenant, parent_id) references parent
+            on delete set null (parent_id)
+        )`),
+    );
+    expect(plan.steps.flatMap((step) => step.statements).slice(0, 2)).toStrictEqual([
+      'CREATE TABLE "public"."child" ("tenant" integer NOT NULL NO INHERIT, "parent_id" integer, CONSTRAINT "positive" CHECK ((parent_id > 0)) NO INHERIT)',
+      'CREATE TABLE "public"."parent" ("tenant" integer NOT NULL, "id" integer NOT NULL, CONSTRAINT "parent_pkey" PRIMARY KEY ("tenant", "id"))',
+    ]);
+    expect(plan.steps.flatMap((step) => step.statements)).toContain(
+      'ALTER TABLE "public"."child" ADD CONSTRAINT "child_parent" FOREIGN KEY ("tenant", "parent_id") REFERENCES "public"."parent" ("tenant", "id") ON UPDATE NO ACTION ON DELETE SET NULL ("parent_id")',
+    );
+  });
+
+  test("adds a check NO INHERIT to a table with rows as such", async () => {
+    const plan = planMigration(
+      await loadCatalog(users),
+      await loadCatalog(
+        `${users}; alter table users add constraint positive check (id > 0) no inherit`,
+      ),
+    );
+    expect(plan.steps[0]?.statements).toStrictEqual([
+      'ALTER TABLE "public"."users" ADD CONSTRAINT "positive" CHECK ((id > 0)) NO INHERIT NOT VALID',
+    ]);
+  });
+
+  test("leaves making a column of a table with rows NOT NULL NO INHERIT to a person", async () => {
+    const plan = planMigration(
+      await loadCatalog(users),
+      await loadCatalog("create table users (id int8 primary key, email text not null no inherit)"),
+    );
+    expect(plan).toStrictEqual({
+      steps: [],
+      manual: [
+        {
+          object: "public.users.email",
+          reason:
+            "ottersql does not plan changes to NOT NULL NO INHERIT yet; write this change by hand",
+        },
+      ],
+    });
+  });
+});
