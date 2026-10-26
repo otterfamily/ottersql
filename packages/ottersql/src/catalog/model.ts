@@ -5,6 +5,7 @@ import type { ExclusionConstraint, ForeignKey, PrimaryKey, UniqueConstraint } fr
 import type { Partition } from "./partitions.ts";
 import type { Policy, RowSecurity } from "./policies.ts";
 import type { Sequence } from "./sequences.ts";
+import type { Collation, TextSearchConfiguration, TextSearchDictionary } from "./text-settings.ts";
 import type { Trigger } from "./triggers.ts";
 
 export interface Catalog {
@@ -16,6 +17,9 @@ export interface Catalog {
   readonly sequences: readonly Sequence[];
   readonly enums: readonly Enum[];
   readonly composites: readonly CompositeType[];
+  readonly collations: readonly Collation[];
+  readonly textSearchConfigurations: readonly TextSearchConfiguration[];
+  readonly textSearchDictionaries: readonly TextSearchDictionary[];
   readonly ranges: readonly RangeType[];
   readonly domains: readonly Domain[];
   readonly views: readonly View[];

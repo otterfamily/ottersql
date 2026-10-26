@@ -28,6 +28,10 @@ const schemaSql = `${benchmarkSchemaSql};
     body text storage external compression pglz
   ) with (fillfactor = 70);
   create index scratch_body on app.scratch (body) with (fillfactor = 50);
+  create collation app.c_like (provider = libc, locale = 'C');
+  create text search dictionary app.plain_dict (template = simple, stopwords = english);
+  create text search configuration app.plain (copy = simple);
+  alter text search configuration app.plain alter mapping for word with app.plain_dict;
   create table app.notes (id int8 primary key, body text collate "C", owner text);
   create function app.touch() returns trigger language plpgsql as 'begin return new; end';
   create function app.twice(n int) returns int language sql immutable return n * 2;

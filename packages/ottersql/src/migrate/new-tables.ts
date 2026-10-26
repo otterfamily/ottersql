@@ -4,22 +4,87 @@ import { addCheck, addForeignKey } from "./constraints.ts";
 import {
   alterTable,
   checkDefinition,
+  columnDefinition,
   columnList,
+  columnSqlName,
+  createIndex,
+  createSequence,
   deferral,
   enforcement,
   foreignKeyDefinition,
   identifier,
   keyColumnList,
+  literal,
+  qualified,
+  storageParameters,
 } from "./sql-text.ts";
 import { combine, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
+import { unplannedUse, usesUnplanned } from "./unplanned-uses.ts";
+
+/**
+ * A table `to` adds: created whole with its constraints, unless it uses a type or collation the
+ * plan leaves to a person (`unplanned`), which must exist first.
+ */
+export function newTable(table: Table, from: Catalog, unplanned: ReadonlySet<string>): Changes {
+  const used = unplannedUse(table.columns, unplanned);
+  return used === null
+    ? combine([createTable(table), newTableConstraints(table, from)])
+    : usesUnplanned(`${table.schema}.${table.name}`, used, "create the table");
+}
+
+function comments(table: Table): string[] {
+  const name = qualified(table.schema, table.name);
+  return [
+    ...(table.comment === null
+      ? []
+      : [`COMMENT ON TABLE ${name} IS ${literal(table.comment.text)}`]),
+    ...table.columns.flatMap((column) =>
+      column.comment === null
+        ? []
+        : [
+            `COMMENT ON COLUMN ${columnSqlName(table, column.name)} IS ${literal(column.comment.text)}`,
+          ],
+    ),
+  ];
+}
+
+/** A new table has no rows and no app using it yet, so it is created whole, indexes included. */
+function createTable(table: Table): Changes {
+  const definitions = [
+    ...table.columns.map((column) => columnDefinition(column)),
+    ...inlineConstraints(table),
+  ];
+  const sequences = table.columns.flatMap((column) =>
+    column.value.kind === "sequence" ? [{ column: column.name, ...column.value.sequence }] : [],
+  );
+  return only(
+    step({
+      kind: "createTable",
+      object: `${table.schema}.${table.name}`,
+      statements: [
+        ...sequences.map((sequence) => createSequence(sequence)),
+        `CREATE ${table.unlogged ? "UNLOGGED " : ""}TABLE ${qualified(table.schema, table.name)} (${definitions.join(", ")})${storageParameters(table.options)}`,
+        ...sequences.map(
+          (sequence) =>
+            `ALTER SEQUENCE ${qualified(sequence.schema, sequence.name)} OWNED BY ${columnSqlName(table, sequence.column)}`,
+        ),
+        ...table.indexes.map((index) => createIndex(table, index, false)),
+        ...comments(table),
+      ],
+      phase: "expand",
+      reversal: "lossy",
+      lock: "none",
+    }),
+  );
+}
 
 function include(columns: readonly string[]): string {
   return columns.length > 0 ? ` INCLUDE ${columnList(columns)}` : "";
 }
 
 /** Table constraints as written inside `CREATE TABLE`, where there are no rows to check yet. */
-export function inlineConstraints(table: Table): string[] {
+function inlineConstraints(table: Table): string[] {
   const { primaryKey } = table;
   const primary =
     primaryKey === null
@@ -68,7 +133,7 @@ function hasKey(table: Table, columns: readonly string[]): boolean {
  * to a key that `from` lacks on an existing table waits until that key is added, after the deploy;
  * the new app has written rows by then, so it is added as for any table with rows.
  */
-export function newTableConstraints(table: Table, from: Catalog): Changes {
+function newTableConstraints(table: Table, from: Catalog): Changes {
   const unvalidatedChecks = table.checks.filter((check) => check.enforcement === "not valid");
   const waitsForKey = (key: ForeignKey): boolean => {
     const referenced = findTable(from, key.references.schema, key.references.table);

@@ -9,7 +9,15 @@ export function scopeParameters(omitSchemas: readonly string[]): string[] {
  * that belong to an extension are left out.
  */
 export function userObject(
-  catalogTable: "pg_class" | "pg_extension" | "pg_namespace" | "pg_proc" | "pg_type",
+  catalogTable:
+    | "pg_class"
+    | "pg_collation"
+    | "pg_extension"
+    | "pg_namespace"
+    | "pg_proc"
+    | "pg_ts_config"
+    | "pg_ts_dict"
+    | "pg_type",
   objectOid: string,
   namespaceOid: string,
 ): string {

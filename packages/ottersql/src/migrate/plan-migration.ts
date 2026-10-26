@@ -8,7 +8,7 @@ import { combine } from "./steps.ts";
 import { hierarchyChanges } from "./table-hierarchies.ts";
 import { tableRuleChanges } from "./table-rules.ts";
 import { tableChanges } from "./tables.ts";
-import { unplannedChanges } from "./unplanned-objects.ts";
+import { unplannedAdditions, unplannedChanges } from "./unplanned-objects.ts";
 
 /**
  * The order steps run in: everything before the deploy, then everything after, and within each,
@@ -59,11 +59,12 @@ function rank(step: Step): number {
  * (ADR 0004). Differences the planner cannot turn into safe steps are listed in `manual`, with why.
  */
 export function planMigration(from: Catalog, to: Catalog): Plan {
+  const unplanned = unplannedAdditions(from, to);
   const { steps, manual } = combine([
     schemaChanges(from, to),
     enumChanges(from, to),
-    compositeChanges(from, to),
-    tableChanges(from, to),
+    compositeChanges(from, to, unplanned),
+    tableChanges({ from, to, unplanned }),
     tableRuleChanges(from, to),
     hierarchyChanges(from, to),
     unplannedChanges(from, to),

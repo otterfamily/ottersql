@@ -4,18 +4,13 @@ import type { Catalog, ForeignKey, Index, Table } from "../catalog/index.ts";
 import { columnChanges } from "./columns.ts";
 import { commentChange } from "./comments.ts";
 import { constraintChanges, dropConstraint } from "./constraints.ts";
-import { inlineConstraints, newTableConstraints } from "./new-table-constraints.ts";
+import { newTable } from "./new-tables.ts";
 import {
-  columnDefinition,
-  columnSqlName,
   createIndex,
-  createSequence,
   dropIndexStatement,
   exceedsNameLimit,
   identifier,
-  literal,
   qualified,
-  storageParameters,
 } from "./sql-text.ts";
 import {
   combine,
@@ -36,8 +31,16 @@ function withKey(tables: readonly Table[]): { readonly name: string; readonly ta
   return tables.map((table) => ({ name: `${table.schema}.${table.name}`, table }));
 }
 
+/** The catalogs a plan goes between, and what it leaves to a person that new objects may use. */
+interface Sides {
+  readonly from: Catalog;
+  readonly to: Catalog;
+  readonly unplanned: ReadonlySet<string>;
+}
+
 /** Changes to tables in no hierarchy on either side; table-hierarchies.ts lists those. */
-export function tableChanges(from: Catalog, to: Catalog): Changes {
+export function tableChanges(sides: Sides): Changes {
+  const { from, to } = sides;
   const inHierarchy = hierarchyTables(from, to);
   const plain = (catalog: Catalog): { readonly name: string; readonly table: Table }[] =>
     withKey(catalog.tables).filter(({ name }) => !inHierarchy.has(name));
@@ -46,62 +49,15 @@ export function tableChanges(from: Catalog, to: Catalog): Changes {
     ({ table }) => !removed.some((old) => sameColumns(old.table, table)),
   );
   return combine([
-    ...created.map(({ table }) => createTable(table)),
-    ...created.map(({ table }) => newTableConstraints(table, from)),
+    ...created.map(({ table }) => newTable(table, from, sides.unplanned)),
     ...removed.map(({ table }) => {
       const other = added.find((candidate) => sameColumns(candidate.table, table));
       return other === undefined
         ? dropTable(table, removed)
         : maybeRenamedTable(table, other.table);
     }),
-    ...kept.map(([before, after]) => changeTable(before.table, after.table, { from, to })),
+    ...kept.map(([before, after]) => changeTable(before.table, after.table, sides)),
   ]);
-}
-
-function comments(table: Table): string[] {
-  const name = qualified(table.schema, table.name);
-  return [
-    ...(table.comment === null
-      ? []
-      : [`COMMENT ON TABLE ${name} IS ${literal(table.comment.text)}`]),
-    ...table.columns.flatMap((column) =>
-      column.comment === null
-        ? []
-        : [
-            `COMMENT ON COLUMN ${columnSqlName(table, column.name)} IS ${literal(column.comment.text)}`,
-          ],
-    ),
-  ];
-}
-
-/** A new table has no rows and no app using it yet, so it is created whole, indexes included. */
-function createTable(table: Table): Changes {
-  const definitions = [
-    ...table.columns.map((column) => columnDefinition(column)),
-    ...inlineConstraints(table),
-  ];
-  const sequences = table.columns.flatMap((column) =>
-    column.value.kind === "sequence" ? [{ column: column.name, ...column.value.sequence }] : [],
-  );
-  return only(
-    step({
-      kind: "createTable",
-      object: `${table.schema}.${table.name}`,
-      statements: [
-        ...sequences.map((sequence) => createSequence(sequence)),
-        `CREATE ${table.unlogged ? "UNLOGGED " : ""}TABLE ${qualified(table.schema, table.name)} (${definitions.join(", ")})${storageParameters(table.options)}`,
-        ...sequences.map(
-          (sequence) =>
-            `ALTER SEQUENCE ${qualified(sequence.schema, sequence.name)} OWNED BY ${columnSqlName(table, sequence.column)}`,
-        ),
-        ...table.indexes.map((index) => createIndex(table, index, false)),
-        ...comments(table),
-      ],
-      phase: "expand",
-      reversal: "lossy",
-      lock: "none",
-    }),
-  );
 }
 
 /** Whether two tables have the same columns, by name and type, so one may be the other renamed. */
@@ -151,11 +107,7 @@ function dropTable(
 }
 
 /** The changes from `before`, a table of the catalog `from`, to `after`, one of `to`. */
-function changeTable(
-  before: Table,
-  after: Table,
-  { from, to }: { readonly from: Catalog; readonly to: Catalog },
-): Changes {
+function changeTable(before: Table, after: Table, { from, to, unplanned }: Sides): Changes {
   const storageChanged =
     before.unlogged !== after.unlogged || !isDeepStrictEqual(before.options, after.options);
   return combine([
@@ -165,7 +117,7 @@ function changeTable(
           notPlanned("whether a table is logged, or to its storage parameters,"),
         )
       : noChanges,
-    columnChanges(before, after, to),
+    columnChanges(before, after, { to, unplanned }),
     constraintChanges(before, after),
     uniqueChanges(before, after, from),
     indexChanges(before, after),

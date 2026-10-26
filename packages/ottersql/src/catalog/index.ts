@@ -18,6 +18,7 @@ export type {
 export type { Partition } from "./partitions.ts";
 export type { Policy, RowSecurity } from "./policies.ts";
 export type { Sequence } from "./sequences.ts";
+export type { Collation, TextSearchConfiguration, TextSearchDictionary } from "./text-settings.ts";
 export type { Trigger, TriggerEvent } from "./triggers.ts";
 export type {
   Annotation,

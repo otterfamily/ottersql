@@ -23,17 +23,31 @@ import {
   step,
 } from "./steps.ts";
 import type { Changes } from "./steps.ts";
+import { unplannedUse, usesUnplanned } from "./unplanned-uses.ts";
 
-/** The changes from `before` to `after`, a table of the catalog `to`. */
-export function columnChanges(before: Table, after: Table, to: Catalog): Changes {
+/**
+ * The changes from `before` to `after`, a table of the catalog `to`; `unplanned` is what the plan
+ * leaves to a person, which a new column cannot use until it exists.
+ */
+export function columnChanges(
+  before: Table,
+  after: Table,
+  { to, unplanned }: { readonly to: Catalog; readonly unplanned: ReadonlySet<string> },
+): Changes {
   const { added, removed, kept } = matchByName(before.columns, after.columns);
   const renamed = (column: Column): Column | undefined =>
     added.find((other) => other.typeSql === column.typeSql);
   const suspects = removed.filter((column) => renamed(column) !== undefined);
+  const add = (column: Column): Changes => {
+    const used = unplannedUse([column], unplanned);
+    return used === null
+      ? addColumn(after, column, to)
+      : usesUnplanned(objectName(after, column.name), used, "add the column");
+  };
   return combine([
     ...added
       .filter((column) => !suspects.some((suspect) => renamed(suspect) === column))
-      .map((column) => addColumn(after, column, to)),
+      .map((column) => add(column)),
     ...removed.map((column) => {
       const other = renamed(column);
       return other === undefined

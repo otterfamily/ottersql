@@ -80,6 +80,42 @@ describe("planMigration of objects it does not plan", () => {
       manual: [{ object: "public.citext", reason: byHand("an extension") }],
     },
     {
+      change: "a collation",
+      from: "",
+      to: "create collation ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)",
+      steps: [],
+      manual: [{ object: "public.ci", reason: byHand("a collation") }],
+    },
+    {
+      change: "a collation's locale",
+      from: "create collation ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)",
+      to: "create collation ci (provider = icu, locale = 'und-u-ks-level1', deterministic = false)",
+      steps: [],
+      manual: [{ object: "public.ci", reason: byHand("a collation") }],
+    },
+    {
+      change: "a text search configuration",
+      from: "",
+      to: "create text search configuration plain (copy = simple)",
+      steps: [],
+      manual: [{ object: "public.plain", reason: byHand("a text search configuration") }],
+    },
+    {
+      change: "a text search configuration's dictionaries",
+      from: "create text search configuration plain (copy = simple)",
+      to: `create text search configuration plain (copy = simple);
+        alter text search configuration plain drop mapping for word`,
+      steps: [],
+      manual: [{ object: "public.plain", reason: byHand("a text search configuration") }],
+    },
+    {
+      change: "a text search dictionary",
+      from: "",
+      to: "create text search dictionary plain_dict (template = simple, stopwords = english)",
+      steps: [],
+      manual: [{ object: "public.plain_dict", reason: byHand("a text search dictionary") }],
+    },
+    {
       change: "a column's collation",
       from: users,
       to: `create table users (id int8 primary key, email text collate "C")`,
@@ -140,5 +176,56 @@ describe("planMigration of composite types", () => {
       steps: [],
       manual: [{ object: "public.pair", reason: byHand("a composite type") }],
     });
+  });
+});
+
+describe("planMigration of tables that use what it leaves to a person", () => {
+  const positive = "create domain positive as int4 check (value > 0)";
+  const forTable =
+    "public.t uses public.positive, which this plan leaves to a person; create the table by hand after it";
+  const forColumn =
+    "public.t.a uses public.positive, which this plan leaves to a person; add the column by hand after it";
+
+  test.for([
+    {
+      change: "a new table of a new domain",
+      from: "",
+      to: `${positive}; create table t (a positive)`,
+      object: "public.t",
+      reason: forTable,
+    },
+    {
+      change: "a new table of an array of a new domain",
+      from: "",
+      to: `${positive}; create table t (a positive[])`,
+      object: "public.t",
+      reason: forTable,
+    },
+    {
+      change: "a new column of a new domain",
+      from: "create table t (id int8)",
+      to: `${positive}; create table t (id int8, a positive)`,
+      object: "public.t.a",
+      reason: forColumn,
+    },
+  ])("leaves $change to a person with it", async ({ from, to, object, reason }) => {
+    const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
+    expect(plan).toStrictEqual({
+      steps: [],
+      manual: [
+        { object, reason },
+        { object: "public.positive", reason: byHand("a domain") },
+      ],
+    });
+  });
+
+  test("leaves a new table of a new collation to a person with it", async () => {
+    const collation =
+      "create collation ci (provider = icu, locale = 'und-u-ks-level2', deterministic = false)";
+    const plan = planMigration(
+      await loadCatalog(""),
+      await loadCatalog(`${collation}; create table t (a text collate ci)`),
+    );
+    expect(plan.manual.map(({ object }) => object)).toStrictEqual(["public.t", "public.ci"]);
   });
 });

@@ -4,15 +4,27 @@ import type { Catalog, CompositeType, TypeRef } from "../catalog/index.ts";
 import { identifier, literal, qualified } from "./sql-text.ts";
 import { combine, manual, matchByName, notPlanned, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
+import { unplannedUse, usesUnplanned } from "./unplanned-uses.ts";
 
 /**
- * A new composite type is created before the tables that use it. Changing or dropping one touches
- * every column of it, which ottersql does not plan yet.
+ * A new composite type is created before the tables that use it, unless it uses what the plan
+ * leaves to a person (`unplanned`). Changing or dropping one touches every column of it, which
+ * ottersql does not plan yet.
  */
-export function compositeChanges(from: Catalog, to: Catalog): Changes {
+export function compositeChanges(
+  from: Catalog,
+  to: Catalog,
+  unplanned: ReadonlySet<string>,
+): Changes {
   const { added, removed, kept } = matchByName(withKey(from.composites), withKey(to.composites));
+  const create = (item: CompositeType): Changes => {
+    const used = unplannedUse(item.attributes, unplanned);
+    return used === null
+      ? createType(item)
+      : usesUnplanned(`${item.schema}.${item.name}`, used, "create the type");
+  };
   return combine([
-    ...dependenciesFirst(added.map(({ item }) => item)).map((item) => createType(item)),
+    ...dependenciesFirst(added.map(({ item }) => item)).map((item) => create(item)),
     ...removed.map(({ name }) => manual(name, notPlanned("a composite type"))),
     ...kept
       .filter(([before, after]) => !isDeepStrictEqual(before.item, after.item))
