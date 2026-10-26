@@ -57,6 +57,8 @@ const order = await db.transaction(
 
 The transaction commits when the callback resolves and rolls back when it rejects, on one connection the driver holds for it; pass node-postgres a pool, not a client. `settings` last for the transaction only, as `SET LOCAL` does. `retry` runs the callback again after a serialization failure or a deadlock, so give it only callbacks that do nothing but query. `readOnly` and, for serializable read-only transactions, `deferrable` are there too.
 
+Inside the callback, run queries on `tx`: a query on `db` runs outside the transaction, and on PGlite waits for the transaction to end, so the two wait on each other forever.
+
 A `Connection` runs only typed queries. Tools built on ottersql run SQL as it is with `rawQuery` from `@ottersql/sql/driver`, which also has `driverConnection` for drivers ottersql has no adapter for.
 
 ## Errors
