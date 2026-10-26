@@ -11,6 +11,7 @@ import type { Outcome } from "./outcome.ts";
 import { sqlstateNote } from "./outcome.ts";
 import { migrationRefusal, locate, readMigrations, shown } from "./project.ts";
 import type { Layout } from "./project.ts";
+import { failedStepJson, stepRefJson, waitingJson } from "./results.ts";
 
 type Apply = Extract<Command, { name: "migrate apply" }>;
 
@@ -50,7 +51,10 @@ function reported(layout: Layout, { applied, failed, waiting }: ApplyResult): Ou
   if (failed === null) {
     return {
       ok: true,
-      result: { applied, waiting },
+      result: {
+        applied: applied.map((step) => stepRefJson(step)),
+        waiting: waiting === null ? null : waitingJson(waiting),
+      },
       lines: [
         `Applied ${String(applied.length)} steps`,
         ...lines,
@@ -69,7 +73,10 @@ function reported(layout: Layout, { applied, failed, waiting }: ApplyResult): Ou
     why: `Step ${String(failed.step)} of ${failed.migration} failed: ${failed.message}${sqlstateNote(failed.code)}`,
     fix: "Fix the cause, then apply again; it resumes at this step",
     where: { file: shown(layout, join(layout.migrationsDirectory, failed.migration)) },
-    result: { applied, failed },
+    result: {
+      applied: applied.map((step) => stepRefJson(step)),
+      failed: failedStepJson(failed),
+    },
     lines,
   };
 }

@@ -1,10 +1,11 @@
 import { emptyMigration, nextMigrationName, renderMigration } from "../migrate/index.ts";
-import { changesToSchema, isEmpty, planLines, planResult } from "./changes.ts";
+import { changesToSchema, isEmpty, planLines } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import type { Outcome } from "./outcome.ts";
 import { locate, readMigrations, shown, writeMigration } from "./project.ts";
 import type { Layout } from "./project.ts";
+import { planJson } from "./results.ts";
 
 /** Writes what schema.sql adds to the migrations as the next migration file. */
 export async function generate(
@@ -25,14 +26,14 @@ export async function generate(
   if (isEmpty(plan)) {
     return {
       ok: true,
-      result: { file: null, ...planResult(plan) },
+      result: { file: null, ...planJson(plan) },
       lines: [`The migrations already build ${shown(layout, layout.schemaFile)}`],
     };
   }
   const file = await writeMigration(layout, name, renderMigration(plan));
   return {
     ok: true,
-    result: { file, ...planResult(plan) },
+    result: { file, ...planJson(plan) },
     lines: [`Wrote ${file} with ${String(plan.steps.length)} steps:`, ...planLines(plan)],
   };
 }

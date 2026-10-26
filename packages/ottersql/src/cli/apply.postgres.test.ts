@@ -179,7 +179,7 @@ describe("ottersql migrate apply", () => {
           failed: {
             migration: "20261025123456_add_users.sql",
             step: 0,
-            code: "42P07",
+            sqlstate: "42P07",
             message: 'relation "users" already exists',
           },
         },

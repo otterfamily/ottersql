@@ -2,13 +2,14 @@ import { ApprovalRequiredError, pushSchema } from "../migrate/index.ts";
 import type { PushResult } from "../migrate/index.ts";
 import { approvalRequired, refuseApprovalByAgent } from "./approval.ts";
 import type { Approvable } from "./approval.ts";
-import { planResult, schemaRefusal } from "./changes.ts";
+import { schemaRefusal } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
 import type { Outcome } from "./outcome.ts";
 import { sqlstateNote } from "./outcome.ts";
 import { locate, readSchema } from "./project.ts";
+import { failedPushJson, manualJson, plannedStepJson } from "./results.ts";
 
 type Push = Extract<Command, { name: "push" }>;
 
@@ -42,7 +43,7 @@ export async function push(context: Context, command: Push): Promise<Outcome> {
 }
 
 function reported({ applied, failed, manual }: PushResult): Outcome {
-  const { steps } = planResult({ steps: applied, manual: [] });
+  const steps = applied.map((step) => plannedStepJson(step));
   if (manual.length > 0) {
     return {
       ok: false,
@@ -50,7 +51,7 @@ function reported({ applied, failed, manual }: PushResult): Outcome {
       code: "push.manual",
       why: `${String(manual.length)} changes are left to a person, so nothing was pushed`,
       fix: "Make those changes in the database by hand, or write them as migrations",
-      result: { manual },
+      result: { manual: manual.map((change) => manualJson(change)) },
       lines: manual.map(({ object, reason }) => `  by hand: ${object}: ${reason}`),
     };
   }
@@ -61,7 +62,7 @@ function reported({ applied, failed, manual }: PushResult): Outcome {
       code: "push.step_failed",
       why: `${failed.kind} ${failed.object} failed: ${failed.message}${sqlstateNote(failed.code)}`,
       fix: "Fix the cause, then push again",
-      result: { applied: steps, failed },
+      result: { applied: steps, failed: failedPushJson(failed) },
     };
   }
   return {

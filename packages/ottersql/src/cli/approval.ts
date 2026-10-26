@@ -1,6 +1,7 @@
 import type { ApprovalRequiredError } from "../migrate/index.ts";
 import type { Context } from "./context.ts";
 import { CommandError } from "./outcome.ts";
+import { irreversibleStepJson } from "./results.ts";
 
 /** A command that can run steps that cannot be undone: how to run it again, and its codes' namespace. */
 export interface Approvable {
@@ -38,7 +39,7 @@ export function approvalRequired(
       agent === null
         ? `Review the steps, then run \`${run}\``
         : `Show the steps to the user and ask them to run \`${run}\` in their own terminal; an agent cannot approve them`,
-    result: { approval, steps },
+    result: { approval, steps: steps.map((step) => irreversibleStepJson(step)) },
     lines: steps.map(
       ({ migration, step, kind, object }) =>
         `  ${migration} step ${String(step)}: ${kind} ${object}`,

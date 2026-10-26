@@ -1,11 +1,12 @@
 import { migrationStatus } from "../migrate/index.ts";
 import type { MigrationStatus } from "../migrate/index.ts";
-import { planLines, planResult } from "./changes.ts";
+import { planLines } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
 import type { Outcome } from "./outcome.ts";
 import { migrationRefusal, locate, readMigrations } from "./project.ts";
+import { planJson, stepStatusJson } from "./results.ts";
 
 /** Lists which migration steps ran on DATABASE_URL, and what was changed there by hand. */
 export async function status(
@@ -32,7 +33,7 @@ function reported({ steps, drift }: MigrationStatus): Outcome {
   if (drift === null) {
     return {
       ok: true,
-      result: { steps, drift: null },
+      result: { steps: steps.map((step) => stepStatusJson(step)), drift: null },
       lines: [
         `${String(applied)} of ${String(steps.length)} steps applied; the database matches them`,
         ...lines,
@@ -45,7 +46,7 @@ function reported({ steps, drift }: MigrationStatus): Outcome {
     code: "migrate.drift",
     why: `The database differs from what its applied migrations build: ${String(drift.steps.length)} steps and ${String(drift.manual.length)} changes left to a person would turn one into the other`,
     fix: "Find out who changed the database outside the migrations; put the change in a migration, or undo it in the database",
-    result: { steps, drift: planResult(drift) },
+    result: { steps: steps.map((step) => stepStatusJson(step)), drift: planJson(drift) },
     lines: [...lines, "Differences:", ...planLines(drift)],
   };
 }

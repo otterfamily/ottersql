@@ -7,7 +7,7 @@ import {
 } from "../migrate/index.ts";
 import type { MigrationFile, Plan } from "../migrate/index.ts";
 import type { Connection } from "../sql/index.ts";
-import { planLines, planResult } from "./changes.ts";
+import { planLines } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
@@ -15,6 +15,7 @@ import { CommandError } from "./outcome.ts";
 import type { Outcome } from "./outcome.ts";
 import { migrationRefusal, locate, readMigrations, writeMigration } from "./project.ts";
 import type { Layout } from "./project.ts";
+import { planJson } from "./results.ts";
 
 type Baseline = Extract<Command, { name: "migrate baseline" }>;
 
@@ -91,7 +92,7 @@ function reported(
     code: "migrate.baseline_mismatch",
     why: `The migrations do not build the database yet: ${String(difference.steps.length)} steps and ${String(difference.manual.length)} changes left to a person are missing, so nothing was recorded`,
     fix: "Write what is missing as steps in the migration (kind=custom for functions and views), then run `ottersql migrate baseline` again",
-    result: { file: path, difference: planResult(difference) },
+    result: { file: path, difference: planJson(difference) },
     lines: planLines(difference),
   };
 }

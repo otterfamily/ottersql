@@ -15,6 +15,7 @@ import { CommandError } from "./outcome.ts";
 import type { Outcome } from "./outcome.ts";
 import { locate, readSchema, shown } from "./project.ts";
 import type { Layout } from "./project.ts";
+import { problemJson } from "./results.ts";
 
 /** What `types` changes, or would change with `--check`, as paths relative to the working directory. */
 interface Changes {
@@ -134,6 +135,15 @@ function problemLines(problems: readonly DeclarationFileProblem[]): string[] {
   );
 }
 
+/** The changes as JSON shows them. */
+function changesJson(changes: Changes): object {
+  return {
+    written: changes.written,
+    removed: changes.removed,
+    problems: changes.problems.map((problem) => problemJson(problem)),
+  };
+}
+
 function checked(result: Changes): Outcome {
   const files = [...result.written, ...result.removed];
   if (files.length === 0) {
@@ -145,7 +155,7 @@ function checked(result: Changes): Outcome {
     code: "types.out_of_date",
     why: `${String(files.length)} declaration files are missing, out of date or left over`,
     fix: "Run `ottersql types` and commit the files it writes",
-    result,
+    result: changesJson(result),
     lines: [
       ...result.written.map((file) => `  write ${file}`),
       ...result.removed.map((file) => `  remove ${file}`),
@@ -166,7 +176,7 @@ function written(result: Changes): Outcome {
 function withProblems(result: Changes, lines: readonly string[]): Outcome {
   const [problem] = result.problems;
   if (problem === undefined) {
-    return { ok: true, result, lines };
+    return { ok: true, result: changesJson(result), lines };
   }
   return {
     ok: false,
@@ -175,7 +185,7 @@ function withProblems(result: Changes, lines: readonly string[]): Outcome {
     why: `${String(result.problems.length)} queries cannot be typed; their files' other queries are declared`,
     fix: "Fix the queries listed",
     where: { file: problem.file, line: problem.line },
-    result,
+    result: changesJson(result),
     lines: [...lines, ...problemLines(result.problems)],
   };
 }

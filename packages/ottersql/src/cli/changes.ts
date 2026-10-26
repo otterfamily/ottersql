@@ -1,12 +1,9 @@
 import { SchemaError } from "../catalog/index.ts";
 import { MigrationFileError, pendingChanges } from "../migrate/index.ts";
-import type { ManualChange, MigrationFile, Plan, Step } from "../migrate/index.ts";
+import type { MigrationFile, Plan } from "../migrate/index.ts";
 import { CommandError } from "./outcome.ts";
 import { readSchema, shown, unreadableMigration } from "./project.ts";
 import type { Layout } from "./project.ts";
-
-/** A step as output shows it: what it does and how it runs, without its SQL. */
-type StepSummary = Pick<Step, "kind" | "object" | "phase" | "reversal" | "transaction" | "lock">;
 
 /** What schema.sql adds to the schema `files` build. */
 export async function changesToSchema(
@@ -40,24 +37,6 @@ export function schemaRefusal(layout: Layout, error: unknown): unknown {
 
 export function isEmpty(plan: Plan): boolean {
   return plan.steps.length === 0 && plan.manual.length === 0;
-}
-
-/** The plan as JSON shows it. */
-export function planResult(plan: Plan): {
-  readonly steps: readonly StepSummary[];
-  readonly manual: readonly ManualChange[];
-} {
-  return {
-    steps: plan.steps.map(({ kind, object, phase, reversal, transaction, lock }) => ({
-      kind,
-      object,
-      phase,
-      reversal,
-      transaction,
-      lock,
-    })),
-    manual: plan.manual,
-  };
 }
 
 /** The plan as people read it, a line for each step and each change left to them. */
