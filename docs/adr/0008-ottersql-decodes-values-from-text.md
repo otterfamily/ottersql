@@ -1,6 +1,6 @@
 # 0008. ottersql decodes values from text
 
-- Status: Accepted
+- Status: Accepted; parameter encoding and the contents of decoding errors superseded by [0012](0012-encode-parameters-by-their-javascript-value.md)
 - Date: 2026-10-24
 
 ## Context
