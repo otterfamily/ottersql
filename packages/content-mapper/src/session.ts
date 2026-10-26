@@ -10,7 +10,7 @@ import { readBuiltInFacts } from "./built-in-functions.ts";
 import type { BuiltInFacts } from "./built-in-functions.ts";
 import { nodesOfType, scalar } from "./node-tree.ts";
 import type { NodeObject } from "./node-tree.ts";
-import { NODE_FORMAT_MAJOR, nonNullParameters, nullableColumns } from "./nullability.ts";
+import { NODE_FORMAT_MAJOR, statementNullability } from "./nullability.ts";
 import { renderFile } from "./render.ts";
 import type { RenderedFile } from "./render.ts";
 import { describeStatement } from "./statement.ts";
@@ -176,15 +176,15 @@ async function analyze(
       isNotNullColumn(context.catalog, relations.get(relationOid), attnum),
     ...context.builtIns,
   };
-  const nullable = tree === null ? [] : nullableColumns(tree, facts);
+  const proven = tree === null ? null : statementNullability(tree, facts);
   return {
     kind: "described",
     parameterTypes: parameterTypes.map((oid) => knownType(types.get(oid), oid)),
-    nonNullParameters: tree === null ? new Set() : nonNullParameters(tree, facts),
+    nonNullParameters: proven?.nonNullParameters ?? new Set(),
     columns: fields.map((column, index) => ({
       name: column.name,
       type: knownType(types.get(column.dataTypeID), column.dataTypeID),
-      nullable: nullable[index] ?? true,
+      nullable: proven?.columns[index] ?? true,
       origin: origin(relations.get(column.tableID), column.columnID),
     })),
   };

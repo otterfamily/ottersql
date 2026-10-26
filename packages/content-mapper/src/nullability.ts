@@ -1,5 +1,24 @@
 import { bitmapset, field, isNode, isNodeObject, list, scalar } from "./node-tree.ts";
 import type { NodeObject, NodeValue } from "./node-tree.ts";
+import { nonNullParameters } from "./parameter-nullability.ts";
+import {
+  ARRAY_SUBLINK,
+  COMMAND_DELETE,
+  COMMAND_INSERT,
+  COMMAND_MERGE,
+  COMMAND_SELECT,
+  EXISTS_SUBLINK,
+  LAST_DATE_TIME_VALUE_FUNCTION,
+  RETURNING_NEW,
+  RETURNING_OLD,
+  RTE_CTE,
+  RTE_GROUP,
+  RTE_JOIN,
+  RTE_RELATION,
+  RTE_SUBQUERY,
+  isBuiltInCast,
+  isCast,
+} from "./postgres-nodes.ts";
 
 /** What the rules need to know about the schema and built-in functions, keyed by Postgres oids. */
 export interface NullabilityFacts {
@@ -18,24 +37,6 @@ export interface NullabilityFacts {
 /** The Postgres major whose node format the reader below knows (ADR 0009, ADR 0010). */
 export const NODE_FORMAT_MAJOR = 18;
 
-// Node field values from Postgres 18 (parsenodes.h, primnodes.h).
-const COMMAND_SELECT = "1";
-const COMMAND_UPDATE = "2";
-const COMMAND_INSERT = "3";
-const COMMAND_MERGE = "5";
-const RTE_RELATION = "0";
-const RTE_SUBQUERY = "1";
-const RTE_JOIN = "2";
-const RTE_VALUES = "5";
-const RTE_CTE = "6";
-const RETURNING_OLD = "1";
-const COERCE_EXPLICIT_CAST = "1";
-const COERCE_IMPLICIT_CAST = "2";
-const EXISTS_SUBLINK = "0";
-const ARRAY_SUBLINK = "6";
-/** SQLValueFunctionOp up to SVFOP_LOCALTIMESTAMP_N: dates and times, never null. */
-const LAST_DATE_TIME_VALUE_FUNCTION = 8;
-
 /** A query being read, and the queries it is nested in (for outer references and CTEs). */
 interface Scope {
   readonly query: NodeObject;
@@ -46,10 +47,24 @@ interface Scope {
 }
 
 /**
+ * What an analyzed statement's tree proves about null: which result columns may be null, in
+ * order, and which parameters (`$n` numbers) may not be.
+ */
+export function statementNullability(
+  query: NodeObject,
+  facts: NullabilityFacts,
+): { readonly columns: readonly boolean[]; readonly nonNullParameters: ReadonlySet<number> } {
+  return {
+    columns: nullableColumns(query, facts),
+    nonNullParameters: nonNullParameters(query, facts),
+  };
+}
+
+/**
  * Which visible result columns of an analyzed query may be null, in result order (ADR 0009).
  * A column is non-null only when a rule proves it; anything unrecognised is nullable.
  */
-export function nullableColumns(query: NodeObject, facts: NullabilityFacts): boolean[] {
+function nullableColumns(query: NodeObject, facts: NullabilityFacts): boolean[] {
   const scope: Scope = { query, parent: null, facts, visiting: new Set() };
   // MERGE joins its source and target after analysis, so the tree marks no column as nulled by it.
   const merge = scalar(query, "commandType") === COMMAND_MERGE;
@@ -168,7 +183,7 @@ function provesVar(node: NodeObject, scope: Scope): boolean {
   if (
     owner === null ||
     bitmapset(field(node, "varnullingrels")).length > 0 ||
-    scalar(node, "varreturningtype") === RETURNING_OLD
+    isMissingRow(owner, scalar(node, "varreturningtype"))
   ) {
     return false;
   }
@@ -176,9 +191,21 @@ function provesVar(node: NodeObject, scope: Scope): boolean {
   return entry !== undefined && provesRangeColumn(owner, entry, Number(scalar(node, "varattno")));
 }
 
+/** RETURNING's `old` is null for an inserted row, and `new` for a deleted one. */
+function isMissingRow(owner: Scope, returning: string | undefined): boolean {
+  const command = scalar(owner.query, "commandType");
+  return (
+    (returning === RETURNING_OLD && command === COMMAND_INSERT) ||
+    (returning === RETURNING_NEW && command === COMMAND_DELETE)
+  );
+}
+
 const rangeColumnRules: Readonly<
   Record<string, (owner: Scope, entry: NodeObject, attnum: number) => boolean>
 > = {
+  // Grouping sets null a grouped column through the Var's varnullingrels, checked before this.
+  [RTE_GROUP]: (owner, entry, attnum) =>
+    provesNonNull(list(field(entry, "groupexprs"))[attnum - 1], owner),
   [RTE_RELATION]: (owner, entry, attnum) =>
     owner.facts.isNotNullColumn(Number(scalar(entry, "relid")), attnum),
   [RTE_SUBQUERY]: (owner, entry, attnum) => {
@@ -206,90 +233,4 @@ function provesCteColumn(owner: Scope, entry: NodeObject, attnum: number): boole
   }
   const visiting = new Set([...owner.visiting, name]);
   return provesColumn({ query, parent: definer, facts: owner.facts, visiting }, attnum);
-}
-
-function isCast(node: NodeObject): boolean {
-  const format = scalar(node, "funcformat");
-  return format === COERCE_EXPLICIT_CAST || format === COERCE_IMPLICIT_CAST;
-}
-
-/** A built-in cast is strict and never turns a value into null; a user-defined one may do either. */
-function isBuiltInCast(node: NodeObject, facts: Pick<NullabilityFacts, "nonNullCasts">): boolean {
-  return isCast(node) && facts.nonNullCasts.has(scalar(node, "funcid") ?? "");
-}
-
-/**
- * The parameters (`$n` numbers) an INSERT or UPDATE writes straight into NOT NULL columns of the
- * table it changes, through its values, VALUES rows, SELECT list, SET or ON CONFLICT DO UPDATE
- * SET. Postgres rejects null for those whenever the statement writes a row, so they are typed
- * without it. A parameter anywhere else, such as in a
- * comparison where null only matches no rows, or inside an expression, may stay null.
- */
-export function nonNullParameters(
-  query: NodeObject,
-  facts: Pick<NullabilityFacts, "isNotNullColumn" | "nonNullCasts">,
-): ReadonlySet<number> {
-  const command = scalar(query, "commandType");
-  const rtable = list(field(query, "rtable"));
-  const target = rtable[Number(scalar(query, "resultRelation")) - 1];
-  if (
-    (command !== COMMAND_INSERT && command !== COMMAND_UPDATE) ||
-    !isNode(target, "RANGETBLENTRY")
-  ) {
-    return new Set();
-  }
-  const relation = Number(scalar(target, "relid"));
-  const onConflict = field(query, "onConflict");
-  const entries = [
-    ...list(field(query, "targetList")),
-    ...(isNode(onConflict, "ONCONFLICTEXPR") ? list(field(onConflict, "onConflictSet")) : []),
-  ];
-  return new Set(
-    entries.flatMap((entry) =>
-      isNode(entry, "TARGETENTRY") &&
-      facts.isNotNullColumn(relation, Number(scalar(entry, "resno")))
-        ? written(field(entry, "expr"), rtable, facts)
-        : [],
-    ),
-  );
-}
-
-/** The parameters `expression` writes as they are: a parameter, a cast of one, or a VALUES column. */
-function written(
-  expression: NodeValue | undefined,
-  rtable: readonly NodeValue[],
-  facts: Pick<NullabilityFacts, "nonNullCasts">,
-): number[] {
-  const value = uncast(expression, facts);
-  if (isNode(value, "PARAM")) {
-    return [Number(scalar(value, "paramid"))];
-  }
-  if (!isNode(value, "VAR")) {
-    return [];
-  }
-  const entry = rtable[Number(scalar(value, "varno")) - 1];
-  if (!isNode(entry, "RANGETBLENTRY") || scalar(entry, "rtekind") !== RTE_VALUES) {
-    return [];
-  }
-  const column = Number(scalar(value, "varattno")) - 1;
-  return list(field(entry, "values_lists")).flatMap((row) =>
-    written(list(row)[column], rtable, facts),
-  );
-}
-
-/**
- * `expression` without the casts around it that pass null through: relabelling, I/O conversion
- * and built-in cast functions, which are strict. A user-defined cast may turn null into a value.
- */
-function uncast(
-  expression: NodeValue | undefined,
-  facts: Pick<NullabilityFacts, "nonNullCasts">,
-): NodeValue | undefined {
-  if (isNode(expression, "RELABELTYPE") || isNode(expression, "COERCEVIAIO")) {
-    return uncast(field(expression, "arg"), facts);
-  }
-  if (isNode(expression, "FUNCEXPR") && isBuiltInCast(expression, facts)) {
-    return uncast(list(field(expression, "args"))[0], facts);
-  }
-  return expression;
 }

@@ -1,59 +1,12 @@
 import { describe, expect, test as base } from "vitest";
 
 import { openQuerySession } from "./index.ts";
-import type { DescribedFile, DescribedQuery, Problem, QuerySession } from "./index.ts";
-
-const schemaSql = `
-  create type mood as enum ('ok', 'bad');
-  create table users (id int8 primary key, name text not null, bio text, mood mood not null);
-  create table posts (
-    id int8 primary key,
-    author_id int8 not null references users (id),
-    title text not null,
-    status text not null check (status in ('draft', 'published'))
-  );
-  create view post_titles as select id, title from posts;
-  create table legacy (
-    id int8 primary key,
-    code text check (code is not null),
-    pair text,
-    other text,
-    check (pair is not null and other <> '')
-  );
-  alter table legacy add column note text, add constraint note_present check (note is not null) not valid;
-  create table spans (id int8 primary key, r int4range not null, a int[] not null);
-  create function maybe(i int) returns text language sql as 'select null';
-  create type wrapped as (v text);
-  create function wrap(i int) returns wrapped language sql as 'select null::wrapped';
-  create cast (int as wrapped) with function wrap(int);
-  create view author_posts as
-    select u.name, p.title from users u left join posts p on p.author_id = u.id;
-`;
+import type { DescribedFile, Problem, QuerySession } from "./index.ts";
+import { nullability, onlyQuery, openSession } from "./test-session.ts";
 
 const test = base.extend<{ session: QuerySession }>({
-  session: [
-    async ({}, use) => {
-      const session = await openQuerySession(schemaSql);
-      await use(session);
-      await session.close();
-    },
-    { scope: "file" },
-  ],
+  session: [openSession, { scope: "file" }],
 });
-
-async function onlyQuery(session: QuerySession, sql: string): Promise<DescribedQuery> {
-  const file = await session.describeFile(`-- @name q\n${sql}`);
-  const [query] = file.queries;
-  if (query === undefined || file.problems.length > 0) {
-    throw new Error(`expected one described query, got ${JSON.stringify(file.problems)}`);
-  }
-  return query;
-}
-
-async function nullability(session: QuerySession, sql: string): Promise<Record<string, boolean>> {
-  const query = await onlyQuery(session, sql);
-  return Object.fromEntries(query.columns.map(({ name, nullable }) => [name, nullable]));
-}
 
 function problemsAt(content: string, file: DescribedFile): { message: string; at: string }[] {
   return file.problems.map((problem: Problem) => ({
@@ -92,55 +45,6 @@ describe("parameters and columns", () => {
   });
 });
 
-describe("parameter nullability", () => {
-  test.for([
-    {
-      sql: "insert into users (id, name, bio, mood) values (:id, :name, :bio, 'ok')",
-      expected: { id: false, name: false, bio: true },
-    },
-    {
-      sql: "insert into users (id, name, mood) values (:a, :b, 'ok'), (:c, :d, 'bad')",
-      expected: { a: false, b: false, c: false, d: false },
-    },
-    {
-      sql: "update users set name = :name, bio = :bio where id = :id",
-      expected: { name: false, bio: true, id: true },
-    },
-    {
-      sql: "insert into users (id, name, mood) values (:id, :name, 'ok') on conflict (id) do update set name = :rename",
-      expected: { id: false, name: false, rename: false },
-    },
-    {
-      sql: "insert into users (id, name, mood) values (:id::int4, :name::varchar, 'ok')",
-      expected: { id: false, name: false },
-    },
-    {
-      sql: "insert into users (id, name, mood) values (coalesce(:id, 1), :name, 'ok')",
-      expected: { id: true, name: false },
-    },
-    {
-      sql: "insert into users (id, name, mood) select :id, :name, 'ok'",
-      expected: { id: false, name: false },
-    },
-    {
-      sql: "insert into users (id, name, mood) select :id, :name, mood from users where false",
-      expected: { id: false, name: false },
-    },
-    {
-      sql: "select id from users where name = :name",
-      expected: { name: true },
-    },
-  ])(
-    "takes no null only where Postgres rejects it: $sql",
-    async ({ sql, expected }, { session }) => {
-      const query = await onlyQuery(session, sql);
-      expect(
-        Object.fromEntries(query.parameters.map(({ name, nullable }) => [name, nullable])),
-      ).toStrictEqual(expected);
-    },
-  );
-});
-
 describe("nullability (ADR 0009)", () => {
   test.for([
     {
@@ -150,6 +54,22 @@ describe("nullability (ADR 0009)", () => {
     {
       sql: "select u.name, p.title from users u left join posts p on p.author_id = u.id",
       expected: { name: false, title: true },
+    },
+    {
+      sql: "delete from users where id = 1 returning new.id as gone, old.id as was, id as kept",
+      expected: { gone: true, was: false, kept: false },
+    },
+    {
+      sql: "insert into users (id, name, mood) values (1, 'a', 'ok') returning old.name as was, new.name as now",
+      expected: { was: true, now: false },
+    },
+    {
+      sql: "select name, bio, count(*) as n from users group by name, bio",
+      expected: { name: false, bio: true, n: false },
+    },
+    {
+      sql: "select name, count(*) as n from users group by rollup (name)",
+      expected: { name: true, n: false },
     },
     {
       sql: "select code, pair, other, note from legacy",
