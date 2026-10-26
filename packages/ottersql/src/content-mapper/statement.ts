@@ -31,15 +31,14 @@ export async function describeStatement(
   db: PGlite,
   sql: string,
 ): Promise<StatementDescription | PostgresError> {
-  const replies = [];
-  for (const message of [
-    serialize.parse({ text: sql, types: [] }),
-    serialize.describe({ type: "S" }),
-    serialize.sync(),
-  ]) {
-    const reply = await db.execProtocol(message, { throwOnError: false });
-    replies.push(...reply.messages);
-  }
+  const { messages: replies } = await db.execProtocol(
+    concatenated([
+      serialize.parse({ text: sql, types: [] }),
+      serialize.describe({ type: "S" }),
+      serialize.sync(),
+    ]),
+    { throwOnError: false },
+  );
   const error = replies.find((message) => message instanceof backend.DatabaseError);
   if (error !== undefined) {
     const position = error.position === undefined ? null : Number(error.position);
@@ -58,6 +57,17 @@ export async function describeStatement(
         .find((notice) => notice.message === "rewritten parse tree:")?.detail,
     ),
   };
+}
+
+/** `messages` as one buffer, which PGlite runs in one call, as a client sends them in one write. */
+function concatenated(messages: readonly Uint8Array[]): Uint8Array {
+  const buffer = new Uint8Array(messages.reduce((length, message) => length + message.length, 0));
+  let offset = 0;
+  for (const message of messages) {
+    buffer.set(message, offset);
+    offset += message.length;
+  }
+  return buffer;
 }
 
 /**

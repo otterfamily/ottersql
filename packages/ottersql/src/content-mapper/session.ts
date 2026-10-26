@@ -115,11 +115,30 @@ export async function openQuerySession(
     types: new Map(),
     relations: new Map(),
   };
+  // The content mapper answers requests concurrently, but a statement's Parse and Describe and the
+  // lookups after it must not interleave with another's on the one connection; closing waits too.
+  const serially = queue();
   return {
-    describeFile: async (content) => describeFile(context, content),
+    describeFile: async (content) => serially(async () => describeFile(context, content)),
     renderFile: async (content) =>
-      renderFile(await describeFile(context, content), context.catalog),
-    close: async () => schema.close(),
+      renderFile(await serially(async () => describeFile(context, content)), context.catalog),
+    close: async () => serially(async () => schema.close()),
+  };
+}
+
+/** Runs each task once the tasks given before it have settled. */
+function queue(): <Result>(task: () => Promise<Result>) => Promise<Result> {
+  let previous: Promise<null> = Promise.resolve(null);
+  return async (task) => {
+    const waited = previous;
+    const { promise: settled, resolve } = Promise.withResolvers<null>();
+    previous = settled;
+    try {
+      await waited;
+      return await task();
+    } finally {
+      resolve(null);
+    }
   };
 }
 

@@ -212,6 +212,23 @@ describe("merge", () => {
 });
 
 describe("determinism", () => {
+  test("describes files asked for at the same time as it describes each alone", async ({
+    session,
+  }) => {
+    const files = [
+      "-- @name a\nselect id, name from users where id = :id",
+      "-- @name b\nselect title, status from posts where author_id = :author",
+      "-- @name c\nselect u.name, p.title from users u left join posts p on p.author_id = u.id",
+      "-- @name d\nselect missing from users",
+    ];
+    const together = await Promise.all(files.map(async (file) => session.describeFile(file)));
+    const alone = [];
+    for (const file of files) {
+      alone.push(await session.describeFile(file));
+    }
+    expect(together).toStrictEqual(alone);
+  });
+
   test("proves the same columns whatever the session described before", async () => {
     const fresh = await openQuerySession("create table t (a int not null);");
     try {
