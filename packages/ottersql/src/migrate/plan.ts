@@ -47,6 +47,7 @@ export const stepKinds = [
   "createEnum",
   "addEnumValue",
   "dropEnum",
+  "createType",
   "createTable",
   "dropTable",
   "addColumn",

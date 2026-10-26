@@ -29,6 +29,53 @@ describe("enums", () => {
   });
 });
 
+describe("composite types", () => {
+  test("reads a composite type's attributes in order, with their types and collations", async () => {
+    const catalog = await loadCatalog(`
+      create schema app;
+      create type app.pair as (left_side int4, label text collate "C");
+      comment on type app.pair is 'Two values';
+      create table t (p app.pair);
+    `);
+    expect({
+      composites: catalog.composites,
+      column: table(catalog, "t").columns[0]?.type,
+    }).toStrictEqual({
+      composites: [
+        {
+          schema: "app",
+          name: "pair",
+          attributes: [
+            {
+              name: "left_side",
+              type: { kind: "base", schema: "pg_catalog", name: "int4" },
+              typeSql: "integer",
+              collation: null,
+              comment: null,
+            },
+            {
+              name: "label",
+              type: { kind: "base", schema: "pg_catalog", name: "text" },
+              typeSql: "text",
+              collation: { schema: "pg_catalog", name: "C" },
+              comment: null,
+            },
+          ],
+          comment: { text: "Two values", annotations: [] },
+        },
+      ],
+      column: { kind: "composite", schema: "app", name: "pair" },
+    });
+  });
+
+  test("leaves out the row types tables, views and sequences have", async () => {
+    const catalog = await loadCatalog(
+      "create table t (id int8); create view v as select 1 as one;",
+    );
+    expect(catalog.composites).toStrictEqual([]);
+  });
+});
+
 describe("vectors", () => {
   test("refers to int2vector and oidvector as base types, since their text is not an array", async () => {
     const catalog = await loadCatalog("create table t (a int2vector, b oidvector);");

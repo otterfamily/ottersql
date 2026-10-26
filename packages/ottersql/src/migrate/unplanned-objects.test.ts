@@ -100,3 +100,45 @@ describe("planMigration of objects it does not plan", () => {
     });
   });
 });
+
+describe("planMigration of composite types", () => {
+  const pair = "create type pair as (a int4, b text)";
+
+  test("creates a new composite type before the tables that use it", async () => {
+    const plan = planMigration(
+      await loadCatalog(""),
+      await loadCatalog(`${pair}; create table t (p pair)`),
+    );
+    expect({
+      steps: plan.steps.map((step) => [summary(step), ...step.statements]),
+      manual: plan.manual,
+    }).toStrictEqual({
+      steps: [
+        [
+          "expand createType public.pair (lossy, inside, none)",
+          'CREATE TYPE "public"."pair" AS ("a" integer, "b" text)',
+        ],
+        [
+          "expand createTable public.t (lossy, inside, none)",
+          'CREATE TABLE "public"."t" ("p" pair)',
+        ],
+      ],
+      manual: [],
+    });
+  });
+
+  test.for([
+    {
+      change: "an attribute added",
+      from: pair,
+      to: "create type pair as (a int4, b text, c int8)",
+    },
+    { change: "a type dropped", from: pair, to: "" },
+  ])("leaves a composite type's change, $change, to a person", async ({ from, to }) => {
+    const plan = planMigration(await loadCatalog(from), await loadCatalog(to));
+    expect(plan).toStrictEqual({
+      steps: [],
+      manual: [{ object: "public.pair", reason: byHand("a composite type") }],
+    });
+  });
+});

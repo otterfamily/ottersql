@@ -39,6 +39,18 @@ export function columnsJson(relationOid: string, extraFields = ""): string {
   ), '[]')`;
 }
 
+/**
+ * The `collation` field of a column `columnsJson` selects: set only when it is not the one the
+ * column's type has anyway.
+ */
+export const collationJson = `'collation', case when col_attr.attcollation <> 0 then (
+    select json_build_object('schema', col_coll_ns.nspname, 'name', col_coll.collname)
+    from pg_collation col_coll
+    join pg_namespace col_coll_ns on col_coll_ns.oid = col_coll.collnamespace
+    join pg_type col_coll_type on col_coll_type.oid = col_attr.atttypid
+    where col_coll.oid = col_attr.attcollation and col_attr.attcollation <> col_coll_type.typcollation
+  ) end`;
+
 export interface ColumnBaseRow {
   readonly name: string;
   readonly type: TypeRow;

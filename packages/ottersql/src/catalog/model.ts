@@ -1,4 +1,5 @@
 import type { Capabilities } from "./capabilities.ts";
+import type { CompositeType } from "./composites.ts";
 import type { InstalledExtension } from "./installed-extensions.ts";
 import type { Partition } from "./partitions.ts";
 import type { Policy, RowSecurity } from "./policies.ts";
@@ -13,6 +14,7 @@ export interface Catalog {
   /** Sequences no column owns; those of `serial` columns are read with them. */
   readonly sequences: readonly Sequence[];
   readonly enums: readonly Enum[];
+  readonly composites: readonly CompositeType[];
   readonly ranges: readonly RangeType[];
   readonly domains: readonly Domain[];
   readonly views: readonly View[];

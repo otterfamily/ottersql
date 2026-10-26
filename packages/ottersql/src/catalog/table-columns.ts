@@ -1,7 +1,7 @@
 import { boolean, fields, nullable, qualifiedName, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
-import { columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
+import { collationJson, columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
 import type { ColumnBaseRow } from "./columns.ts";
 import type { Column, ColumnValue, QualifiedName } from "./model.ts";
 import { sequenceFields, sequenceRow } from "./sequences.ts";
@@ -21,16 +21,9 @@ export interface TableColumnRow extends ColumnBaseRow {
 
 // A NOT VALID not-null constraint still sets attnotnull, but existing rows may hold NULL.
 // A sequence counts as the column's only when the column owns it (an 'a' dependency, as serial
-// makes; identity's are 'i') and the default is nothing but its nextval. A collation counts only
-// when it is not the one the column's type has anyway.
+// makes; identity's are 'i') and the default is nothing but its nextval.
 const columnFields = `
-  'collation', case when col_attr.attcollation <> 0 then (
-    select json_build_object('schema', col_coll_ns.nspname, 'name', col_coll.collname)
-    from pg_collation col_coll
-    join pg_namespace col_coll_ns on col_coll_ns.oid = col_coll.collnamespace
-    join pg_type col_coll_type on col_coll_type.oid = col_attr.atttypid
-    where col_coll.oid = col_attr.attcollation and col_attr.attcollation <> col_coll_type.typcollation
-  ) end,
+  ${collationJson},
   'notNull', col_attr.attnotnull and not exists (
     select from pg_constraint col_not_null
     where col_not_null.conrelid = col_attr.attrelid and col_not_null.contype = 'n'

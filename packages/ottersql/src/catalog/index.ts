@@ -6,6 +6,7 @@ export type { OpenSchema } from "./load-catalog.ts";
 export { SchemaError } from "./schema-error.ts";
 export type { SchemaPosition } from "./schema-error.ts";
 export type { Capabilities } from "./capabilities.ts";
+export type { CompositeAttribute, CompositeType } from "./composites.ts";
 export type { InstalledExtension } from "./installed-extensions.ts";
 export type { Partition } from "./partitions.ts";
 export type { Policy, RowSecurity } from "./policies.ts";
