@@ -4,7 +4,7 @@ import { QueryError } from "../sql/query-error.ts";
 import { parseCommand, usage, UsageError, wantsJson } from "./command.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
-import { CommandError, exitCode, sqlstateNote, toJson, toText } from "./outcome.ts";
+import { CommandError, exitCode, toJson, toText } from "./outcome.ts";
 import type { Failure, Outcome } from "./outcome.ts";
 
 /** Everything the CLI reads from and writes to its process, so that tests can stand in for it. */
@@ -153,7 +153,7 @@ function knownFailure(error: unknown): Failure | null {
       ok: false,
       kind: "failed",
       code: "database.query_failed",
-      why: `The database rejected a statement: ${error.message}${sqlstateNote(error.code)}`,
+      why: `The database rejected a statement: ${error.message} (SQLSTATE ${error.code})`,
       fix: "Check that the database user may do this and that the database is the one DATABASE_URL should name",
       result: { sqlstate: error.code, constraint: error.constraint, table: error.table },
     };

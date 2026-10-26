@@ -88,8 +88,3 @@ export function toText(outcome: Outcome): { readonly stdout: string; readonly st
 function joinLines(lines: readonly string[]): string {
   return lines.map((line) => `${line}\n`).join("");
 }
-
-/** ` (SQLSTATE 23505)`, or nothing when the failure was not the database's. */
-export function sqlstateNote(code: string | null): string {
-  return code === null ? "" : ` (SQLSTATE ${code})`;
-}

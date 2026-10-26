@@ -33,9 +33,7 @@ async function applyThrough(last: string, options: ApplyOptions = {}): Promise<A
   console.log(`  applied: ${applied.length > 0 ? applied.join(", ") : "nothing"}`);
   if (result.failed !== null) {
     const { migration, step, code, message } = result.failed;
-    console.log(
-      `  FAILED at ${migration} step ${String(step)} (SQLSTATE ${String(code)}): ${message}`,
-    );
+    console.log(`  FAILED at ${migration} step ${String(step)} (SQLSTATE ${code}): ${message}`);
   }
   return result;
 }

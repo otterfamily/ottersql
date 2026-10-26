@@ -1,6 +1,9 @@
 import { describe, expect, test } from "vitest";
 
 import { loadCatalog, openSchema } from "../catalog/index.ts";
+import { driverConnection, rawQuery, sqlTransaction, transactionModeSql } from "../sql/driver.ts";
+import type { DriverQuery } from "../sql/driver.ts";
+import type { Connection } from "../sql/index.ts";
 import { pgliteConnection } from "../sql/pglite.ts";
 import { applyMigrations } from "./index.ts";
 import type { MigrationFile } from "./index.ts";
@@ -16,6 +19,30 @@ function newer(file: MigrationFile): MigrationFile {
 
 function header(kind: string, object: string): string {
   return `-- ottersql:step kind=${kind} object="${object}" phase=expand reversal=lossy transaction=inside lock="none"`;
+}
+
+/** `connection`, but a statement that contains `fragment` fails as a dropped network connection does. */
+function droppingOn(connection: Connection, fragment: string): Connection {
+  const query: DriverQuery = async (sql, parameters) => {
+    if (sql.toLowerCase().includes(fragment)) {
+      throw Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+    }
+    return rawQuery(connection, sql, parameters);
+  };
+  return driverConnection({
+    query,
+    transaction: async (run, mode) => {
+      await query(`begin ${transactionModeSql(mode)}`, []);
+      try {
+        const result = await run(sqlTransaction(query));
+        await query("commit", []);
+        return result;
+      } catch (error) {
+        await query("rollback", []);
+        throw error;
+      }
+    },
+  });
 }
 
 describe("applyMigrations on PGlite", () => {
@@ -161,6 +188,17 @@ describe("applyMigrations on PGlite", () => {
       const file = await migrationFrom(users, `${users}; create index on users (email)`);
       await applyMigrations(connection, first(file));
       await expect(applyMigrations(connection, later(file))).rejects.toThrow(message);
+    } finally {
+      await schema.close();
+    }
+  });
+
+  test("throws an error that did not come from Postgres, as it is, instead of reporting a failed step", async () => {
+    const schema = await openSchema(users, migratedObjects);
+    try {
+      const connection = droppingOn(pgliteConnection(schema.database), "add column");
+      const file = await migrationFrom(users, `${users}; alter table users add column name text`);
+      await expect(applyMigrations(connection, [file])).rejects.toThrow("read ECONNRESET");
     } finally {
       await schema.close();
     }

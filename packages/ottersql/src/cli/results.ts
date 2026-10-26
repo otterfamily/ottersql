@@ -46,9 +46,9 @@ interface StepStatusJson extends StepRefJson {
   readonly applied: boolean;
 }
 
-/** Why a step failed, with Postgres's SQLSTATE when it gave one. */
+/** Why a step failed, with the SQLSTATE Postgres gave. */
 interface StepFailureJson {
-  readonly sqlstate: string | null;
+  readonly sqlstate: string;
   readonly message: string;
 }
 

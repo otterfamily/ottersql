@@ -2,6 +2,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 
 import type { QualifiedName } from "../catalog/index.ts";
 import { rawQuery } from "../sql/driver.ts";
+import { QueryError } from "../sql/index.ts";
 import type { Connection, Transaction } from "../sql/index.ts";
 import { writeBlockingLocks } from "./plan.ts";
 import type { OutsideStep, Step } from "./plan.ts";
@@ -44,10 +45,12 @@ const LOCK_NOT_AVAILABLE = "55P03";
 // A foreign key locks two tables, so it can deadlock with a transaction writing to both; Postgres
 // ends one of them, and running the step again then succeeds.
 const DEADLOCK_DETECTED = "40P01";
-const retried: ReadonlySet<string | null> = new Set([LOCK_NOT_AVAILABLE, DEADLOCK_DETECTED]);
+const retried: ReadonlySet<string> = new Set([LOCK_NOT_AVAILABLE, DEADLOCK_DETECTED]);
 
+/** What Postgres reported when a step failed. */
 export interface StepFailure {
-  readonly code: string | null;
+  /** The SQLSTATE. */
+  readonly code: string;
   readonly message: string;
 }
 
@@ -167,7 +170,11 @@ async function leftIndex(
   return row[0] === "t" ? "valid" : "invalid";
 }
 
-/** Retries a step that gave up waiting for a lock or was ended by a deadlock; any other error ends the run. */
+/**
+ * Retries a step that gave up waiting for a lock or was ended by a deadlock. Any other error
+ * Postgres reports is the step's failure; an error from anywhere else, such as a dropped
+ * connection, is thrown as it was, since fixing the step would not help.
+ */
 async function withRetries(
   run: () => Promise<void>,
   settings: Settings,
@@ -177,17 +184,13 @@ async function withRetries(
       await run();
       return null;
     } catch (error) {
-      const code = sqlState(error);
-      if (!retried.has(code) || attempt > settings.retries) {
-        return { code, message: error instanceof Error ? error.message : String(error) };
+      if (!(error instanceof QueryError)) {
+        throw error;
+      }
+      if (!retried.has(error.code) || attempt > settings.retries) {
+        return { code: error.code, message: error.message };
       }
       await sleep(settings.retryDelay(attempt));
     }
   }
-}
-
-function sqlState(error: unknown): string | null {
-  return error instanceof Error && "code" in error && typeof error.code === "string"
-    ? error.code
-    : null;
 }
