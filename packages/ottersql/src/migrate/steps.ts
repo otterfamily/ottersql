@@ -1,4 +1,3 @@
-import { nameKey } from "../catalog/find.ts";
 import type { QualifiedName } from "../catalog/index.ts";
 import type { InsideStep, ManualChange, OutsideStep, Step } from "./plan.ts";
 
@@ -42,46 +41,6 @@ export function notPlanned(what: string): string {
 
 export function only(...steps: readonly Step[]): Changes {
   return { steps, manual: [] };
-}
-
-/** The items `to` adds, the ones `from` has that `to` removes, and the pairs both keep. */
-interface Matched<Item> {
-  readonly added: readonly Item[];
-  readonly removed: readonly Item[];
-  readonly kept: readonly (readonly [Item, Item])[];
-}
-
-function matchBy<Item>(
-  from: readonly Item[],
-  to: readonly Item[],
-  key: (item: Item) => string,
-): Matched<Item> {
-  const fromByKey = new Map(from.map((item) => [key(item), item]));
-  const toKeys = new Set(to.map((item) => key(item)));
-  return {
-    added: to.filter((item) => !fromByKey.has(key(item))),
-    removed: from.filter((item) => !toKeys.has(key(item))),
-    kept: to.flatMap((item) => {
-      const before = fromByKey.get(key(item));
-      return before === undefined ? [] : [[before, item] as const];
-    }),
-  };
-}
-
-/** Objects of one table or schema, matched by name. */
-export function matchByName<Item extends { readonly name: string }>(
-  from: readonly Item[],
-  to: readonly Item[],
-): Matched<Item> {
-  return matchBy(from, to, (item) => item.name);
-}
-
-/** Objects of any schema, matched by schema and name. */
-export function matchByQualifiedName<Item extends QualifiedName>(
-  from: readonly Item[],
-  to: readonly Item[],
-): Matched<Item> {
-  return matchBy(from, to, (item) => nameKey(item.schema, item.name));
 }
 
 // Postgres folds a bare name to lower case, so only these read back as themselves unquoted.

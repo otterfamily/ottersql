@@ -3,16 +3,9 @@ import { isDeepStrictEqual } from "node:util";
 import { nameKey } from "../catalog/find.ts";
 import type { Catalog, CompositeType, TypeRef } from "../catalog/index.ts";
 import { initialComment } from "./comments.ts";
+import { matchByQualifiedName } from "./match.ts";
 import { identifier, qualified } from "./sql-text.ts";
-import {
-  combine,
-  manual,
-  matchByQualifiedName,
-  notPlanned,
-  objectName,
-  only,
-  step,
-} from "./steps.ts";
+import { combine, manual, notPlanned, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 import { unplannedUse, usesUnplanned } from "./unplanned-uses.ts";
 

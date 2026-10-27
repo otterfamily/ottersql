@@ -12,15 +12,10 @@ import { addCheck, addForeignKey, validateStep } from "./add-constraints.ts";
 import { constraintCommentChange } from "./comments.ts";
 import { exclusionChanges } from "./exclusion-constraints.ts";
 import { indexBackedKey } from "./key-indexes.ts";
+import { matchDefinitions, uncommented } from "./match.ts";
 import type { Step } from "./plan.ts";
-import {
-  alterTable,
-  checkDefinition,
-  exceedsNameLimit,
-  identifier,
-  uncommented,
-} from "./sql-text.ts";
-import { combine, manual, matchByName, noChanges, objectName, only, step } from "./steps.ts";
+import { alterTable, checkDefinition, exceedsNameLimit, identifier } from "./sql-text.ts";
+import { combine, manual, noChanges, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 /**
@@ -89,10 +84,7 @@ function keyedChanges<
     readonly comment: Comment | null;
   },
 >(before: readonly Item[], after: readonly Item[], plan: KeyedPlan<Item>): Changes {
-  const { added, removed, kept } = matchByName(before, after);
-  const changed = kept.filter(
-    ([old, current]) => !isDeepStrictEqual(uncommented(old), uncommented(current)),
-  );
+  const { added, removed, redefined: changed, recommented } = matchDefinitions(before, after);
   const validated = changed.filter(
     ([old, current]) =>
       plan.validate !== undefined &&
@@ -109,9 +101,7 @@ function keyedChanges<
     ...added.map((item) => plan.add(item)),
     ...validated.map(([, current]) => plan.validate?.(current) ?? noChanges),
     ...redefined.map(([old, current]) => plan.redefine(old, current)),
-    ...kept
-      .filter((pair) => !redefined.includes(pair))
-      .map(([old, current]) => constraintCommentChange(plan.table, old, current)),
+    ...recommented.map(([old, current]) => constraintCommentChange(plan.table, old, current)),
   ]);
 }
 

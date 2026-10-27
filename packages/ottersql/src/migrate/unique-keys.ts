@@ -4,15 +4,9 @@ import type { Catalog, Table, UniqueConstraint } from "../catalog/index.ts";
 import { constraintComment, constraintCommentChange } from "./comments.ts";
 import { dropConstraint } from "./constraints.ts";
 import { indexBackedKey, keyIndex, withoutOverlapsReason } from "./key-indexes.ts";
-import {
-  alterTable,
-  createIndex,
-  deferral,
-  exceedsNameLimit,
-  identifier,
-  uncommented,
-} from "./sql-text.ts";
-import { combine, manual, matchByName, objectName, only, outsideStep, step } from "./steps.ts";
+import { matchDefinitions, uncommented } from "./match.ts";
+import { alterTable, createIndex, deferral, exceedsNameLimit, identifier } from "./sql-text.ts";
+import { combine, manual, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 type Direction = "widens" | "narrows";
@@ -24,9 +18,9 @@ type Direction = "widens" | "narrows";
  * refused, after it when it tightens. Other changes are left to a person.
  */
 export function uniqueChanges(before: Table, after: Table, from: Catalog): Changes {
-  const { added, removed, kept } = matchByName(before.uniqueConstraints, after.uniqueConstraints);
-  const changed = kept.filter(
-    ([old, current]) => !isDeepStrictEqual(uncommented(old), uncommented(current)),
+  const { added, removed, redefined, recommented } = matchDefinitions(
+    before.uniqueConstraints,
+    after.uniqueConstraints,
   );
   const replaced = replacements(removed, added);
   const isReplaced = (key: UniqueConstraint): boolean =>
@@ -38,10 +32,8 @@ export function uniqueChanges(before: Table, after: Table, from: Catalog): Chang
     ...added
       .filter((key) => !isReplaced(key))
       .map((key) => indexBackedKey(after, key, "addUnique")),
-    ...[...replaced, ...changed].map(([old, current]) => swapKey(after, { old, current }, from)),
-    ...kept
-      .filter((pair) => !changed.includes(pair))
-      .map(([old, current]) => constraintCommentChange(after, old, current)),
+    ...[...replaced, ...redefined].map(([old, current]) => swapKey(after, { old, current }, from)),
+    ...recommented.map(([old, current]) => constraintCommentChange(after, old, current)),
   ]);
 }
 

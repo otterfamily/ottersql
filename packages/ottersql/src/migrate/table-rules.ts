@@ -2,7 +2,8 @@ import { isDeepStrictEqual } from "node:util";
 
 import { nameKey } from "../catalog/find.ts";
 import type { Catalog, Table } from "../catalog/index.ts";
-import { combine, manual, matchByName, noChanges, notPlanned, objectName } from "./steps.ts";
+import { matchByName } from "./match.ts";
+import { combine, manual, noChanges, notPlanned, objectName } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 import { inHierarchy } from "./table-hierarchies.ts";
 

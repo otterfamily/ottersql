@@ -1,7 +1,6 @@
 import type {
   Check,
   Column,
-  Comment,
   Deferral,
   Enforcement,
   ForeignKey,
@@ -174,11 +173,6 @@ export function alterTable(table: QualifiedName, action: string): string {
 
 export function columnSqlName(table: QualifiedName, column: string): string {
   return `${qualified(table.schema, table.name)}.${identifier(column)}`;
-}
-
-/** `item` with its comment left out, to compare what it does apart from what it says. */
-export function uncommented<Item extends { readonly comment: Comment | null }>(item: Item): Item {
-  return { ...item, comment: null };
 }
 
 /** Re-runnable: a run that dropped the index but failed before recording it finds it gone. */

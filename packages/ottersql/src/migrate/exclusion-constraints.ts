@@ -1,9 +1,7 @@
-import { isDeepStrictEqual } from "node:util";
-
 import type { Table } from "../catalog/index.ts";
 import { constraintCommentChange } from "./comments.ts";
-import { uncommented } from "./sql-text.ts";
-import { combine, manual, matchByName, notPlanned, objectName } from "./steps.ts";
+import { matchDefinitions } from "./match.ts";
+import { combine, manual, notPlanned, objectName } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 /**
@@ -12,19 +10,14 @@ import type { Changes } from "./steps.ts";
  * One whose comment alone changed has its comment changed.
  */
 export function exclusionChanges(before: Table, after: Table): Changes {
-  const { added, removed, kept } = matchByName(
+  const { added, removed, redefined, recommented } = matchDefinitions(
     before.exclusionConstraints,
     after.exclusionConstraints,
   );
-  const changed = kept.filter(
-    ([old, current]) => !isDeepStrictEqual(uncommented(old), uncommented(current)),
-  );
   return combine([
-    ...[...added, ...removed, ...changed.map(([, current]) => current)].map(({ name }) =>
+    ...[...added, ...removed, ...redefined.map(([, current]) => current)].map(({ name }) =>
       manual(objectName(after, name), notPlanned("an exclusion constraint")),
     ),
-    ...kept
-      .filter((pair) => !changed.includes(pair))
-      .map(([old, current]) => constraintCommentChange(after, old, current)),
+    ...recommented.map(([old, current]) => constraintCommentChange(after, old, current)),
   ]);
 }

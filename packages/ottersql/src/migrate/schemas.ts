@@ -1,7 +1,8 @@
 import type { Catalog, Schema } from "../catalog/index.ts";
 import { commentChange } from "./comments.ts";
+import { matchByName } from "./match.ts";
 import { identifier } from "./sql-text.ts";
-import { combine, matchByName, objectName, only, step } from "./steps.ts";
+import { combine, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 /**
