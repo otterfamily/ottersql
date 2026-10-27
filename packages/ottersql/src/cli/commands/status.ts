@@ -1,15 +1,15 @@
-import { migrationStatus } from "../migrate/index.ts";
-import type { MigrationStatus } from "../migrate/index.ts";
-import { planLines } from "./changes.ts";
-import type { Command } from "./command.ts";
-import type { Context } from "./context.ts";
-import { withSession } from "./database.ts";
-import type { Outcome } from "./outcome.ts";
-import { migrationRefusal, locate, readMigrations } from "./project.ts";
-import { planJson, stepStatusJson } from "./results.ts";
+import { migrationStatus } from "../../migrate/index.ts";
+import type { MigrationStatus } from "../../migrate/index.ts";
+import { planLines } from "../changes.ts";
+import type { Command } from "../command.ts";
+import type { Context } from "../context.ts";
+import { withSession } from "../database.ts";
+import type { Outcome } from "../outcome.ts";
+import { migrationRefusal, locate, readMigrations } from "../project.ts";
+import { planJson, stepStatusJson } from "../results.ts";
 
 /** Lists which migration steps ran on DATABASE_URL, and what was changed there by hand. */
-export async function status(
+export async function run(
   context: Context,
   command: Extract<Command, { name: "migrate status" }>,
 ): Promise<Outcome> {
@@ -20,7 +20,7 @@ export async function status(
       await withSession(context.env, async (connection) => migrationStatus(connection, files)),
     );
   } catch (error) {
-    throw migrationRefusal(error, layout);
+    throw migrationRefusal(layout, error);
   }
 }
 

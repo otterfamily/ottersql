@@ -1,16 +1,16 @@
 import { join } from "node:path";
 
-import { applyMigrations, ApprovalRequiredError } from "../migrate/index.ts";
-import type { ApplyOptions, ApplyResult } from "../migrate/index.ts";
-import { approvalRequired, refuseApprovalByAgent } from "./approval.ts";
-import type { Approvable } from "./approval.ts";
-import type { Command } from "./command.ts";
-import type { Context } from "./context.ts";
-import { withSession } from "./database.ts";
-import type { Outcome } from "./outcome.ts";
-import { migrationRefusal, locate, readMigrations, shown } from "./project.ts";
-import type { Layout } from "./project.ts";
-import { failedStepJson, stepRefJson, waitingJson } from "./results.ts";
+import { applyMigrations, ApprovalRequiredError } from "../../migrate/index.ts";
+import type { ApplyOptions, ApplyResult } from "../../migrate/index.ts";
+import { approvalRequired, refuseApprovalByAgent } from "../approval.ts";
+import type { Approvable } from "../approval.ts";
+import type { Command } from "../command.ts";
+import type { Context } from "../context.ts";
+import { withSession } from "../database.ts";
+import type { Outcome } from "../outcome.ts";
+import { migrationRefusal, locate, readMigrations, shown } from "../project.ts";
+import type { Layout } from "../project.ts";
+import { failedStepJson, stepRefJson, waitingJson } from "../results.ts";
 
 type Apply = Extract<Command, { name: "migrate apply" }>;
 
@@ -20,7 +20,7 @@ const applying: Approvable = { command: "ottersql migrate apply", namespace: "mi
  * Applies the pending migration steps to DATABASE_URL. Steps that cannot be undone wait for a
  * person's approval, which an AI agent cannot give.
  */
-export async function apply(context: Context, command: Apply): Promise<Outcome> {
+export async function run(context: Context, command: Apply): Promise<Outcome> {
   refuseApprovalByAgent(context, command.approve, applying);
   const layout = await locate(context.cwd, command.project);
   const files = await readMigrations(layout);
@@ -46,7 +46,7 @@ function applyOptions({ phase, approve, lockWait }: Apply): ApplyOptions {
 function refusal(error: unknown, layout: Layout, agent: string | null): unknown {
   return error instanceof ApprovalRequiredError
     ? approvalRequired(error, agent, applying)
-    : migrationRefusal(error, layout);
+    : migrationRefusal(layout, error);
 }
 
 function reported(layout: Layout, { applied, failed, waiting }: ApplyResult): Outcome {

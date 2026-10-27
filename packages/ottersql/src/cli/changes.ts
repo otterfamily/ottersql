@@ -1,8 +1,6 @@
-import { SchemaError } from "../catalog/index.ts";
 import { MigrationFileError, pendingChanges } from "../migrate/index.ts";
 import type { ManualChange, MigrationFile, Plan } from "../migrate/index.ts";
-import { CommandError } from "./outcome.ts";
-import { readSchema, shown, unreadableMigration } from "./project.ts";
+import { readSchema, schemaRefusal, unreadableMigration } from "./project.ts";
 import type { Layout } from "./project.ts";
 
 /** What schema.sql adds to the schema `files` build. */
@@ -18,21 +16,6 @@ export async function changesToSchema(
       ? unreadableMigration(layout, error)
       : schemaRefusal(layout, error);
   }
-}
-
-/** The refusal for schema.sql that Postgres rejected; anything else is returned as it was. */
-export function schemaRefusal(layout: Layout, error: unknown): unknown {
-  if (!(error instanceof SchemaError)) {
-    return error;
-  }
-  const file = shown(layout, layout.schemaFile);
-  return new CommandError({
-    kind: "invalid",
-    code: "schema.invalid",
-    why: `Postgres rejected ${file}: ${error.message} (SQLSTATE ${error.code})`,
-    fix: "Fix schema.sql",
-    where: error.position === null ? { file } : { file, line: error.position.line },
-  });
 }
 
 /** The plan as people read it, a line for each step and each change left to them. */

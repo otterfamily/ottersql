@@ -1,63 +1,21 @@
-import { glob, readFile, rm, writeFile } from "node:fs/promises";
-import { basename, join, matchesGlob, relative } from "node:path";
+import { readFile, rm, writeFile } from "node:fs/promises";
 
-import {
-  declarationFileName,
-  declarationFiles,
-  isGeneratedDeclarationFile,
-} from "../content-mapper/index.ts";
-import type { DeclarationFile, DeclarationFileProblem } from "../content-mapper/index.ts";
-import { isQueryFile } from "../content-mapper/mapper.ts";
-import { schemaRefusal } from "./changes.ts";
-import type { Command } from "./command.ts";
-import type { Context } from "./context.ts";
-import { CommandError } from "./outcome.ts";
-import type { Outcome } from "./outcome.ts";
-import { locate, readSchema, shown } from "./project.ts";
-import type { Layout } from "./project.ts";
-import { problemJson } from "./results.ts";
+import { declarationFiles, isGeneratedDeclarationFile } from "../../content-mapper/index.ts";
+import type { DeclarationFile, DeclarationFileProblem } from "../../content-mapper/index.ts";
+import type { Command } from "../command.ts";
+import type { Context } from "../context.ts";
+import { CommandError } from "../outcome.ts";
+import type { Outcome } from "../outcome.ts";
+import { locate, readSchema, schemaRefusal, shown } from "../project.ts";
+import type { Layout } from "../project.ts";
+import { orphanedDeclarationFiles, queryFiles } from "../query-files.ts";
+import { problemJson } from "../results.ts";
 
 /** What `types` changes, or would change with `--check`, as paths relative to the working directory. */
 interface Changes {
   readonly written: readonly string[];
   readonly removed: readonly string[];
   readonly problems: readonly DeclarationFileProblem[];
-}
-
-/** Directories that hold no query files of the project. */
-function skipped(name: string): boolean {
-  return name === "node_modules" || name.startsWith(".");
-}
-
-/**
- * The project's query files: the `.sql` files with `-- @name` queries, as the content mapper
- * decides, outside what the tsconfig excludes and its outDir.
- */
-async function queryFiles(layout: Layout): Promise<string[]> {
-  const found: string[] = [];
-  for await (const path of glob("**/*.sql", {
-    cwd: layout.projectDirectory,
-    exclude: (name) => skipped(basename(name)),
-  })) {
-    const file = join(layout.projectDirectory, path);
-    if (
-      !isExcluded(layout, file) &&
-      isQueryFile(layout.schemaFile, file, await readFile(file, "utf8"))
-    ) {
-      found.push(file);
-    }
-  }
-  return found.toSorted();
-}
-
-/** Whether the tsconfig leaves `file` out, as its exclude patterns or its outDir do. */
-function isExcluded({ excluded }: Layout, file: string): boolean {
-  const { patterns, outDir } = excluded;
-  const inOutDir = outDir !== null && !relative(outDir, file).startsWith("..");
-  return (
-    inOutDir ||
-    patterns.some((pattern) => matchesGlob(file, pattern) || matchesGlob(file, join(pattern, "**")))
-  );
 }
 
 async function render(layout: Layout, files: readonly string[]): Promise<DeclarationFile[]> {
@@ -87,22 +45,6 @@ async function isOutOfDate(layout: Layout, file: DeclarationFile): Promise<boole
   return existing !== file.text;
 }
 
-/** Declaration files ottersql wrote whose query file is gone. */
-async function orphans(layout: Layout, queries: readonly string[]): Promise<string[]> {
-  const expected = new Set(queries.map((query) => declarationFileName(query)));
-  const found: string[] = [];
-  for await (const path of glob("**/*.d.sql.ts", {
-    cwd: layout.projectDirectory,
-    exclude: (name) => skipped(basename(name)),
-  })) {
-    const file = join(layout.projectDirectory, path);
-    if (!expected.has(file) && isGeneratedDeclarationFile(await readFile(file, "utf8"))) {
-      found.push(file);
-    }
-  }
-  return found.toSorted();
-}
-
 async function changesOf(layout: Layout): Promise<{
   readonly stale: readonly DeclarationFile[];
   readonly orphaned: readonly string[];
@@ -113,7 +55,7 @@ async function changesOf(layout: Layout): Promise<{
   const outOfDate = await Promise.all(rendered.map(async (file) => isOutOfDate(layout, file)));
   return {
     stale: rendered.filter((_file, index) => outOfDate[index] === true),
-    orphaned: await orphans(layout, queries),
+    orphaned: await orphanedDeclarationFiles(layout, queries),
     problems: rendered.flatMap((file) => file.problems),
   };
 }
@@ -194,7 +136,7 @@ function withProblems(result: Changes, lines: readonly string[]): Outcome {
  * Writes the declarations of each query file next to it, the same ones the content mapper serves,
  * for tools that cannot run content mappers. With `--check`, only reports what it would change.
  */
-export async function types(
+export async function run(
   context: Context,
   command: Extract<Command, { name: "types" }>,
 ): Promise<Outcome> {

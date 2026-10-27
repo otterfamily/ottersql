@@ -38,6 +38,11 @@ export type Command =
       readonly lockWait: number | null;
     };
 
+/** The commands that run, each by its name. */
+export type Runnable = {
+  readonly [Run in Exclude<Command, { name: "help" | "version" }> as Run["name"]]: Run;
+};
+
 /** The tsconfig to read the schema's place from; `null` for `tsconfig.json` if there is one. */
 export type Project = string | null;
 
@@ -127,7 +132,10 @@ export function parseCommand(args: readonly string[]): Command {
   }
   const { name, rest } = commandName(positionals);
   refuseOtherOptions(name, values);
-  return commandOf(name, rest, values);
+  if (!isRunnable(name)) {
+    throw unknownCommand(name);
+  }
+  return parsers[name]({ rest, values, project: values.project ?? null });
 }
 
 function unknownCommand(name: string): UsageError {
@@ -137,7 +145,7 @@ function unknownCommand(name: string): UsageError {
 /** The command's name, one word or a group and a verb, and the arguments after it. */
 function commandName(positionals: readonly string[]): { name: string; rest: readonly string[] } {
   const [group, ...afterGroup] = positionals;
-  if (group !== undefined && singleWord.has(group)) {
+  if (group !== undefined && isOneWordCommand(group)) {
     return { name: group, rest: afterGroup };
   }
   if (group !== undefined && group !== "migrate") {
@@ -150,8 +158,10 @@ function commandName(positionals: readonly string[]): { name: string; rest: read
   return { name: `${group} ${verb}`, rest };
 }
 
-/** Commands of one word; the others are a group and a verb. */
-const singleWord: ReadonlySet<string> = new Set(["push", "types"]);
+/** Whether `word` names a command by itself; the others are a group and a verb. */
+function isOneWordCommand(word: string): boolean {
+  return !word.includes(" ") && isRunnable(word);
+}
 
 /** The options only some commands take. */
 const optionCommands = {
@@ -160,7 +170,7 @@ const optionCommands = {
   "lock-wait": ["migrate apply"],
   empty: ["migrate generate"],
   check: ["types"],
-} as const satisfies Record<string, readonly string[]>;
+} as const satisfies Record<string, readonly (keyof Runnable)[]>;
 
 function refuseOtherOptions(name: string, values: Values): void {
   for (const [option, commands] of Object.entries(optionCommands)) {
@@ -171,57 +181,59 @@ function refuseOtherOptions(name: string, values: Values): void {
   }
 }
 
-/** Commands that take a name after them; the others take no more arguments. */
-const named: ReadonlySet<string> = new Set(["migrate generate", "migrate baseline"]);
-
-function commandOf(name: string, rest: readonly string[], values: Values): Command {
-  const project = values.project ?? null;
-  if (!named.has(name)) {
-    noMore(rest);
-  }
-  switch (name) {
-    case "migrate generate": {
-      return { name, migration: parseMigrationName(rest), project, empty: values.empty === true };
-    }
-    case "migrate check":
-    case "migrate status": {
-      return { name, project };
-    }
-    case "migrate baseline": {
-      return {
-        name,
-        migration: rest.length === 0 ? null : parseMigrationName(rest),
-        project,
-      };
-    }
-    case "migrate apply": {
-      return {
-        name,
-        project,
-        phase: parsePhase(values.phase),
-        approve: values.approve ?? null,
-        lockWait: parseLockWait(values["lock-wait"]),
-      };
-    }
-    default: {
-      return singleWordCommandOf(name, values);
-    }
-  }
+/** What follows a command's name, and the --project that every command takes. */
+interface Input {
+  readonly rest: readonly string[];
+  readonly values: Values;
+  readonly project: Project;
 }
 
-function singleWordCommandOf(name: string, values: Values): Command {
-  const project = values.project ?? null;
-  switch (name) {
-    case "push": {
-      return { name, project, approve: values.approve ?? null };
-    }
-    case "types": {
-      return { name, project, check: values.check === true };
-    }
-    default: {
-      throw unknownCommand(name);
-    }
-  }
+type Parser<Name extends keyof Runnable> = (input: Input) => Runnable[Name];
+
+/** How each command reads what follows its name. */
+const parsers: { readonly [Name in keyof Runnable]: Parser<Name> } = {
+  "migrate generate": ({ rest, values, project }) => ({
+    name: "migrate generate",
+    migration: parseMigrationName(rest),
+    project,
+    empty: values.empty === true,
+  }),
+  "migrate check": withoutArguments(({ project }) => ({ name: "migrate check", project })),
+  "migrate status": withoutArguments(({ project }) => ({ name: "migrate status", project })),
+  "migrate baseline": ({ rest, project }) => ({
+    name: "migrate baseline",
+    migration: rest.length === 0 ? null : parseMigrationName(rest),
+    project,
+  }),
+  "migrate apply": withoutArguments(({ values, project }) => ({
+    name: "migrate apply",
+    project,
+    phase: parsePhase(values.phase),
+    approve: values.approve ?? null,
+    lockWait: parseLockWait(values["lock-wait"]),
+  })),
+  push: withoutArguments(({ values, project }) => ({
+    name: "push",
+    project,
+    approve: values.approve ?? null,
+  })),
+  types: withoutArguments(({ values, project }) => ({
+    name: "types",
+    project,
+    check: values.check === true,
+  })),
+};
+
+function isRunnable(name: string): name is keyof Runnable {
+  return Object.hasOwn(parsers, name);
+}
+
+/** `parser` for a command that takes no arguments after its name. */
+function withoutArguments<Name extends keyof Runnable>(parser: Parser<Name>): Parser<Name> {
+  return (input) => {
+    noMore(input.rest);
+    return parser(input);
+  };
 }
 
 function parse(args: readonly string[]): Parsed {

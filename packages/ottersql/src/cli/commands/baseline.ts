@@ -4,18 +4,18 @@ import {
   planBaseline,
   readMigrationFile,
   renderMigration,
-} from "../migrate/index.ts";
-import type { MigrationFile, Plan } from "../migrate/index.ts";
-import type { Connection } from "../sql/index.ts";
-import { planLines } from "./changes.ts";
-import type { Command } from "./command.ts";
-import type { Context } from "./context.ts";
-import { withSession } from "./database.ts";
-import { CommandError } from "./outcome.ts";
-import type { Outcome } from "./outcome.ts";
-import { migrationRefusal, locate, readMigrations, writeMigration } from "./project.ts";
-import type { Layout } from "./project.ts";
-import { planJson } from "./results.ts";
+} from "../../migrate/index.ts";
+import type { MigrationFile, Plan } from "../../migrate/index.ts";
+import type { Connection } from "../../sql/index.ts";
+import { planLines } from "../changes.ts";
+import type { Command } from "../command.ts";
+import type { Context } from "../context.ts";
+import { withSession } from "../database.ts";
+import { CommandError } from "../outcome.ts";
+import type { Outcome } from "../outcome.ts";
+import { migrationRefusal, locate, readMigrations, writeMigration } from "../project.ts";
+import type { Layout } from "../project.ts";
+import { planJson } from "../results.ts";
 
 type Baseline = Extract<Command, { name: "migrate baseline" }>;
 
@@ -24,7 +24,7 @@ type Baseline = Extract<Command, { name: "migrate baseline" }>;
  * the first migration, unless there are migrations already, and records them as applied, running
  * none, once replaying them builds exactly the database.
  */
-export async function baseline(context: Context, command: Baseline): Promise<Outcome> {
+export async function run(context: Context, command: Baseline): Promise<Outcome> {
   const layout = await locate(context.cwd, command.project);
   const existing = await readMigrations(layout);
   if (existing.length > 0 && command.migration !== null) {
@@ -44,7 +44,7 @@ export async function baseline(context: Context, command: Baseline): Promise<Out
       return reported(written?.path ?? null, files, difference);
     });
   } catch (error) {
-    throw migrationRefusal(error, layout);
+    throw migrationRefusal(layout, error);
   }
 }
 

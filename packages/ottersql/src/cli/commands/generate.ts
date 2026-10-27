@@ -1,16 +1,16 @@
-import { nextMigrationName, renderMigration } from "../migrate/index.ts";
-import { isEmptyPlan } from "../migrate/plan.ts";
-import { emptyMigration } from "../migrate/render-migration.ts";
-import { changesToSchema, planLines } from "./changes.ts";
-import type { Command } from "./command.ts";
-import type { Context } from "./context.ts";
-import type { Outcome } from "./outcome.ts";
-import { locate, readMigrations, shown, writeMigration } from "./project.ts";
-import type { Layout } from "./project.ts";
-import { planJson } from "./results.ts";
+import { nextMigrationName, renderMigration } from "../../migrate/index.ts";
+import { isEmptyPlan } from "../../migrate/plan.ts";
+import { emptyMigration } from "../../migrate/render-migration.ts";
+import { changesToSchema, planLines } from "../changes.ts";
+import type { Command } from "../command.ts";
+import type { Context } from "../context.ts";
+import type { Outcome } from "../outcome.ts";
+import { locate, readMigrations, shown, writeMigration } from "../project.ts";
+import type { Layout } from "../project.ts";
+import { planJson } from "../results.ts";
 
 /** Writes what schema.sql adds to the migrations as the next migration file. */
-export async function generate(
+export async function run(
   context: Context,
   command: Extract<Command, { name: "migrate generate" }>,
 ): Promise<Outcome> {

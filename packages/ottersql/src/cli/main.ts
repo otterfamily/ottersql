@@ -2,7 +2,7 @@ import { createRequire } from "node:module";
 
 import { QueryError } from "../sql/query-error.ts";
 import { parseCommand, usage, UsageError, wantsJson } from "./command.ts";
-import type { Command } from "./command.ts";
+import type { Command, Runnable } from "./command.ts";
 import type { Context } from "./context.ts";
 import { CommandError, exitCode, toJson, toText } from "./outcome.ts";
 import type { Failure, Outcome } from "./outcome.ts";
@@ -45,7 +45,7 @@ async function run(args: readonly string[], io: Io): Promise<Ran | string> {
     return command.name === "help" ? usage() : `${version()}\n`;
   }
   try {
-    return { command: command.name, outcome: await runCommand(io, command) };
+    return { command: command.name, outcome: await runCommand(io, command.name, command) };
   } catch (error) {
     return { command: command.name, outcome: failure(error, io) };
   }
@@ -59,56 +59,35 @@ function parsed(args: readonly string[], io: Io): Command | Failure {
   }
 }
 
+type Runner<Name extends keyof Runnable> = (
+  context: Context,
+  command: Runnable[Name],
+) => Promise<Outcome>;
+
 /**
- * Runs `command`, loading its module only now: a command that reads files starts without the
+ * Each command's module, loaded only when it runs: a command that reads files starts without the
  * code, and the optional peers, that one connecting to a database or running PGlite needs.
  */
-async function runCommand(
-  context: Context,
-  command: Exclude<Command, { name: "help" | "version" }>,
-): Promise<Outcome> {
-  if (command.name === "push") {
-    const { push } = await import("./push.ts");
-    return push(context, command);
-  }
-  if (command.name === "types") {
-    const { types } = await import("./types.ts");
-    return types(context, command);
-  }
-  return runMigrate(context, command);
-}
+const modules: {
+  readonly [Name in keyof Runnable]: () => Promise<{ readonly run: Runner<Name> }>;
+} = {
+  "migrate generate": async () => import("./commands/generate.ts"),
+  "migrate check": async () => import("./commands/check.ts"),
+  "migrate status": async () => import("./commands/status.ts"),
+  "migrate baseline": async () => import("./commands/baseline.ts"),
+  "migrate apply": async () => import("./commands/apply.ts"),
+  push: async () => import("./commands/push.ts"),
+  types: async () => import("./commands/types.ts"),
+};
 
-/** The migrate commands that work from files alone. */
-async function runMigrate(
+/** `name` is passed beside `command` so that TypeScript can match the module to the command. */
+async function runCommand<Name extends keyof Runnable>(
   context: Context,
-  command: Exclude<Command, { name: "help" | "push" | "types" | "version" }>,
+  name: Name,
+  command: Runnable[Name],
 ): Promise<Outcome> {
-  if (command.name === "migrate generate") {
-    const { generate } = await import("./generate.ts");
-    return generate(context, command);
-  }
-  if (command.name === "migrate check") {
-    const { check } = await import("./check.ts");
-    return check(context, command);
-  }
-  return runMigrateOnDatabase(context, command);
-}
-
-/** The migrate commands that connect to the database. */
-async function runMigrateOnDatabase(
-  context: Context,
-  command: Extract<Command, { name: "migrate status" | "migrate baseline" | "migrate apply" }>,
-): Promise<Outcome> {
-  if (command.name === "migrate status") {
-    const { status } = await import("./status.ts");
-    return status(context, command);
-  }
-  if (command.name === "migrate baseline") {
-    const { baseline } = await import("./baseline.ts");
-    return baseline(context, command);
-  }
-  const { apply } = await import("./apply.ts");
-  return apply(context, command);
+  const commandModule = await modules[name]();
+  return commandModule.run(context, command);
 }
 
 /** This package's version, read from its package.json, which is beside both src and dist. */

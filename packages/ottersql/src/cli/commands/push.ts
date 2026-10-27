@@ -1,16 +1,16 @@
-import { ApprovalRequiredError, MigrationHistoryError, pushSchema } from "../migrate/index.ts";
-import type { PushResult } from "../migrate/index.ts";
-import { approvalRequired, refuseApprovalByAgent } from "./approval.ts";
-import type { Approvable } from "./approval.ts";
-import { manualLines, schemaRefusal } from "./changes.ts";
-import type { Command } from "./command.ts";
-import type { Context } from "./context.ts";
-import { withSession } from "./database.ts";
-import { CommandError } from "./outcome.ts";
-import type { Outcome } from "./outcome.ts";
-import { locate, readSchema } from "./project.ts";
-import type { Layout } from "./project.ts";
-import { failedPushJson, manualJson, plannedStepJson } from "./results.ts";
+import { ApprovalRequiredError, MigrationHistoryError, pushSchema } from "../../migrate/index.ts";
+import type { PushResult } from "../../migrate/index.ts";
+import { approvalRequired, refuseApprovalByAgent } from "../approval.ts";
+import type { Approvable } from "../approval.ts";
+import { manualLines } from "../changes.ts";
+import type { Command } from "../command.ts";
+import type { Context } from "../context.ts";
+import { withSession } from "../database.ts";
+import { CommandError } from "../outcome.ts";
+import type { Outcome } from "../outcome.ts";
+import { locate, readSchema, schemaRefusal } from "../project.ts";
+import type { Layout } from "../project.ts";
+import { failedPushJson, manualJson, plannedStepJson } from "../results.ts";
 
 type Push = Extract<Command, { name: "push" }>;
 
@@ -20,7 +20,7 @@ const pushing: Approvable = { command: "ottersql push", namespace: "push" };
  * Brings the database at DATABASE_URL, which must be on this machine, to schema.sql directly, for
  * trying changes out before writing them as migrations.
  */
-export async function push(context: Context, command: Push): Promise<Outcome> {
+export async function run(context: Context, command: Push): Promise<Outcome> {
   refuseApprovalByAgent(context, command.approve, pushing);
   const layout = await locate(context.cwd, command.project);
   const schema = await readSchema(layout);

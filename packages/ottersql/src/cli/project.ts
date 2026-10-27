@@ -1,6 +1,7 @@
 import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
+import { SchemaError } from "../catalog/index.ts";
 import { defaultSchemaPath, migrationsDirectory } from "../content-mapper/project-layout.ts";
 import {
   LockWaitTimeoutError,
@@ -82,6 +83,28 @@ export async function readMigrations(layout: Layout): Promise<MigrationFile[]> {
   );
 }
 
+export async function writeMigration(layout: Layout, name: string, text: string): Promise<string> {
+  await mkdir(layout.migrationsDirectory, { recursive: true });
+  const path = join(layout.migrationsDirectory, name);
+  await writeFile(path, text, { flag: "wx" });
+  return shown(layout, path);
+}
+
+/** The refusal for schema.sql that Postgres rejected; anything else is returned as it was. */
+export function schemaRefusal(layout: Layout, error: unknown): unknown {
+  if (!(error instanceof SchemaError)) {
+    return error;
+  }
+  const file = shown(layout, layout.schemaFile);
+  return new CommandError({
+    kind: "invalid",
+    code: "schema.invalid",
+    why: `Postgres rejected ${file}: ${error.message} (SQLSTATE ${error.code})`,
+    fix: "Fix schema.sql",
+    where: error.position === null ? { file } : { file, line: error.position.line },
+  });
+}
+
 /** The refusal for a migration file that cannot be read, pointing at the file and line. */
 export function unreadableMigration(
   layout: Layout,
@@ -99,19 +122,12 @@ export function unreadableMigration(
   });
 }
 
-export async function writeMigration(layout: Layout, name: string, text: string): Promise<string> {
-  await mkdir(layout.migrationsDirectory, { recursive: true });
-  const path = join(layout.migrationsDirectory, name);
-  await writeFile(path, text, { flag: "wx" });
-  return shown(layout, path);
-}
-
 /**
  * The refusal for what running the migrations against a database threw: a file that cannot be
  * read, a history that disagrees with the files, a lock another run kept too long, or a connection
  * that changed session; anything else is returned as it was.
  */
-export function migrationRefusal(error: unknown, layout: Layout): unknown {
+export function migrationRefusal(layout: Layout, error: unknown): unknown {
   if (error instanceof MigrationFileError) {
     return unreadableMigration(layout, error);
   }

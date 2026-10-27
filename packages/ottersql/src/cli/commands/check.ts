@@ -1,13 +1,13 @@
-import { isEmptyPlan } from "../migrate/plan.ts";
-import { changesToSchema, planLines } from "./changes.ts";
-import type { Command } from "./command.ts";
-import type { Context } from "./context.ts";
-import type { Outcome } from "./outcome.ts";
-import { locate, readMigrations, shown } from "./project.ts";
-import { planJson } from "./results.ts";
+import { isEmptyPlan } from "../../migrate/plan.ts";
+import { changesToSchema, planLines } from "../changes.ts";
+import type { Command } from "../command.ts";
+import type { Context } from "../context.ts";
+import type { Outcome } from "../outcome.ts";
+import { locate, readMigrations, shown } from "../project.ts";
+import { planJson } from "../results.ts";
 
 /** Checks that the migrations, replayed in PGlite, build exactly what schema.sql describes. */
-export async function check(
+export async function run(
   context: Context,
   command: Extract<Command, { name: "migrate check" }>,
 ): Promise<Outcome> {
