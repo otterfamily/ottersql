@@ -24,7 +24,9 @@ export async function readCatalog(
   // Postgres prints a type or a name in an expression without its schema when the search_path
   // finds it, so the session's search_path, which schema.sql may set, would decide what migrations
   // say; with public alone, everything outside public is named with its schema. Repeatable read
-  // gives every query the same snapshot, so a change made meanwhile cannot show half-way.
+  // gives every query the same snapshot, so a change made meanwhile cannot show half-way. JIT
+  // compilation is off because the planner can estimate a catalog statement costly enough for it,
+  // and compiling it then takes many times longer than running it.
   return connection.transaction(
     async (transaction) => {
       const features = await readFeatures(transaction);
@@ -35,6 +37,10 @@ export async function readCatalog(
         ...(await readSchemaObjects(transaction, features, omitSchemas)),
       };
     },
-    { isolation: "repeatable read", readOnly: true, settings: { search_path: "public" } },
+    {
+      isolation: "repeatable read",
+      readOnly: true,
+      settings: { search_path: "public", jit: "off" },
+    },
   );
 }
