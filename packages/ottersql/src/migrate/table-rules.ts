@@ -1,9 +1,10 @@
 import { isDeepStrictEqual } from "node:util";
 
+import { nameKey } from "../catalog/find.ts";
 import type { Catalog, Table } from "../catalog/index.ts";
 import { combine, manual, matchByName, noChanges, notPlanned, objectName } from "./steps.ts";
 import type { Changes } from "./steps.ts";
-import { hierarchyTables } from "./table-hierarchies.ts";
+import { inHierarchy } from "./table-hierarchies.ts";
 
 /** The names of the items only one side has, or that differ between the sides. */
 function differing<Item extends { readonly name: string }>(
@@ -22,7 +23,7 @@ function differing<Item extends { readonly name: string }>(
 
 /** What a table that `before` was, or a new one when it is `null`, needs of rules ottersql does not plan. */
 function rulesOf(before: Table | null, after: Table): Changes {
-  const table = `${after.schema}.${after.name}`;
+  const table = objectName(after);
   const security = before?.rowSecurity ?? "disabled";
   return combine([
     security === after.rowSecurity ? noChanges : manual(table, notPlanned("row-level security")),
@@ -41,17 +42,13 @@ function rulesOf(before: Table | null, after: Table): Changes {
  * person whole, in table-hierarchies.ts.
  */
 export function tableRuleChanges(from: Catalog, to: Catalog): Changes {
-  const before = new Map(from.tables.map((table) => [qualifiedName(table), table]));
-  const inHierarchy = hierarchyTables(from, to);
+  const before = new Map(from.tables.map((table) => [nameKey(table.schema, table.name), table]));
+  const hierarchical = inHierarchy(from, to);
   return combine(
     to.tables.flatMap((table) =>
-      inHierarchy.has(qualifiedName(table))
+      hierarchical(table)
         ? []
-        : [rulesOf(before.get(qualifiedName(table)) ?? null, table)],
+        : [rulesOf(before.get(nameKey(table.schema, table.name)) ?? null, table)],
     ),
   );
-}
-
-function qualifiedName(table: Table): string {
-  return `${table.schema}.${table.name}`;
 }

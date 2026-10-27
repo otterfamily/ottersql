@@ -1,10 +1,7 @@
+import { nameKey } from "../catalog/find.ts";
 import type { QualifiedName, TypeRef } from "../catalog/index.ts";
-import { manual } from "./steps.ts";
+import { manual, objectName } from "./steps.ts";
 import type { Changes } from "./steps.ts";
-
-function nameOf(object: QualifiedName): string {
-  return `${object.schema}.${object.name}`;
-}
 
 /** What a column or a composite type's attribute refers to: its type and collation. */
 interface TypedItem {
@@ -12,16 +9,19 @@ interface TypedItem {
   readonly collation: QualifiedName | null;
 }
 
-/** The first of `unplanned` that `items` use, or `null` when they use none. */
+/**
+ * The name of the first of `unplanned` (`nameKey`s) that `items` use, or `null` when they use
+ * none.
+ */
 export function unplannedUse(
   items: readonly TypedItem[],
   unplanned: ReadonlySet<string>,
 ): string | null {
   for (const { type, collation } of items) {
     const named = type.kind === "array" ? type.element : type;
-    for (const used of [nameOf(named), ...(collation === null ? [] : [nameOf(collation)])]) {
-      if (unplanned.has(used)) {
-        return used;
+    for (const used of [named, ...(collation === null ? [] : [collation])]) {
+      if (unplanned.has(nameKey(used.schema, used.name))) {
+        return objectName(used);
       }
     }
   }

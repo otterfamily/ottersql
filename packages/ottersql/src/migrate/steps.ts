@@ -1,3 +1,4 @@
+import { nameKey } from "../catalog/find.ts";
 import type { QualifiedName } from "../catalog/index.ts";
 import type { InsideStep, ManualChange, OutsideStep, Step } from "./plan.ts";
 
@@ -43,28 +44,49 @@ export function only(...steps: readonly Step[]): Changes {
   return { steps, manual: [] };
 }
 
-/** Objects keyed by name that `from` and `to` both have, only one of them has, or neither. */
-export function matchByName<Item extends { readonly name: string }>(
-  from: readonly Item[],
-  to: readonly Item[],
-): {
+/** The items `to` adds, the ones `from` has that `to` removes, and the pairs both keep. */
+interface Matched<Item> {
   readonly added: readonly Item[];
   readonly removed: readonly Item[];
   readonly kept: readonly (readonly [Item, Item])[];
-} {
-  const fromByName = new Map(from.map((item) => [item.name, item]));
-  const toNames = new Set(to.map((item) => item.name));
+}
+
+function matchBy<Item>(
+  from: readonly Item[],
+  to: readonly Item[],
+  key: (item: Item) => string,
+): Matched<Item> {
+  const fromByKey = new Map(from.map((item) => [key(item), item]));
+  const toKeys = new Set(to.map((item) => key(item)));
   return {
-    added: to.filter((item) => !fromByName.has(item.name)),
-    removed: from.filter((item) => !toNames.has(item.name)),
+    added: to.filter((item) => !fromByKey.has(key(item))),
+    removed: from.filter((item) => !toKeys.has(key(item))),
     kept: to.flatMap((item) => {
-      const before = fromByName.get(item.name);
+      const before = fromByKey.get(key(item));
       return before === undefined ? [] : [[before, item] as const];
     }),
   };
 }
 
-/** `schema.table.name`, as plans name what a step changes. */
-export function objectName(table: QualifiedName, name: string): string {
-  return `${table.schema}.${table.name}.${name}`;
+/** Objects of one table or schema, matched by name. */
+export function matchByName<Item extends { readonly name: string }>(
+  from: readonly Item[],
+  to: readonly Item[],
+): Matched<Item> {
+  return matchBy(from, to, (item) => item.name);
+}
+
+/** Objects of any schema, matched by schema and name. */
+export function matchByQualifiedName<Item extends QualifiedName>(
+  from: readonly Item[],
+  to: readonly Item[],
+): Matched<Item> {
+  return matchBy(from, to, (item) => nameKey(item.schema, item.name));
+}
+
+/** `schema.name`, or `schema.table.member`, as plans name what a step changes. */
+export function objectName(object: QualifiedName, member?: string): string {
+  return member === undefined
+    ? `${object.schema}.${object.name}`
+    : `${object.schema}.${object.name}.${member}`;
 }

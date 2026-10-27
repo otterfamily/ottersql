@@ -1,20 +1,16 @@
 import type { Catalog, Enum } from "../catalog/index.ts";
 import { commentChange } from "./comments.ts";
 import { literal, qualified } from "./sql-text.ts";
-import { combine, manual, matchByName, only, step } from "./steps.ts";
+import { combine, manual, matchByQualifiedName, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 export function enumChanges(from: Catalog, to: Catalog): Changes {
-  const { added, removed, kept } = matchByName(withKey(from.enums), withKey(to.enums));
+  const { added, removed, kept } = matchByQualifiedName(from.enums, to.enums);
   return combine([
-    ...added.map(({ item }) => createEnum(item)),
-    ...removed.map(({ item }) => dropEnum(item)),
-    ...kept.map(([before, after]) => changeEnum(before.item, after.item)),
+    ...added.map((item) => createEnum(item)),
+    ...removed.map((item) => dropEnum(item)),
+    ...kept.map(([before, after]) => changeEnum(before, after)),
   ]);
-}
-
-function withKey(enums: readonly Enum[]): { readonly name: string; readonly item: Enum }[] {
-  return enums.map((item) => ({ name: `${item.schema}.${item.name}`, item }));
 }
 
 function createEnum(item: Enum): Changes {
@@ -22,7 +18,7 @@ function createEnum(item: Enum): Changes {
   return only(
     step({
       kind: "createEnum",
-      object: `${item.schema}.${item.name}`,
+      object: objectName(item),
       statements: [`CREATE TYPE ${qualified(item.schema, item.name)} AS ENUM (${values})`],
       phase: "expand",
       reversal: "lossy",
@@ -35,7 +31,7 @@ function dropEnum(item: Enum): Changes {
   return only(
     step({
       kind: "dropEnum",
-      object: `${item.schema}.${item.name}`,
+      object: objectName(item),
       statements: [`DROP TYPE ${qualified(item.schema, item.name)}`],
       phase: "contract",
       reversal: "irreversible",
@@ -45,7 +41,7 @@ function dropEnum(item: Enum): Changes {
 }
 
 function changeEnum(before: Enum, after: Enum): Changes {
-  const object = `${after.schema}.${after.name}`;
+  const object = objectName(after);
   const kept = after.values.filter((value) => before.values.includes(value));
   if (
     kept.some((value, index) => value !== before.values[index]) ||
@@ -79,7 +75,7 @@ function addedValues(before: Enum, after: Enum): Changes {
         : [
             step({
               kind: "addEnumValue",
-              object: `${after.schema}.${after.name}.${value}`,
+              object: objectName(after, value),
               statements: [
                 `ALTER TYPE ${name} ADD VALUE ${literal(value)}${position(after.values[index - 1], first)}`,
               ],

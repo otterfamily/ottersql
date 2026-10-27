@@ -33,6 +33,15 @@ describe("planMigration, run on PGlite to the target schema", () => {
       ],
     },
     {
+      change: "tells apart tables whose schema and name join to the same text with a dot",
+      from: 'create schema "a.b"; create table "a.b".c (id int8); create schema a',
+      to: 'create schema "a.b"; create schema a; create table a."b.c" (id int8, note text)',
+      steps: [
+        "expand createTable a.b.c (lossy, inside, none)",
+        "contract dropTable a.b.c (irreversible, inside, access exclusive)",
+      ],
+    },
+    {
       change: "comments a schema",
       from: "create schema app",
       to: "create schema app; comment on schema app is 'Billing'",

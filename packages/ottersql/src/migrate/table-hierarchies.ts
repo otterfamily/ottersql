@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 
+import { nameKey } from "../catalog/find.ts";
 import type { Catalog, Table } from "../catalog/index.ts";
-import { combine, manual } from "./steps.ts";
+import { combine, manual, objectName } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 // A table in a hierarchy shares its columns, constraints and indexes with the others, and Postgres
@@ -17,32 +18,36 @@ interface Member {
   readonly reason: string;
 }
 
-function nameOf(table: { readonly schema: string; readonly name: string }): string {
-  return `${table.schema}.${table.name}`;
+function keyOf(table: { readonly schema: string; readonly name: string }): string {
+  return nameKey(table.schema, table.name);
 }
 
 /** The tables of `catalog` that are partitioned, partitions, inherit from another or are inherited from. */
 function members(catalog: Catalog): Map<string, Member> {
-  const parents = new Set(catalog.tables.flatMap((table) => table.inherits.map(nameOf)));
+  const parents = new Set(catalog.tables.flatMap((table) => table.inherits.map(keyOf)));
   return new Map(
     catalog.tables.flatMap((table): [string, Member][] => {
       if (table.partitionedBy !== null || table.partitionOf !== null) {
-        return [[nameOf(table), { table, reason: partitionReason }]];
+        return [[keyOf(table), { table, reason: partitionReason }]];
       }
-      return table.inherits.length > 0 || parents.has(nameOf(table))
-        ? [[nameOf(table), { table, reason: inheritanceReason }]]
+      return table.inherits.length > 0 || parents.has(keyOf(table))
+        ? [[keyOf(table), { table, reason: inheritanceReason }]]
         : [];
     }),
   );
 }
 
-/** The names of the tables in a hierarchy on either side, which the planner leaves to `hierarchyChanges`. */
-export function hierarchyTables(from: Catalog, to: Catalog): ReadonlySet<string> {
-  return new Set([...members(from).keys(), ...members(to).keys()]);
+/** Whether a table is in a hierarchy on either side, which the planner leaves to `hierarchyChanges`. */
+export function inHierarchy(
+  from: Catalog,
+  to: Catalog,
+): (table: { readonly schema: string; readonly name: string }) => boolean {
+  const keys = new Set([...members(from).keys(), ...members(to).keys()]);
+  return (table) => keys.has(keyOf(table));
 }
 
 function tablesByName(catalog: Catalog): Map<string, Table> {
-  return new Map(catalog.tables.map((table) => [nameOf(table), table]));
+  return new Map(catalog.tables.map((table) => [keyOf(table), table]));
 }
 
 /** Every table in a hierarchy that is added, removed or changed, for a person to handle. */
@@ -54,7 +59,7 @@ export function hierarchyChanges(from: Catalog, to: Catalog): Changes {
   return combine(
     [...all]
       .toSorted(([left], [right]) => (left < right ? -1 : 1))
-      .filter(([name]) => !isDeepStrictEqual(before.get(name), after.get(name)))
-      .map(([name, { reason }]) => manual(name, reason)),
+      .filter(([key]) => !isDeepStrictEqual(before.get(key), after.get(key)))
+      .map(([, { table, reason }]) => manual(objectName(table), reason)),
   );
 }

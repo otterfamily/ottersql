@@ -1,7 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 
+import { nameKey } from "../catalog/find.ts";
 import type { Catalog } from "../catalog/index.ts";
-import { combine, manual, notPlanned } from "./steps.ts";
+import { combine, manual, notPlanned, objectName } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 interface Named {
@@ -22,22 +23,22 @@ const unplanned = [
   ["routines", "a function"],
 ] as const satisfies readonly (readonly [keyof Catalog, string])[];
 
-function nameOf(item: Named): string {
-  return `${item.schema}.${item.name}`;
+function keyOf(item: Named): string {
+  return nameKey(item.schema, item.name);
 }
 
-/** The domains, range types with their multiranges, and collations of `catalog`, by name. */
+/** The `nameKey`s of the domains, range types with their multiranges, and collations of `catalog`. */
 function typesAndCollations(catalog: Catalog): string[] {
   return [
-    ...catalog.domains.map(nameOf),
-    ...catalog.ranges.flatMap((range) => [nameOf(range), `${range.schema}.${range.multirange}`]),
-    ...catalog.collations.map(nameOf),
+    ...catalog.domains.map(keyOf),
+    ...catalog.ranges.flatMap((range) => [keyOf(range), nameKey(range.schema, range.multirange)]),
+    ...catalog.collations.map(keyOf),
   ];
 }
 
 /**
- * The types and collations `to` adds that the plan leaves to a person. Something that uses one
- * cannot be created until a person has created it.
+ * The types and collations `to` adds that the plan leaves to a person, as `nameKey`s. Something
+ * that uses one cannot be created until a person has created it.
  */
 export function unplannedAdditions(from: Catalog, to: Catalog): ReadonlySet<string> {
   const existing = new Set(typesAndCollations(from));
@@ -53,13 +54,20 @@ export function unplannedChanges(from: Catalog, to: Catalog): Changes {
   );
 }
 
+/** The objects of one name on each side; overloaded functions share a name. */
+interface Sides {
+  readonly name: string;
+  readonly before: Named[];
+  readonly after: Named[];
+}
+
 /** Names of objects only one side has, or that differ; overloaded functions share a name. */
 function differingNames(before: readonly Named[], after: readonly Named[]): string[] {
-  const byName = new Map<string, { readonly before: Named[]; readonly after: Named[] }>();
-  const group = (item: Named): { readonly before: Named[]; readonly after: Named[] } => {
-    const name = nameOf(item);
-    const found = byName.get(name) ?? { before: [], after: [] };
-    byName.set(name, found);
+  const byName = new Map<string, Sides>();
+  const group = (item: Named): Sides => {
+    const key = keyOf(item);
+    const found = byName.get(key) ?? { name: objectName(item), before: [], after: [] };
+    byName.set(key, found);
     return found;
   };
   for (const item of before) {
@@ -68,7 +76,7 @@ function differingNames(before: readonly Named[], after: readonly Named[]): stri
   for (const item of after) {
     group(item).after.push(item);
   }
-  return [...byName]
-    .filter(([, sides]) => !isDeepStrictEqual(sides.before, sides.after))
-    .map(([name]) => name);
+  return [...byName.values()]
+    .filter((sides) => !isDeepStrictEqual(sides.before, sides.after))
+    .map(({ name }) => name);
 }

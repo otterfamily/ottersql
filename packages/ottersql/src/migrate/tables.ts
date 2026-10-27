@@ -18,6 +18,7 @@ import {
   combine,
   manual,
   matchByName,
+  matchByQualifiedName,
   noChanges,
   notPlanned,
   objectName,
@@ -26,12 +27,8 @@ import {
   step,
 } from "./steps.ts";
 import type { Changes } from "./steps.ts";
-import { hierarchyTables } from "./table-hierarchies.ts";
+import { inHierarchy } from "./table-hierarchies.ts";
 import { uniqueChanges } from "./unique-keys.ts";
-
-function withKey(tables: readonly Table[]): { readonly name: string; readonly table: Table }[] {
-  return tables.map((table) => ({ name: `${table.schema}.${table.name}`, table }));
-}
 
 /** The catalogs a plan goes between, and what it leaves to a person that new objects may use. */
 interface Sides {
@@ -43,22 +40,18 @@ interface Sides {
 /** Changes to tables in no hierarchy on either side; table-hierarchies.ts lists those. */
 export function tableChanges(sides: Sides): Changes {
   const { from, to } = sides;
-  const inHierarchy = hierarchyTables(from, to);
-  const plain = (catalog: Catalog): { readonly name: string; readonly table: Table }[] =>
-    withKey(catalog.tables).filter(({ name }) => !inHierarchy.has(name));
-  const { added, removed, kept } = matchByName(plain(from), plain(to));
-  const created = added.filter(
-    ({ table }) => !removed.some((old) => sameColumns(old.table, table)),
-  );
+  const hierarchical = inHierarchy(from, to);
+  const plain = (catalog: Catalog): Table[] =>
+    catalog.tables.filter((table) => !hierarchical(table));
+  const { added, removed, kept } = matchByQualifiedName(plain(from), plain(to));
+  const created = added.filter((table) => !removed.some((old) => sameColumns(old, table)));
   return combine([
-    ...created.map(({ table }) => newTable(table, from, sides.unplanned)),
-    ...removed.map(({ table }) => {
-      const other = added.find((candidate) => sameColumns(candidate.table, table));
-      return other === undefined
-        ? dropTable(table, removed)
-        : maybeRenamedTable(table, other.table);
+    ...created.map((table) => newTable(table, from, sides.unplanned)),
+    ...removed.map((table) => {
+      const other = added.find((candidate) => sameColumns(candidate, table));
+      return other === undefined ? dropTable(table, removed) : maybeRenamedTable(table, other);
     }),
-    ...kept.map(([before, after]) => changeTable(before.table, after.table, sides)),
+    ...kept.map(([before, after]) => changeTable(before, after, sides)),
   ]);
 }
 
@@ -72,10 +65,10 @@ function columnTypes(table: Table): string[] {
 }
 
 function maybeRenamedTable(dropped: Table, created: Table): Changes {
-  const object = `${dropped.schema}.${dropped.name}`;
+  const object = objectName(dropped);
   return manual(
     object,
-    `${object} is dropped and ${created.schema}.${created.name} with the same columns is created, which may be a rename that would lose the table's data; write it by hand: RENAME for a rename, or DROP TABLE and CREATE TABLE otherwise`,
+    `${object} is dropped and ${objectName(created)} with the same columns is created, which may be a rename that would lose the table's data; write it by hand: RENAME for a rename, or DROP TABLE and CREATE TABLE otherwise`,
   );
 }
 
@@ -83,13 +76,10 @@ function maybeRenamedTable(dropped: Table, created: Table): Changes {
  * A table's foreign keys to other tables dropped with it go first, so the tables can be dropped in
  * any order, even when they reference each other.
  */
-function dropTable(
-  table: Table,
-  dropped: readonly { readonly name: string; readonly table: Table }[],
-): Changes {
+function dropTable(table: Table, dropped: readonly Table[]): Changes {
   const alsoDropped = (key: ForeignKey): boolean =>
     dropped.some(
-      ({ table: other }) =>
+      (other) =>
         other !== table &&
         other.schema === key.references.schema &&
         other.name === key.references.table,
@@ -99,7 +89,7 @@ function dropTable(
   const dropKeys = table.foreignKeys.filter((key) => alsoDropped(key)).map((key) => dropKey(key));
   const drop = step({
     kind: "dropTable",
-    object: `${table.schema}.${table.name}`,
+    object: objectName(table),
     statements: [`DROP TABLE ${qualified(table.schema, table.name)}`],
     phase: "contract",
     reversal: "irreversible",
@@ -115,7 +105,7 @@ function changeTable(before: Table, after: Table, { from, to, unplanned }: Sides
   return combine([
     storageChanged
       ? manual(
-          `${after.schema}.${after.name}`,
+          objectName(after),
           notPlanned("whether a table is logged, or to its storage parameters,"),
         )
       : noChanges,
@@ -125,7 +115,7 @@ function changeTable(before: Table, after: Table, { from, to, unplanned }: Sides
     indexChanges(before, after),
     commentChange({
       on: "TABLE",
-      object: `${after.schema}.${after.name}`,
+      object: objectName(after),
       name: qualified(after.schema, after.name),
       before: before.comment,
       after: after.comment,

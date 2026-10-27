@@ -33,7 +33,7 @@ export function newTable(table: Table, from: Catalog, unplanned: ReadonlySet<str
   const used = unplannedUse(table.columns, unplanned);
   return used === null
     ? combine([createTable(table), newTableConstraints(table, from)])
-    : usesUnplanned(`${table.schema}.${table.name}`, used, "create the table");
+    : usesUnplanned(objectName(table), used, "create the table");
 }
 
 /** The comments of a new table, its columns, and the constraints and indexes `CREATE TABLE` makes. */
@@ -75,7 +75,7 @@ function createTable(table: Table): Changes {
   return only(
     step({
       kind: "createTable",
-      object: `${table.schema}.${table.name}`,
+      object: objectName(table),
       statements: [
         ...sequences.map((sequence) => createSequence(sequence)),
         `CREATE ${table.unlogged ? "UNLOGGED " : ""}TABLE ${qualified(table.schema, table.name)} (${definitions.join(", ")})${storageParameters(table.options)}`,

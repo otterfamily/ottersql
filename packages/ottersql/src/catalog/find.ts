@@ -12,7 +12,8 @@ interface ByName {
 // Catalogs are not changed once read, so an index made for one stays right.
 const indexes = new WeakMap<Catalog, ByName>();
 
-function key(schema: string, name: string): string {
+/** A key for a schema-qualified name; joining with a dot would give `"a.b".c` and `a."b.c"` one key. */
+export function nameKey(schema: string, name: string): string {
   // Postgres names never hold a NUL, so no two names share a key.
   return `${schema}\0${name}`;
 }
@@ -23,13 +24,15 @@ function byName(catalog: Catalog): ByName {
     return known;
   }
   const index: ByName = {
-    tables: new Map(catalog.tables.map((table) => [key(table.schema, table.name), table])),
-    domains: new Map(catalog.domains.map((domain) => [key(domain.schema, domain.name), domain])),
-    enums: new Map(catalog.enums.map((type) => [key(type.schema, type.name), type])),
+    tables: new Map(catalog.tables.map((table) => [nameKey(table.schema, table.name), table])),
+    domains: new Map(
+      catalog.domains.map((domain) => [nameKey(domain.schema, domain.name), domain]),
+    ),
+    enums: new Map(catalog.enums.map((type) => [nameKey(type.schema, type.name), type])),
     ranges: new Map(
       catalog.ranges.flatMap((range) => [
-        [key(range.schema, range.multirange), range],
-        [key(range.schema, range.name), range],
+        [nameKey(range.schema, range.multirange), range],
+        [nameKey(range.schema, range.name), range],
       ]),
     ),
   };
@@ -38,20 +41,20 @@ function byName(catalog: Catalog): ByName {
 }
 
 export function findTable(catalog: Catalog, schema: string, name: string): Table | undefined {
-  return byName(catalog).tables.get(key(schema, name));
+  return byName(catalog).tables.get(nameKey(schema, name));
 }
 
 export function findDomain(catalog: Catalog, schema: string, name: string): Domain | undefined {
-  return byName(catalog).domains.get(key(schema, name));
+  return byName(catalog).domains.get(nameKey(schema, name));
 }
 
 export function findEnum(catalog: Catalog, schema: string, name: string): Enum | undefined {
-  return byName(catalog).enums.get(key(schema, name));
+  return byName(catalog).enums.get(nameKey(schema, name));
 }
 
 /** The range type named `name`, or the one whose multirange type is named `name`. */
 export function findRange(catalog: Catalog, schema: string, name: string): RangeType | undefined {
-  return byName(catalog).ranges.get(key(schema, name));
+  return byName(catalog).ranges.get(nameKey(schema, name));
 }
 
 export function sameType(left: TypeRef, right: TypeRef): boolean {

@@ -1,8 +1,17 @@
 import { isDeepStrictEqual } from "node:util";
 
+import { nameKey } from "../catalog/find.ts";
 import type { Catalog, CompositeType, TypeRef } from "../catalog/index.ts";
 import { identifier, literal, qualified } from "./sql-text.ts";
-import { combine, manual, matchByName, notPlanned, only, step } from "./steps.ts";
+import {
+  combine,
+  manual,
+  matchByQualifiedName,
+  notPlanned,
+  objectName,
+  only,
+  step,
+} from "./steps.ts";
 import type { Changes } from "./steps.ts";
 import { unplannedUse, usesUnplanned } from "./unplanned-uses.ts";
 
@@ -16,45 +25,39 @@ export function compositeChanges(
   to: Catalog,
   unplanned: ReadonlySet<string>,
 ): Changes {
-  const { added, removed, kept } = matchByName(withKey(from.composites), withKey(to.composites));
+  const { added, removed, kept } = matchByQualifiedName(from.composites, to.composites);
   const create = (item: CompositeType): Changes => {
     const used = unplannedUse(item.attributes, unplanned);
     return used === null
       ? createType(item)
-      : usesUnplanned(`${item.schema}.${item.name}`, used, "create the type");
+      : usesUnplanned(objectName(item), used, "create the type");
   };
   return combine([
-    ...dependenciesFirst(added.map(({ item }) => item)).map((item) => create(item)),
-    ...removed.map(({ name }) => manual(name, notPlanned("a composite type"))),
+    ...dependenciesFirst(added).map((item) => create(item)),
+    ...removed.map((item) => manual(objectName(item), notPlanned("a composite type"))),
     ...kept
-      .filter(([before, after]) => !isDeepStrictEqual(before.item, after.item))
-      .map(([, { name }]) => manual(name, notPlanned("a composite type"))),
+      .filter(([before, after]) => !isDeepStrictEqual(before, after))
+      .map(([, after]) => manual(objectName(after), notPlanned("a composite type"))),
   ]);
 }
 
-function withKey(
-  composites: readonly CompositeType[],
-): { readonly name: string; readonly item: CompositeType }[] {
-  return composites.map((item) => ({ name: `${item.schema}.${item.name}`, item }));
-}
-
-function nameOf(type: TypeRef): string {
+function keyOf(type: TypeRef): string {
   const named = type.kind === "array" ? type.element : type;
-  return `${named.schema}.${named.name}`;
+  return nameKey(named.schema, named.name);
 }
 
 /** `composites` ordered so that one used by another's attribute comes before it. */
 function dependenciesFirst(composites: readonly CompositeType[]): CompositeType[] {
-  const pending = new Map(composites.map((item) => [`${item.schema}.${item.name}`, item]));
+  const pending = new Map(composites.map((item) => [nameKey(item.schema, item.name), item]));
   const ordered: CompositeType[] = [];
   while (pending.size > 0) {
     const ready = [...pending.values()].filter((item) =>
-      item.attributes.every((attribute) => !pending.has(nameOf(attribute.type))),
+      item.attributes.every((attribute) => !pending.has(keyOf(attribute.type))),
     );
     // A cycle cannot be created in Postgres; this only guards against looping forever.
     const next = ready.length > 0 ? ready : [...pending.values()];
     for (const item of next) {
-      pending.delete(`${item.schema}.${item.name}`);
+      pending.delete(nameKey(item.schema, item.name));
       ordered.push(item);
     }
   }
@@ -73,7 +76,7 @@ function createType(item: CompositeType): Changes {
   return only(
     step({
       kind: "createType",
-      object: `${item.schema}.${item.name}`,
+      object: objectName(item),
       statements: [
         `CREATE TYPE ${name} AS (${attributes.join(", ")})`,
         ...(item.comment === null
