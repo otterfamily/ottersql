@@ -1,6 +1,6 @@
 import { createRequire } from "node:module";
 
-import { QueryError } from "../sql/index.ts";
+import { QueryError } from "../sql/query-error.ts";
 import { parseCommand, usage, UsageError, wantsJson } from "./command.ts";
 import type { Command, Runnable } from "./command.ts";
 import type { Context } from "./context.ts";
