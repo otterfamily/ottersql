@@ -1,7 +1,7 @@
 import type { Catalog, Schema } from "../catalog/index.ts";
 import { commentChange } from "./comments.ts";
 import { identifier } from "./sql-text.ts";
-import { combine, matchByName, only, step } from "./steps.ts";
+import { combine, matchByName, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 /**
@@ -21,7 +21,7 @@ export function schemaChanges(from: Catalog, to: Catalog): Changes {
 function createSchema(schema: Schema): Changes {
   const create = step({
     kind: "createSchema",
-    object: schema.name,
+    object: objectName(schema.name),
     statements: [`CREATE SCHEMA ${identifier(schema.name)}`],
     phase: "expand",
     reversal: "reversible",
@@ -34,7 +34,7 @@ function dropSchema(schema: Schema): Changes {
   return only(
     step({
       kind: "dropSchema",
-      object: schema.name,
+      object: objectName(schema.name),
       statements: [`DROP SCHEMA ${identifier(schema.name)}`],
       phase: "contract",
       reversal: "irreversible",
@@ -46,7 +46,7 @@ function dropSchema(schema: Schema): Changes {
 function comment(before: Schema["comment"], after: Schema): Changes {
   return commentChange({
     on: "SCHEMA",
-    object: after.name,
+    object: objectName(after.name),
     name: identifier(after.name),
     before,
     after: after.comment,

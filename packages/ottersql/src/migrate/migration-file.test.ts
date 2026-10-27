@@ -26,16 +26,23 @@ function withoutReason(step: Step): Step {
 }
 
 describe("migration files", () => {
-  test("read back the steps they were rendered from, so a plan survives review in a file", async () => {
-    const plan = planMigration(
-      await loadCatalog(users),
-      await loadCatalog(
-        "create table users (id int8 primary key, email text not null unique check (email <> 'a;b'))",
-      ),
-    );
-    const steps = readMigrationFile(renderMigration(plan));
-    expect(steps).toStrictEqual(plan.steps.map(withoutReason));
-  });
+  test.for([
+    {
+      names: "plain names",
+      to: "create table users (id int8 primary key, email text not null unique check (email <> 'a;b'))",
+    },
+    {
+      names: "names shown in quotes",
+      to: `${users}; create table "Say ""hi""" (id int8 primary key, "e mail" text not null unique)`,
+    },
+  ])(
+    "read back the steps they were rendered from, with $names, so a plan survives review in a file",
+    async ({ to }) => {
+      const plan = planMigration(await loadCatalog(users), await loadCatalog(to));
+      const steps = readMigrationFile(renderMigration(plan));
+      expect(steps).toStrictEqual(plan.steps.map(withoutReason));
+    },
+  );
 
   test("list the changes left to a person as comments, which the check keeps failing on", async () => {
     const plan = planMigration(

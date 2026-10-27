@@ -84,9 +84,21 @@ export function matchByQualifiedName<Item extends QualifiedName>(
   return matchBy(from, to, (item) => nameKey(item.schema, item.name));
 }
 
-/** `schema.name`, or `schema.table.member`, as plans name what a step changes. */
-export function objectName(object: QualifiedName, member?: string): string {
-  return member === undefined
-    ? `${object.schema}.${object.name}`
-    : `${object.schema}.${object.name}.${member}`;
+// Postgres folds a bare name to lower case, so only these read back as themselves unquoted.
+const bareName = /^[_a-z][$0-9_a-z]*$/v;
+
+function shownName(name: string): string {
+  return bareName.test(name) ? name : `"${name.replaceAll('"', '""')}"`;
+}
+
+/**
+ * `schema`, `schema.name` or `schema.table.member`, as plans name what a step changes. A part is
+ * quoted as SQL quotes it when Postgres would read it bare as another name, such as `"Users"` or
+ * `"user.archive"`.
+ */
+export function objectName(object: QualifiedName | string, member?: string): string {
+  const parts = typeof object === "string" ? [object] : [object.schema, object.name];
+  return [...parts, ...(member === undefined ? [] : [member])]
+    .map((part) => shownName(part))
+    .join(".");
 }
