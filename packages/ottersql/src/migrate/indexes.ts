@@ -1,4 +1,6 @@
 import type { Index, Table } from "../catalog/index.ts";
+import { combine, manual, objectName, only, outsideStep, step } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { indexComment, indexCommentChange } from "./comments.ts";
 import { matchDefinitions } from "./match.ts";
 import {
@@ -10,8 +12,6 @@ import {
   identifier,
   qualified,
 } from "./sql-text.ts";
-import { combine, manual, objectName, only, outsideStep, step } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 
 /**
  * Indexes are built and dropped concurrently, which lets writes go on. A new index helps the new

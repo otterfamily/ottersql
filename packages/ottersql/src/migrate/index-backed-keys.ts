@@ -1,8 +1,8 @@
 import type { Index, PrimaryKey, Table, UniqueConstraint } from "../catalog/index.ts";
+import { manual, objectName, only, outsideStep, step } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { constraintComment } from "./comments.ts";
 import { alterTable, createIndex, deferral, identifier } from "./sql-text.ts";
-import { manual, objectName, only, outsideStep, step } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 
 /** Why a key WITHOUT OVERLAPS is not added to or changed on a table with rows by the planner. */
 export const withoutOverlapsReason =

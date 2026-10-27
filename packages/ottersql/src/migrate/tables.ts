@@ -4,12 +4,12 @@ import { referencesTable } from "../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
 import { changeTable } from "./changed-tables.ts";
 import type { Sides } from "./changed-tables.ts";
+import { combine, manual, objectName, only, step } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { dropConstraint } from "./constraint-steps.ts";
 import { matchByQualifiedName } from "./match.ts";
 import { newTable } from "./new-tables.ts";
 import { qualified } from "./sql-text.ts";
-import { combine, manual, objectName, only, step } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 import { inHierarchy } from "./table-hierarchies.ts";
 
 /** Changes to tables in no hierarchy on either side; table-hierarchies.ts lists those. */

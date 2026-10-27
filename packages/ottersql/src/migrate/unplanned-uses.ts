@@ -1,7 +1,7 @@
 import { nameKey } from "../catalog/find.ts";
 import type { QualifiedName, TypeRef } from "../catalog/index.ts";
-import { manual, objectName } from "./steps.ts";
-import type { Changes } from "./steps.ts";
+import { manual, objectName } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 
 /** What a column or a composite type's attribute refers to: its type and collation. */
 interface TypedItem {

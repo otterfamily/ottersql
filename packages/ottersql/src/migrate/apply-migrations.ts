@@ -3,7 +3,7 @@ import { checkApproval } from "./approval.ts";
 import { deployOrder, notYetApplied } from "./history.ts";
 import { createLedger, readLedger, record } from "./ledger.ts";
 import type { PendingStep } from "./ledger.ts";
-import type { MigrationFile } from "./migrations.ts";
+import type { MigrationFile } from "./migration-file.ts";
 import type { Step } from "./plan.ts";
 import { exclusively } from "./run-lock.ts";
 import { runStep } from "./run-step.ts";

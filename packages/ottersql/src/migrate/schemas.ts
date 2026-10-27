@@ -1,9 +1,9 @@
 import type { Catalog, Schema } from "../catalog/index.ts";
+import { combine, objectName, only, step } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { commentChange } from "./comments.ts";
 import { matchByName } from "./match.ts";
 import { identifier } from "./sql-text.ts";
-import { combine, objectName, only, step } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 
 /**
  * A new schema is created first, so the objects in it can be; a removed one is dropped last, once

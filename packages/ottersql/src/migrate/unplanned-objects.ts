@@ -2,8 +2,8 @@ import { isDeepStrictEqual } from "node:util";
 
 import { nameKey } from "../catalog/find.ts";
 import type { Catalog } from "../catalog/index.ts";
-import { combine, manual, notPlanned, objectName } from "./steps.ts";
-import type { Changes } from "./steps.ts";
+import { combine, manual, notPlanned, objectName } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 
 interface Named {
   readonly schema: string;

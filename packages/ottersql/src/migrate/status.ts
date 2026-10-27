@@ -3,11 +3,11 @@ import type { Connection } from "../sql/index.ts";
 import type { StepRef } from "./apply-migrations.ts";
 import { deployOrder, notYetApplied } from "./history.ts";
 import { migratedObjects, readLedger } from "./ledger.ts";
-import { replay } from "./migrations.ts";
-import type { MigrationFile } from "./migrations.ts";
+import type { MigrationFile } from "./migration-file.ts";
 import { planMigration } from "./plan-migration.ts";
 import { isEmptyPlan } from "./plan.ts";
 import type { Plan, Step } from "./plan.ts";
+import { replay } from "./replay.ts";
 
 /** A step of the migration files, and whether it ran on the database. */
 export interface StepStatus extends StepRef, Pick<Step, "kind" | "object" | "phase"> {

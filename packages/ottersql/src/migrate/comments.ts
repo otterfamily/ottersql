@@ -1,8 +1,8 @@
 import type { Comment, QualifiedName } from "../catalog/index.ts";
+import { noChanges, objectName, only, step } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import type { Lock } from "./plan.ts";
 import { identifier, literal, qualified } from "./sql-text.ts";
-import { noChanges, objectName, only, step } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 
 type Commentable = "TABLE" | "COLUMN" | "CONSTRAINT" | "INDEX" | "TYPE" | "SCHEMA";
 

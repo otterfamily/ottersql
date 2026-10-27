@@ -2,9 +2,19 @@ import { lineAndColumn } from "../sql/query-file.ts";
 import { lineComments, splitStatements } from "../sql/statements.ts";
 import type { Located } from "../sql/statements.ts";
 import { isMigrationFileName, migrationNameRule } from "./migration-name.ts";
-import type { MigrationFile } from "./migrations.ts";
 import { locks, phases, reversals, stepKinds, transactions } from "./plan.ts";
 import type { OutsideStep, Step } from "./plan.ts";
+
+/** A file of `migrations/`, named `YYYYMMDDHHMMSS_<name>.sql` so that names sort in time order. */
+export interface MigrationFile {
+  readonly name: string;
+  readonly text: string;
+}
+
+/** The files in the order they apply. */
+export function inOrder(files: readonly MigrationFile[]): MigrationFile[] {
+  return files.toSorted((left, right) => (left.name < right.name ? -1 : 1));
+}
 
 /** Where in a migration file a problem is: in a named file or in text read on its own, on a line or in the name. */
 interface Where {

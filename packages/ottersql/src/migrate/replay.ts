@@ -1,20 +1,10 @@
 import { loadCatalog, openSchema } from "../catalog/index.ts";
 import type { Catalog } from "../catalog/index.ts";
 import { migratedObjects } from "./ledger.ts";
-import { readMigration } from "./migration-file.ts";
+import { inOrder, readMigration } from "./migration-file.ts";
+import type { MigrationFile } from "./migration-file.ts";
 import { planMigration } from "./plan-migration.ts";
 import type { Plan } from "./plan.ts";
-
-/** A file of `migrations/`, named `YYYYMMDDHHMMSS_<name>.sql` so that names sort in time order. */
-export interface MigrationFile {
-  readonly name: string;
-  readonly text: string;
-}
-
-/** The files in the order they apply. */
-export function inOrder(files: readonly MigrationFile[]): MigrationFile[] {
-  return files.toSorted((left, right) => (left.name < right.name ? -1 : 1));
-}
 
 /** The schema `files` build when run in order on an empty database, replayed in PGlite. */
 async function replayedCatalog(files: readonly MigrationFile[]): Promise<Catalog> {

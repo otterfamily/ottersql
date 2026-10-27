@@ -2,6 +2,8 @@ import { isDeepStrictEqual } from "node:util";
 
 import { findDomain } from "../catalog/find.ts";
 import type { Catalog, Column, Domain, Table, TypeRef } from "../catalog/index.ts";
+import { combine, manual, noChanges, notPlanned, objectName, only, step } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { typeChange } from "./column-types.ts";
 import type { ColumnChange } from "./column-types.ts";
 import { commentChange } from "./comments.ts";
@@ -16,8 +18,6 @@ import {
   identifier,
   setStorage,
 } from "./sql-text.ts";
-import { combine, manual, noChanges, notPlanned, objectName, only, step } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 import { unplannedUse, usesUnplanned } from "./unplanned-uses.ts";
 
 /**

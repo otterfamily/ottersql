@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 
 import type { AppliedStep, PendingStep } from "./ledger.ts";
-import { readMigration } from "./migration-file.ts";
-import { inOrder } from "./migrations.ts";
-import type { MigrationFile } from "./migrations.ts";
+import { inOrder, readMigration } from "./migration-file.ts";
+import type { MigrationFile } from "./migration-file.ts";
 import { phases } from "./plan.ts";
 import type { Step } from "./plan.ts";
 

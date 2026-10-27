@@ -2,8 +2,8 @@ import { isDeepStrictEqual } from "node:util";
 
 import { nameKey } from "../catalog/find.ts";
 import type { Catalog, Table } from "../catalog/index.ts";
-import { combine, manual, objectName } from "./steps.ts";
-import type { Changes } from "./steps.ts";
+import { combine, manual, objectName } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 
 // A table in a hierarchy shares its columns, constraints and indexes with the others, and Postgres
 // changes them for the whole hierarchy through the parent; an index on a partitioned table cannot

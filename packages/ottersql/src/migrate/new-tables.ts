@@ -1,5 +1,7 @@
 import { findTable } from "../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
+import { combine, objectName, only, step } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { constraintComment, indexComment, initialComment } from "./comments.ts";
 import { addCheck, addForeignKey } from "./constraint-steps.ts";
 import {
@@ -19,8 +21,6 @@ import {
   setStorage,
   storageParameters,
 } from "./sql-text.ts";
-import { combine, objectName, only, step } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 import { unplannedUse, usesUnplanned } from "./unplanned-uses.ts";
 
 /**

@@ -1,6 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Check, Comment, Enforcement, ForeignKey, Table } from "../catalog/index.ts";
+import { combine, manual, objectName, only, step } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { constraintComment } from "./comments.ts";
 import type { Step } from "./plan.ts";
 import {
@@ -13,8 +15,6 @@ import {
   nameTooLongReason,
   temporaryName,
 } from "./sql-text.ts";
-import { combine, manual, objectName, only, step } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 
 interface Addition {
   readonly table: Table;

@@ -1,9 +1,9 @@
 import type { Catalog, Enum } from "../catalog/index.ts";
+import { combine, manual, objectName, only, step } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { commentChange } from "./comments.ts";
 import { matchByQualifiedName } from "./match.ts";
 import { literal, qualified } from "./sql-text.ts";
-import { combine, manual, objectName, only, step } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 
 export function enumChanges(from: Catalog, to: Catalog): Changes {
   const { added, removed, kept } = matchByQualifiedName(from.enums, to.enums);

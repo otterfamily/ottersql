@@ -1,13 +1,13 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Catalog, Table } from "../catalog/index.ts";
+import { combine, manual, noChanges, notPlanned, objectName } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { columnChanges } from "./columns.ts";
 import { commentChange } from "./comments.ts";
 import { constraintChanges } from "./constraints.ts";
 import { indexChanges } from "./indexes.ts";
 import { qualified } from "./sql-text.ts";
-import { combine, manual, noChanges, notPlanned, objectName } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 import { uniqueChanges } from "./unique-keys.ts";
 
 /** The catalogs a plan goes between, and what it leaves to a person that new objects may use. */

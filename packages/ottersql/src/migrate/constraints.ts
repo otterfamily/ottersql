@@ -1,6 +1,8 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Comment, Enforcement, PrimaryKey, Table } from "../catalog/index.ts";
+import { combine, manual, noChanges, notPlanned, objectName } from "./changes.ts";
+import type { Changes } from "./changes.ts";
 import { constraintCommentChange } from "./comments.ts";
 import {
   addCheck,
@@ -12,8 +14,6 @@ import {
 } from "./constraint-steps.ts";
 import { indexBackedKey } from "./index-backed-keys.ts";
 import { matchDefinitions, uncommented } from "./match.ts";
-import { combine, manual, noChanges, notPlanned, objectName } from "./steps.ts";
-import type { Changes } from "./steps.ts";
 
 /**
  * Checks, foreign keys, primary keys and exclusion constraints; unique keys are planned in
