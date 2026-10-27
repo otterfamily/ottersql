@@ -1,11 +1,15 @@
 import { PGlite } from "@electric-sql/pglite";
+import { postgresDatabase } from "@ottersql/testing";
+import { Pool } from "pg";
 import { describe, expect, onTestFinished, test as base } from "vitest";
 
+import { builtInOids } from "./built-in-types.ts";
 import { driverConnection, rawQuery, sqlTransaction } from "./connection.ts";
 import type { Connection, DriverQuery } from "./connection.ts";
+import { pgConnection } from "./pg.ts";
 import { pgliteConnection } from "./pglite.ts";
 import { openDrivers } from "./test-drivers.ts";
-import { builtInOids, typeInfos } from "./type-info.ts";
+import { typeInfos } from "./type-info.ts";
 import type { TypeInfo } from "./type-info.ts";
 
 const test = base.extend<{ drivers: readonly Connection[] }>({
@@ -64,5 +68,23 @@ describe("built-in types", () => {
     await Promise.all(Array.from({ length: 5 }, async () => typeInfos(counted, [moods])));
     // One for the array type, then one for its element.
     expect(lookups).toBe(2);
+  });
+
+  test("look a type up again when the lookup another transaction started fails there", async () => {
+    const pool = new Pool({ connectionString: await postgresDatabase() });
+    onTestFinished(async () => pool.end());
+    const db = pgConnection(pool);
+    await rawQuery(db, "create type mood as enum ('ok', 'bad')", []);
+    const { rows } = await rawQuery(db, "select 'mood[]'::regtype::oid", []);
+    const moods = Number(rows[0]?.[0]);
+    let lookups: readonly PromiseSettledResult<unknown>[] = [];
+    await db
+      .transaction(async (tx) => {
+        await rawQuery(tx, "select 1/0", []).catch(() => null);
+        // The first lookup runs in a transaction that can no longer run statements.
+        lookups = await Promise.allSettled([typeInfos(tx, [moods]), typeInfos(db, [moods])]);
+      })
+      .catch(() => null);
+    expect(lookups.map((lookup) => lookup.status)).toStrictEqual(["rejected", "fulfilled"]);
   });
 });
