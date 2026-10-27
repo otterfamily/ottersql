@@ -6,7 +6,7 @@ import { QueryError } from "../sql/index.ts";
 import type { Connection, Transaction } from "../sql/index.ts";
 import { writeBlockingLocks } from "./plan.ts";
 import type { OutsideStep, Step } from "./plan.ts";
-import { qualified } from "./sql-text.ts";
+import { dropIndexStatement } from "./sql-text.ts";
 
 export interface RunOptions {
   /**
@@ -144,11 +144,7 @@ async function needsBuilding(connection: Connection, step: OutsideStep): Promise
   }
   const left = await leftIndex(connection, step.cleanup);
   if (left === "invalid") {
-    await rawQuery(
-      connection,
-      `DROP INDEX CONCURRENTLY ${qualified(step.cleanup.schema, step.cleanup.name)}`,
-      [],
-    );
+    await rawQuery(connection, dropIndexStatement(step.cleanup), []);
   }
   return left !== "valid";
 }

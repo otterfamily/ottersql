@@ -1,4 +1,5 @@
-import { changesToSchema, isEmpty, planLines } from "./changes.ts";
+import { isEmptyPlan } from "../migrate/plan.ts";
+import { changesToSchema, planLines } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import type { Outcome } from "./outcome.ts";
@@ -13,7 +14,7 @@ export async function check(
   const layout = await locate(context.cwd, command.project);
   const plan = await changesToSchema(layout, await readMigrations(layout));
   const schema = shown(layout, layout.schemaFile);
-  if (isEmpty(plan)) {
+  if (isEmptyPlan(plan)) {
     return { ok: true, result: {}, lines: [`The migrations build ${schema}`] };
   }
   return {

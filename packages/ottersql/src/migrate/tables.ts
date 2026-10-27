@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
+import { referencesTable } from "../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
 import { changeTable } from "./changed-tables.ts";
 import type { Sides } from "./changed-tables.ts";
@@ -52,12 +53,7 @@ function maybeRenamedTable(dropped: Table, created: Table): Changes {
  */
 function dropTable(table: Table, dropped: readonly Table[]): Changes {
   const alsoDropped = (key: ForeignKey): boolean =>
-    dropped.some(
-      (other) =>
-        other !== table &&
-        other.schema === key.references.schema &&
-        other.name === key.references.table,
-    );
+    dropped.some((other) => other !== table && referencesTable(key, other));
   const dropKey = (key: ForeignKey): Changes =>
     dropConstraint(table, key.name, { kind: "dropForeignKey", phase: "contract" });
   const dropKeys = table.foreignKeys.filter((key) => alsoDropped(key)).map((key) => dropKey(key));

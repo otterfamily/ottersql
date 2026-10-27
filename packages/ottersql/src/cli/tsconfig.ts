@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
+import { lineAndColumn } from "../sql/query-file.ts";
 import { parseJsonc } from "./jsonc.ts";
 import { CommandError } from "./outcome.ts";
 
@@ -83,9 +84,7 @@ async function readConfig(file: string, cwd: string): Promise<unknown> {
       fix: "Fix the tsconfig",
       where: {
         file: relative(cwd, file),
-        ...(parsed.offset === null
-          ? {}
-          : { line: text.slice(0, parsed.offset).split("\n").length }),
+        ...(parsed.offset === null ? {} : { line: lineAndColumn(text, parsed.offset).line }),
       },
     });
   }

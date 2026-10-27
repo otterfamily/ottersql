@@ -14,7 +14,14 @@ import { exclusionChanges } from "./exclusion-constraints.ts";
 import { indexBackedKey } from "./key-indexes.ts";
 import { matchDefinitions, uncommented } from "./match.ts";
 import type { Step } from "./plan.ts";
-import { alterTable, checkDefinition, exceedsNameLimit, identifier } from "./sql-text.ts";
+import {
+  alterTable,
+  checkDefinition,
+  exceedsNameLimit,
+  identifier,
+  nameTooLongReason,
+  temporaryName,
+} from "./sql-text.ts";
 import { combine, manual, noChanges, objectName, only, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
@@ -155,7 +162,7 @@ function replaceConstraint(
 
 /** The temporary names a redefined constraint goes through, or `null` when one would be too long. */
 function swapNames(name: string): { readonly bridge: string; readonly next: string } | null {
-  const names = { bridge: `ottersql_old_or_new_${name}`, next: `ottersql_new_${name}` };
+  const names = { bridge: temporaryName("old_or_new", name), next: temporaryName("new", name) };
   return exceedsNameLimit(names.bridge) ? null : names;
 }
 
@@ -225,6 +232,6 @@ function replaceForeignKey(table: Table, old: ForeignKey, current: ForeignKey): 
 function tooLong(table: Table, name: string): Changes {
   return manual(
     objectName(table, name),
-    `The temporary constraint names for "${name}" would be longer than Postgres's 63-byte names; change the constraint by hand`,
+    nameTooLongReason(`The temporary constraint names for "${name}"`, "change the constraint"),
   );
 }

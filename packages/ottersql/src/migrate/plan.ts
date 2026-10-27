@@ -9,6 +9,11 @@ export interface Plan {
   readonly manual: readonly ManualChange[];
 }
 
+/** Whether `plan` neither runs nor leaves anything, so the two schemas are the same. */
+export function isEmptyPlan(plan: Plan): boolean {
+  return plan.steps.length === 0 && plan.manual.length === 0;
+}
+
 /** A step that runs in a transaction, with its record, so a failure leaves nothing behind. */
 export interface InsideStep extends StepCommon {
   readonly transaction: "inside";

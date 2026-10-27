@@ -1,4 +1,5 @@
-import type { Catalog, Domain, Enum, RangeType, Table, TypeRef } from "./model.ts";
+import type { ForeignKey } from "./keys.ts";
+import type { Catalog, Domain, Enum, QualifiedName, RangeType, Table, TypeRef } from "./model.ts";
 
 /** A catalog's objects by schema-qualified name, for lookups that would otherwise scan a list. */
 interface ByName {
@@ -62,4 +63,9 @@ export function sameType(left: TypeRef, right: TypeRef): boolean {
     return left.kind === "array" && right.kind === "array" && sameType(left.element, right.element);
   }
   return left.kind === right.kind && left.schema === right.schema && left.name === right.name;
+}
+
+/** Whether `key` refers to `table`. */
+export function referencesTable(key: ForeignKey, table: QualifiedName): boolean {
+  return key.references.schema === table.schema && key.references.table === table.name;
 }

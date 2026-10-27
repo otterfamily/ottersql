@@ -5,6 +5,8 @@ import {
   createIndex,
   dropIndexStatement,
   exceedsNameLimit,
+  nameTooLongReason,
+  temporaryName,
   identifier,
   qualified,
 } from "./sql-text.ts";
@@ -35,11 +37,11 @@ export function indexChanges(before: Table, after: Table): Changes {
 }
 
 function rebuildIndex(table: Table, old: Index, current: Index): Changes {
-  const temporary = `ottersql_new_${current.name}`;
+  const temporary = temporaryName("new", current.name);
   if (exceedsNameLimit(temporary)) {
     return manual(
       objectName(table, current.name),
-      `The temporary index "${temporary}" would be longer than Postgres's 63-byte names; rebuild the index by hand`,
+      nameTooLongReason(`The temporary index "${temporary}"`, "rebuild the index"),
     );
   }
   const rename = step({
@@ -79,7 +81,7 @@ function dropIndex(table: Table, index: Index): Changes {
     outsideStep({
       kind: "dropIndex",
       object: objectName(table, index.name),
-      statements: [dropIndexStatement(table, index.name)],
+      statements: [dropIndexStatement({ schema: table.schema, name: index.name })],
       cleanup: null,
       phase: "contract",
       reversal: "reversible",

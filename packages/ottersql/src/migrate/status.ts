@@ -6,6 +6,7 @@ import { migratedObjects, readLedger } from "./ledger.ts";
 import { replay } from "./migrations.ts";
 import type { MigrationFile } from "./migrations.ts";
 import { planMigration } from "./plan-migration.ts";
+import { isEmptyPlan } from "./plan.ts";
 import type { Plan, Step } from "./plan.ts";
 
 /** A step of the migration files, and whether it ran on the database. */
@@ -47,6 +48,6 @@ export async function migrationStatus(
       phase: each.step.phase,
       applied: !pending.has(each),
     })),
-    drift: drift.steps.length === 0 && drift.manual.length === 0 ? null : drift,
+    drift: isEmptyPlan(drift) ? null : drift,
   };
 }

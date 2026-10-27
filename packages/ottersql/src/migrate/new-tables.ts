@@ -6,7 +6,6 @@ import {
   alterTable,
   checkDefinition,
   columnDefinition,
-  columnList,
   columnSqlName,
   createIndex,
   createSequence,
@@ -14,6 +13,7 @@ import {
   enforcement,
   foreignKeyDefinition,
   identifier,
+  includeClause,
   keyColumnList,
   qualified,
   setStorage,
@@ -86,10 +86,6 @@ function createTable(table: Table): Changes {
   );
 }
 
-function include(columns: readonly string[]): string {
-  return columns.length > 0 ? ` INCLUDE ${columnList(columns)}` : "";
-}
-
 /** Table constraints as written inside `CREATE TABLE`, where there are no rows to check yet. */
 function inlineConstraints(table: Table): string[] {
   const { primaryKey } = table;
@@ -97,11 +93,11 @@ function inlineConstraints(table: Table): string[] {
     primaryKey === null
       ? []
       : [
-          `CONSTRAINT ${identifier(primaryKey.name)} PRIMARY KEY ${keyColumnList(primaryKey)}${include(primaryKey.include)}${deferral(primaryKey.deferral)}`,
+          `CONSTRAINT ${identifier(primaryKey.name)} PRIMARY KEY ${keyColumnList(primaryKey)}${includeClause(primaryKey.include)}${deferral(primaryKey.deferral)}`,
         ];
   const unique = table.uniqueConstraints.map(
     (key) =>
-      `CONSTRAINT ${identifier(key.name)} UNIQUE${key.nullsNotDistinct ? " NULLS NOT DISTINCT" : ""} ${keyColumnList(key)}${include(key.include)}${deferral(key.deferral)}`,
+      `CONSTRAINT ${identifier(key.name)} UNIQUE${key.nullsNotDistinct ? " NULLS NOT DISTINCT" : ""} ${keyColumnList(key)}${includeClause(key.include)}${deferral(key.deferral)}`,
   );
   const checks = table.checks
     .filter((check) => check.enforcement !== "not valid")

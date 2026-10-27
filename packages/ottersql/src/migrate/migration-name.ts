@@ -1,16 +1,24 @@
 const SECOND = 1000;
 const STAMP_LENGTH = "YYYYMMDDHHMMSS".length;
-const label = /^[0-9a-z]+(?:_[0-9a-z]+)*$/v;
-const fileName =
-  /^(?<year>\d{4})(?<month>\d{2})(?<day>\d{2})(?<hour>\d{2})(?<minute>\d{2})(?<second>\d{2})_[0-9a-z]+(?:_[0-9a-z]+)*\.sql$/v;
+const labelPattern = "[0-9a-z]+(?:_[0-9a-z]+)*";
+const label = new RegExp(`^${labelPattern}$`, "v");
+const fileName = new RegExp(
+  `^(?<year>\\d{4})(?<month>\\d{2})(?<day>\\d{2})(?<hour>\\d{2})(?<minute>\\d{2})(?<second>\\d{2})_${labelPattern}\\.sql$`,
+  "v",
+);
 
 /** What a migration file's name must be, for messages. */
 export const migrationNameRule =
   "the name must be YYYYMMDDHHMMSS_<name>.sql, the time in UTC and the name in lowercase letters, digits and underscores";
 
-/** Whether `name` can follow the time in a migration's file name, such as `add_users`. */
-export function isMigrationLabel(name: string): boolean {
-  return label.test(name);
+/**
+ * Why `name` cannot follow the time in a migration's file name, as `add_users` can, or `null`
+ * when it can.
+ */
+export function migrationLabelProblem(name: string): string | null {
+  return label.test(name)
+    ? null
+    : `A migration name is lowercase letters, digits and underscores, not ${JSON.stringify(name)}`;
 }
 
 export function isMigrationFileName(name: string): boolean {
@@ -23,10 +31,9 @@ export function isMigrationFileName(name: string): boolean {
  * in a second or on a clock behind the one that made the newest.
  */
 export function nextMigrationName(existing: readonly string[], name: string, now: Date): string {
-  if (!isMigrationLabel(name)) {
-    throw new RangeError(
-      `A migration name is lowercase letters, digits and underscores, not ${JSON.stringify(name)}`,
-    );
+  const problem = migrationLabelProblem(name);
+  if (problem !== null) {
+    throw new RangeError(problem);
   }
   const newest = existing
     .filter((file) => isMigrationFileName(file))

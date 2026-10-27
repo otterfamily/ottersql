@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 
+import { referencesTable } from "../catalog/find.ts";
 import type { Catalog, Column, ForeignKey, Table } from "../catalog/index.ts";
 import { alterTable, identifier } from "./sql-text.ts";
 import { manual, noChanges, objectName, only, step } from "./steps.ts";
@@ -41,9 +42,7 @@ function widens(before: string, after: string): boolean {
  */
 function constrained(table: Table, column: string, to: Catalog): boolean {
   const refersTo = (key: ForeignKey): boolean =>
-    key.references.schema === table.schema &&
-    key.references.table === table.name &&
-    key.references.columns.includes(column);
+    referencesTable(key, table) && key.references.columns.includes(column);
   return (
     table.checks.some((check) => check.columns.includes(column)) ||
     table.foreignKeys.some((key) => key.columns.includes(column)) ||

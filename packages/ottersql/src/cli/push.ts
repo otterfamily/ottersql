@@ -2,7 +2,7 @@ import { ApprovalRequiredError, MigrationHistoryError, pushSchema } from "../mig
 import type { PushResult } from "../migrate/index.ts";
 import { approvalRequired, refuseApprovalByAgent } from "./approval.ts";
 import type { Approvable } from "./approval.ts";
-import { schemaRefusal } from "./changes.ts";
+import { manualLines, schemaRefusal } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import { withSession } from "./database.ts";
@@ -66,7 +66,7 @@ function reported({ applied, failed, manual }: PushResult): Outcome {
       why: `${String(manual.length)} changes are left to a person, so nothing was pushed`,
       fix: "Make those changes in the database by hand, or write them as migrations",
       result: { manual: manual.map((change) => manualJson(change)) },
-      lines: manual.map(({ object, reason }) => `  by hand: ${object}: ${reason}`),
+      lines: manualLines(manual),
     };
   }
   if (failed !== null) {

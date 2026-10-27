@@ -11,6 +11,8 @@ import {
   columnDefinition,
   columnSqlName,
   exceedsNameLimit,
+  nameTooLongReason,
+  temporaryName,
   identifier,
   setStorage,
 } from "./sql-text.ts";
@@ -242,11 +244,11 @@ function notNullChange(table: Table, before: Column, after: Column): Changes {
  * proves the same without blocking writes, and Postgres then sets NOT NULL without scanning.
  */
 function setNotNull(table: Table, column: Column): Changes {
-  const check = `ottersql_not_null_${column.name}`;
+  const check = temporaryName("not_null", column.name);
   if (exceedsNameLimit(check)) {
     return manual(
       objectName(table, column.name),
-      `The helper check "${check}" would be longer than Postgres's 63-byte names; make the column NOT NULL by hand`,
+      nameTooLongReason(`The helper check "${check}"`, "make the column NOT NULL"),
     );
   }
   const name = identifier(check);

@@ -26,7 +26,7 @@ export function literal(text: string): string {
   return text.includes("\\") ? `E'${quoted.replaceAll("\\", String.raw`\\`)}'` : `'${quoted}'`;
 }
 
-export function columnList(names: readonly string[]): string {
+function columnList(names: readonly string[]): string {
   return `(${names.map((name) => identifier(name)).join(", ")})`;
 }
 
@@ -147,12 +147,17 @@ function indexKey(key: IndexKey): string {
   return `${target}${collation}${operatorClass}${order}${nulls}`;
 }
 
+/** The `INCLUDE` clause of an index or key with extra columns, or nothing. */
+export function includeClause(columns: readonly string[]): string {
+  return columns.length > 0 ? ` INCLUDE ${columnList(columns)}` : "";
+}
+
 export function createIndex(table: QualifiedName, index: Index, concurrently: boolean): string {
   return [
     `CREATE${index.unique ? " UNIQUE" : ""} INDEX${concurrently ? " CONCURRENTLY" : ""}`,
     ` ${identifier(index.name)} ON ${qualifiedName(table)} USING ${index.method}`,
     ` (${index.keys.map((key) => indexKey(key)).join(", ")})`,
-    index.include.length > 0 ? ` INCLUDE ${columnList(index.include)}` : "",
+    includeClause(index.include),
     index.nullsNotDistinct ? " NULLS NOT DISTINCT" : "",
     storageParameters(index.options),
     index.predicate === null ? "" : ` WHERE ${index.predicate}`,
@@ -167,6 +172,16 @@ export function exceedsNameLimit(name: string): boolean {
   return new TextEncoder().encode(name).length > MAX_NAME_BYTES;
 }
 
+/** A name ottersql makes up for a step's helper object, such as `ottersql_new_orders_pkey`. */
+export function temporaryName(purpose: "new" | "old_or_new" | "not_null", name: string): string {
+  return `ottersql_${purpose}_${name}`;
+}
+
+/** Why a change is left to a person when `subject`, a name ottersql makes up, is too long. */
+export function nameTooLongReason(subject: string, action: string): string {
+  return `${subject} would be longer than Postgres's ${String(MAX_NAME_BYTES)}-byte names; ${action} by hand`;
+}
+
 export function alterTable(table: QualifiedName, action: string): string {
   return `ALTER TABLE ${qualified(table.schema, table.name)} ${action}`;
 }
@@ -176,6 +191,6 @@ export function columnSqlName(table: QualifiedName, column: string): string {
 }
 
 /** Re-runnable: a run that dropped the index but failed before recording it finds it gone. */
-export function dropIndexStatement(table: QualifiedName, index: string): string {
-  return `DROP INDEX CONCURRENTLY IF EXISTS ${qualified(table.schema, index)}`;
+export function dropIndexStatement(index: QualifiedName): string {
+  return `DROP INDEX CONCURRENTLY IF EXISTS ${qualified(index.schema, index.name)}`;
 }

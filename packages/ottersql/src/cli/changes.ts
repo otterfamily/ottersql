@@ -1,6 +1,6 @@
 import { SchemaError } from "../catalog/index.ts";
 import { MigrationFileError, pendingChanges } from "../migrate/index.ts";
-import type { MigrationFile, Plan } from "../migrate/index.ts";
+import type { ManualChange, MigrationFile, Plan } from "../migrate/index.ts";
 import { CommandError } from "./outcome.ts";
 import { readSchema, shown, unreadableMigration } from "./project.ts";
 import type { Layout } from "./project.ts";
@@ -35,10 +35,6 @@ export function schemaRefusal(layout: Layout, error: unknown): unknown {
   });
 }
 
-export function isEmpty(plan: Plan): boolean {
-  return plan.steps.length === 0 && plan.manual.length === 0;
-}
-
 /** The plan as people read it, a line for each step and each change left to them. */
 export function planLines(plan: Plan): string[] {
   return [
@@ -46,6 +42,11 @@ export function planLines(plan: Plan): string[] {
       ({ kind, object, phase, reversal, transaction, lock }) =>
         `  ${phase} ${kind} ${object} (${reversal}, ${transaction}, lock ${lock})`,
     ),
-    ...plan.manual.map(({ object, reason }) => `  by hand: ${object}: ${reason}`),
+    ...manualLines(plan.manual),
   ];
+}
+
+/** The changes left to a person as people read them, a line for each. */
+export function manualLines(manual: readonly ManualChange[]): string[] {
+  return manual.map(({ object, reason }) => `  by hand: ${object}: ${reason}`);
 }

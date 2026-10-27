@@ -1,11 +1,20 @@
 import { isDeepStrictEqual } from "node:util";
 
+import { referencesTable } from "../catalog/find.ts";
 import type { Catalog, Table, UniqueConstraint } from "../catalog/index.ts";
 import { constraintComment, constraintCommentChange } from "./comments.ts";
 import { dropConstraint } from "./constraints.ts";
 import { indexBackedKey, keyIndex, withoutOverlapsReason } from "./key-indexes.ts";
 import { matchDefinitions, uncommented } from "./match.ts";
-import { alterTable, createIndex, deferral, exceedsNameLimit, identifier } from "./sql-text.ts";
+import {
+  alterTable,
+  createIndex,
+  deferral,
+  exceedsNameLimit,
+  identifier,
+  nameTooLongReason,
+  temporaryName,
+} from "./sql-text.ts";
 import { combine, manual, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
@@ -79,11 +88,10 @@ function includes(all: readonly string[], some: readonly string[]): boolean {
 function referenced(from: Catalog, table: Table, key: UniqueConstraint): boolean {
   return from.tables.some(({ foreignKeys }) =>
     foreignKeys.some(
-      ({ references }) =>
-        references.schema === table.schema &&
-        references.table === table.name &&
-        references.columns.length === key.columns.length &&
-        includes(references.columns, key.columns),
+      (foreignKey) =>
+        referencesTable(foreignKey, table) &&
+        foreignKey.references.columns.length === key.columns.length &&
+        includes(foreignKey.references.columns, key.columns),
     ),
   );
 }
@@ -105,12 +113,9 @@ function swapKey(
       "A changed unique key that neither only adds columns nor only removes them, or that a foreign key refers to, cannot be swapped safely without knowing its intent; write the change by hand",
     );
   }
-  const index = old.name === current.name ? `ottersql_new_${current.name}` : current.name;
+  const index = old.name === current.name ? temporaryName("new", current.name) : current.name;
   if (exceedsNameLimit(index)) {
-    return manual(
-      object,
-      `The temporary index "${index}" would be longer than Postgres's 63-byte names; change the key by hand`,
-    );
+    return manual(object, nameTooLongReason(`The temporary index "${index}"`, "change the key"));
   }
   return swapSteps(table, { old, current, index, way });
 }

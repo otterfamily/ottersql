@@ -1,6 +1,7 @@
 import { nextMigrationName, renderMigration } from "../migrate/index.ts";
+import { isEmptyPlan } from "../migrate/plan.ts";
 import { emptyMigration } from "../migrate/render-migration.ts";
-import { changesToSchema, isEmpty, planLines } from "./changes.ts";
+import { changesToSchema, planLines } from "./changes.ts";
 import type { Command } from "./command.ts";
 import type { Context } from "./context.ts";
 import type { Outcome } from "./outcome.ts";
@@ -24,7 +25,7 @@ export async function generate(
     return writeEmpty(layout, name);
   }
   const plan = await changesToSchema(layout, files);
-  if (isEmpty(plan)) {
+  if (isEmptyPlan(plan)) {
     return {
       ok: true,
       result: { file: null, ...planJson(plan) },

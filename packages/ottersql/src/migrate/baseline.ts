@@ -5,6 +5,7 @@ import { migratedObjects, readLedger, recordAll } from "./ledger.ts";
 import { replay } from "./migrations.ts";
 import type { MigrationFile } from "./migrations.ts";
 import { planMigration } from "./plan-migration.ts";
+import { isEmptyPlan } from "./plan.ts";
 import type { Plan } from "./plan.ts";
 import { exclusively } from "./run-lock.ts";
 
@@ -38,7 +39,7 @@ export async function baselineMigrations(
       await replay(steps.flatMap(({ step }) => step.statements)),
       await readCatalog(connection, migratedObjects),
     );
-    if (difference.steps.length > 0 || difference.manual.length > 0) {
+    if (!isEmptyPlan(difference)) {
       return difference;
     }
     await recordAll(connection, steps);

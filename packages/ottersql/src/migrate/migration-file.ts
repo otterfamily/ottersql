@@ -1,3 +1,4 @@
+import { lineAndColumn } from "../sql/query-file.ts";
 import { lineComments, splitStatements } from "../sql/statements.ts";
 import type { Located } from "../sql/statements.ts";
 import { isMigrationFileName, migrationNameRule } from "./migration-name.ts";
@@ -70,7 +71,7 @@ function readSteps(original: string, file: string | null): Step[] {
   const [stray] = splitStatements(text.slice(0, steps[0]?.start ?? text.length));
   if (stray !== undefined) {
     throw new MigrationFileError(
-      { file, line: lineAt(text, stray.start) },
+      { file, line: lineAndColumn(text, stray.start).line },
       "SQL must follow a -- ottersql:step line",
     );
   }
@@ -84,17 +85,13 @@ function readSteps(original: string, file: string | null): Step[] {
   });
 }
 
-function lineAt(text: string, offset: number): number {
-  return text.slice(0, offset).split("\n").length;
-}
-
 /** The directive `comment` holds, or `null` when it is a plain comment. */
 function directiveIn(text: string, comment: Located, file: string | null): Directive | null {
   const body = comment.text.slice("--".length).trimStart();
   if (!body.startsWith(PREFIX)) {
     return null;
   }
-  const where = { file, line: lineAt(text, comment.start) };
+  const where = { file, line: lineAndColumn(text, comment.start).line };
   const lineStart = text.lastIndexOf("\n", comment.start - 1) + 1;
   if (text.slice(lineStart, comment.start).trim() !== "") {
     throw new MigrationFileError(where, "a -- ottersql: directive must be on a line of its own");

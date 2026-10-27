@@ -1,6 +1,6 @@
 import { parseArgs } from "node:util";
 
-import { isMigrationLabel } from "../migrate/migration-name.ts";
+import { migrationLabelProblem } from "../migrate/migration-name.ts";
 import { DEFAULT_LOCK_WAIT } from "../migrate/run-lock.ts";
 
 /** What the command line asks for, parsed once where it enters. */
@@ -130,6 +130,10 @@ export function parseCommand(args: readonly string[]): Command {
   return commandOf(name, rest, values);
 }
 
+function unknownCommand(name: string): UsageError {
+  return new UsageError(`Unknown command: ${name}; run \`ottersql --help\` for the list`);
+}
+
 /** The command's name, one word or a group and a verb, and the arguments after it. */
 function commandName(positionals: readonly string[]): { name: string; rest: readonly string[] } {
   const [group, ...afterGroup] = positionals;
@@ -137,7 +141,7 @@ function commandName(positionals: readonly string[]): { name: string; rest: read
     return { name: group, rest: afterGroup };
   }
   if (group !== undefined && group !== "migrate") {
-    throw new UsageError(`Unknown command: ${group}; run \`ottersql --help\` for the list`);
+    throw unknownCommand(group);
   }
   const [verb, ...rest] = afterGroup;
   if (group === undefined || verb === undefined) {
@@ -215,7 +219,7 @@ function singleWordCommandOf(name: string, values: Values): Command {
       return { name, project, check: values.check === true };
     }
     default: {
-      throw new UsageError(`Unknown command: ${name}; run \`ottersql --help\` for the list`);
+      throw unknownCommand(name);
     }
   }
 }
@@ -237,10 +241,9 @@ function parseMigrationName(rest: readonly string[]): string {
     throw new UsageError("Name the migration, such as `add_users`");
   }
   noMore(more);
-  if (!isMigrationLabel(name)) {
-    throw new UsageError(
-      `A migration name is lowercase letters, digits and underscores, not ${JSON.stringify(name)}`,
-    );
+  const problem = migrationLabelProblem(name);
+  if (problem !== null) {
+    throw new UsageError(problem);
   }
   return name;
 }
