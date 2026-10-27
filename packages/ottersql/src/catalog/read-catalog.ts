@@ -1,10 +1,12 @@
 import type { Connection } from "../sql/index.ts";
-import { readCapabilities } from "./capabilities.ts";
-import { readFeatures } from "./features.ts";
+import { capabilitiesRead } from "./capabilities.ts";
+import { queryCatalog } from "./catalog-json.ts";
+import { featuresRead } from "./features.ts";
 import type { Catalog } from "./model.ts";
-import { readSchemaObjects } from "./schema-objects.ts";
-import { readSchemas } from "./schemas.ts";
-import { readTables } from "./tables.ts";
+import { schemaObjectReads } from "./schema-objects.ts";
+import { schemasRead } from "./schemas.ts";
+import { scopeParameters } from "./scope.ts";
+import { tablesRead } from "./tables.ts";
 
 /** What the catalog reads: the objects of every user schema but those it is told to leave out. */
 export interface CatalogOptions {
@@ -29,12 +31,20 @@ export async function readCatalog(
   // and compiling it then takes many times longer than running it.
   return connection.transaction(
     async (transaction) => {
-      const features = await readFeatures(transaction);
+      // The other queries are written from the features, so they cannot share their statement.
+      const features = (await queryCatalog(transaction, [featuresRead]))(featuresRead);
+      const tables = tablesRead(features);
+      const objects = schemaObjectReads(features);
+      const results = await queryCatalog(
+        transaction,
+        [capabilitiesRead, schemasRead, tables, ...objects.reads],
+        scopeParameters(omitSchemas),
+      );
       return {
-        capabilities: await readCapabilities(transaction),
-        schemas: await readSchemas(transaction, omitSchemas),
-        tables: await readTables(transaction, features, omitSchemas),
-        ...(await readSchemaObjects(transaction, features, omitSchemas)),
+        capabilities: results(capabilitiesRead),
+        schemas: results(schemasRead),
+        tables: results(tables),
+        ...objects.make(results),
       };
     },
     {

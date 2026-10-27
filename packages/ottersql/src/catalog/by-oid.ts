@@ -1,5 +1,5 @@
 import type { Connection } from "../sql/index.ts";
-import { array, fields, number, queryRows, string } from "./catalog-json.ts";
+import { array, catalogRead, fields, number, queryCatalog, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import type { TypeRef } from "./model.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
@@ -37,27 +37,19 @@ const relationRow: Shape<Relation & { readonly oid: number }> = (value, path) =>
   };
 };
 
-/** The type references for type oids, such as those Postgres reports for query parameters. */
-export async function readTypeRefs(
-  connection: Connection,
-  oids: readonly number[],
-): Promise<ReadonlyMap<number, TypeRef>> {
-  const rows = await queryRows(connection, {
+const typeRefsRead = catalogRead(
+  {
     select: `select t.oid::int as oid, ${typeRefJson("t.oid")} as type
         from pg_type t where t.oid = any($1::oid[])`,
-    parameters: [oidArray(oids)],
     row: typeRefRow,
     label: "types",
-  });
-  return new Map(rows.map((row) => [row.oid, parseTypeRef(row.type)]));
-}
+  },
+  (rows): ReadonlyMap<number, TypeRef> =>
+    new Map(rows.map((row) => [row.oid, parseTypeRef(row.type)])),
+);
 
-/** The relations for relation oids, such as those Postgres reports as a result column's origin. */
-export async function readRelations(
-  connection: Connection,
-  oids: readonly number[],
-): Promise<ReadonlyMap<number, Relation>> {
-  const rows = await queryRows(connection, {
+const relationsRead = catalogRead(
+  {
     select: `select c.oid::int as oid, n.nspname as schema, c.relname as name,
          coalesce((
            select json_agg(json_build_object('attnum', a.attnum, 'name', a.attname) order by a.attnum)
@@ -65,9 +57,27 @@ export async function readRelations(
          ), '[]') as columns
        from pg_class c join pg_namespace n on n.oid = c.relnamespace
        where c.oid = any($1::oid[])`,
-    parameters: [oidArray(oids)],
     row: relationRow,
     label: "relations",
-  });
-  return new Map(rows.map(({ oid, schema, name, columns }) => [oid, { schema, name, columns }]));
+  },
+  (rows): ReadonlyMap<number, Relation> =>
+    new Map(rows.map(({ oid, schema, name, columns }) => [oid, { schema, name, columns }])),
+);
+
+/** The type references for type oids, such as those Postgres reports for query parameters. */
+export async function readTypeRefs(
+  connection: Connection,
+  oids: readonly number[],
+): Promise<ReadonlyMap<number, TypeRef>> {
+  const results = await queryCatalog(connection, [typeRefsRead], [oidArray(oids)]);
+  return results(typeRefsRead);
+}
+
+/** The relations for relation oids, such as those Postgres reports as a result column's origin. */
+export async function readRelations(
+  connection: Connection,
+  oids: readonly number[],
+): Promise<ReadonlyMap<number, Relation>> {
+  const results = await queryCatalog(connection, [relationsRead], [oidArray(oids)]);
+  return results(relationsRead);
 }

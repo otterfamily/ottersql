@@ -1,9 +1,8 @@
-import type { Transaction } from "../sql/index.ts";
-import { array, fields, nullable, queryRows, string } from "./catalog-json.ts";
-import type { Shape } from "./catalog-json.ts";
+import { array, catalogRead, fields, nullable, string } from "./catalog-json.ts";
+import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
 import type { Enum } from "./model.ts";
-import { scopeParameters, userObject } from "./scope.ts";
+import { userObject } from "./scope.ts";
 
 const enumRow: Shape<EnumRow> = (value, path) => {
   const field = fields(value, path);
@@ -15,11 +14,8 @@ const enumRow: Shape<EnumRow> = (value, path) => {
   };
 };
 
-export async function readEnums(
-  transaction: Transaction,
-  omitSchemas: readonly string[],
-): Promise<Enum[]> {
-  const rows = await queryRows(transaction, {
+export const enumsRead: CatalogRead<readonly Enum[]> = catalogRead(
+  {
     select: `select n.nspname as schema, t.typname as name,
         array(select e.enumlabel from pg_enum e where e.enumtypid = t.oid order by e.enumsortorder)
           as values,
@@ -29,15 +25,15 @@ export async function readEnums(
     orderBy: "rows.schema, rows.name",
     row: enumRow,
     label: "enums",
-    parameters: scopeParameters(omitSchemas),
-  });
-  return rows.map((row) => ({
-    schema: row.schema,
-    name: row.name,
-    values: row.values,
-    comment: parseComment(row.comment),
-  }));
-}
+  },
+  (rows) =>
+    rows.map((row) => ({
+      schema: row.schema,
+      name: row.name,
+      values: row.values,
+      comment: parseComment(row.comment),
+    })),
+);
 
 interface EnumRow {
   readonly schema: string;

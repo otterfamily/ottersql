@@ -1,6 +1,5 @@
-import type { Transaction } from "../sql/index.ts";
-import { boolean, CatalogShapeError, fields, queryRows } from "./catalog-json.ts";
-import type { Shape } from "./catalog-json.ts";
+import { boolean, catalogRead, CatalogShapeError, fields } from "./catalog-json.ts";
+import type { CatalogRead, Shape } from "./catalog-json.ts";
 
 /**
  * Catalog columns that only some supported majors have. Queries are built from these rather than
@@ -25,15 +24,17 @@ function hasConstraintColumn(name: string): string {
     )`;
 }
 
-export async function readFeatures(transaction: Transaction): Promise<CatalogFeatures> {
-  const [features] = await queryRows(transaction, {
+export const featuresRead: CatalogRead<CatalogFeatures> = catalogRead(
+  {
     select: `select ${hasConstraintColumn("conenforced")} as "enforcedFlag",
         ${hasConstraintColumn("conperiod")} as "periodFlag"`,
     row: featuresRow,
     label: "features",
-  });
-  if (features === undefined) {
-    throw new CatalogShapeError("the features query returned no row");
-  }
-  return features;
-}
+  },
+  ([features]) => {
+    if (features === undefined) {
+      throw new CatalogShapeError("the features query returned no row");
+    }
+    return features;
+  },
+);

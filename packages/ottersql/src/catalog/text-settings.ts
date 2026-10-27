@@ -1,16 +1,7 @@
-import type { Transaction } from "../sql/index.ts";
-import {
-  array,
-  boolean,
-  CatalogShapeError,
-  fields,
-  nullable,
-  queryRows,
-  string,
-} from "./catalog-json.ts";
-import type { Shape } from "./catalog-json.ts";
+import { array, boolean, catalogRead, fields, nullable, string } from "./catalog-json.ts";
+import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
-import { scopeParameters, userObject } from "./scope.ts";
+import { userObject } from "./scope.ts";
 
 /** A collation `CREATE COLLATION` makes. */
 export interface Collation {
@@ -78,83 +69,58 @@ const dictionaryRow: Shape<TextSearchDictionary> = (value, path) => {
   };
 };
 
-interface TextSettingsRow {
-  readonly collations: readonly CollationRow[];
-  readonly configurations: readonly TextSearchConfiguration[];
-  readonly dictionaries: readonly TextSearchDictionary[];
-}
-
-const textSettingsRow: Shape<TextSettingsRow> = (value, path) => {
-  const field = fields(value, path);
-  return {
-    collations: field("collations", array(collationRow)),
-    configurations: field("configurations", array(configurationRow)),
-    dictionaries: field("dictionaries", array(dictionaryRow)),
-  };
-};
-
 const providers = { b: "builtin", c: "libc", d: "default", i: "icu" } as const;
 
 // The ICU or builtin locale is read through to_jsonb because its column was renamed in Postgres
 // 17, from `colliculocale` to `colllocale`.
-const textSettingsSelect = `select
-        coalesce((
-          select json_agg(json_build_object(
-            'schema', n.nspname, 'name', coll.collname, 'provider', coll.collprovider,
-            'deterministic', coll.collisdeterministic,
-            'locale', coalesce(to_jsonb(coll)->>'colllocale', to_jsonb(coll)->>'colliculocale'),
-            'lcCollate', coll.collcollate, 'lcCtype', coll.collctype
-          ) order by n.nspname, coll.collname)
-          from pg_collation coll join pg_namespace n on n.oid = coll.collnamespace
-          where ${userObject("pg_collation", "coll.oid", "coll.collnamespace")}
-        ), '[]') as collations,
-        coalesce((
-          select json_agg(json_build_object(
-            'schema', n.nspname, 'name', cfg.cfgname,
-            'parser', (select prsname from pg_ts_parser where oid = cfg.cfgparser),
-            'mappings', array(
-              select map.maptokentype || ':' || map.mapdict::regdictionary::text
-              from pg_ts_config_map map where map.mapcfg = cfg.oid
-              order by map.maptokentype, map.mapseqno
-            )
-          ) order by n.nspname, cfg.cfgname)
-          from pg_ts_config cfg join pg_namespace n on n.oid = cfg.cfgnamespace
-          where ${userObject("pg_ts_config", "cfg.oid", "cfg.cfgnamespace")}
-        ), '[]') as configurations,
-        coalesce((
-          select json_agg(json_build_object(
-            'schema', n.nspname, 'name', dict.dictname,
-            'template', (select tmplname from pg_ts_template where oid = dict.dicttemplate),
-            'options', dict.dictinitoption
-          ) order by n.nspname, dict.dictname)
-          from pg_ts_dict dict join pg_namespace n on n.oid = dict.dictnamespace
-          where ${userObject("pg_ts_dict", "dict.oid", "dict.dictnamespace")}
-        ), '[]') as dictionaries`;
-
-/** The collations, text search configurations and text search dictionaries the user's schemas define, in one query. */
-export async function readTextSettings(
-  transaction: Transaction,
-  omitSchemas: readonly string[],
-): Promise<{
-  readonly collations: readonly Collation[];
-  readonly textSearchConfigurations: readonly TextSearchConfiguration[];
-  readonly textSearchDictionaries: readonly TextSearchDictionary[];
-}> {
-  const [row] = await queryRows(transaction, {
-    select: textSettingsSelect,
-    row: textSettingsRow,
-    label: "collations and text search",
-    parameters: scopeParameters(omitSchemas),
-  });
-  if (row === undefined) {
-    throw new CatalogShapeError("the collations and text search query returned no row");
-  }
-  return {
-    collations: row.collations.map((collation) => ({
+export const collationsRead: CatalogRead<readonly Collation[]> = catalogRead(
+  {
+    select: `select n.nspname as schema, coll.collname as name, coll.collprovider as provider,
+        coll.collisdeterministic as deterministic,
+        coalesce(to_jsonb(coll)->>'colllocale', to_jsonb(coll)->>'colliculocale') as locale,
+        coll.collcollate as "lcCollate", coll.collctype as "lcCtype"
+      from pg_collation coll join pg_namespace n on n.oid = coll.collnamespace
+      where ${userObject("pg_collation", "coll.oid", "coll.collnamespace")}`,
+    orderBy: "rows.schema, rows.name",
+    row: collationRow,
+    label: "collations",
+  },
+  (rows) =>
+    rows.map((collation) => ({
       ...collation,
       provider: decode(providers, collation.provider, "pg_collation.collprovider"),
     })),
-    textSearchConfigurations: row.configurations,
-    textSearchDictionaries: row.dictionaries,
-  };
-}
+);
+
+export const textSearchConfigurationsRead: CatalogRead<readonly TextSearchConfiguration[]> =
+  catalogRead(
+    {
+      select: `select n.nspname as schema, cfg.cfgname as name,
+          (select prsname from pg_ts_parser where oid = cfg.cfgparser) as parser,
+          array(
+            select map.maptokentype || ':' || map.mapdict::regdictionary::text
+            from pg_ts_config_map map where map.mapcfg = cfg.oid
+            order by map.maptokentype, map.mapseqno
+          ) as mappings
+        from pg_ts_config cfg join pg_namespace n on n.oid = cfg.cfgnamespace
+        where ${userObject("pg_ts_config", "cfg.oid", "cfg.cfgnamespace")}`,
+      orderBy: "rows.schema, rows.name",
+      row: configurationRow,
+      label: "text search configurations",
+    },
+    (rows) => rows,
+  );
+
+export const textSearchDictionariesRead: CatalogRead<readonly TextSearchDictionary[]> = catalogRead(
+  {
+    select: `select n.nspname as schema, dict.dictname as name,
+          (select tmplname from pg_ts_template where oid = dict.dicttemplate) as template,
+          dict.dictinitoption as options
+        from pg_ts_dict dict join pg_namespace n on n.oid = dict.dictnamespace
+        where ${userObject("pg_ts_dict", "dict.oid", "dict.dictnamespace")}`,
+    orderBy: "rows.schema, rows.name",
+    row: dictionaryRow,
+    label: "text search dictionaries",
+  },
+  (rows) => rows,
+);

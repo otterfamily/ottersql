@@ -66,30 +66,74 @@ export interface CatalogQuery<Row> {
   readonly select: string;
   /** Refers to the columns `select` returns, as `rows.<column>`; left out for a single row. */
   readonly orderBy?: string;
-  readonly parameters?: readonly string[];
   readonly row: Shape<Row>;
   /** What the rows are, such as `tables`, for the path in an error. */
   readonly label: string;
 }
 
+/** A catalog query and what its rows make, to be run with others by `queryCatalog`. */
+export interface CatalogRead<Value> {
+  readonly label: string;
+  /** A scalar subquery that returns the rows as one JSON array. */
+  readonly sql: string;
+  readonly parse: (json: unknown) => Value;
+}
+
 /**
- * The rows of `query`, read as `row` describes them. The database returns them as one JSON array,
- * so every driver, PGlite as well, hands them over as text. The order goes into the aggregate,
- * where Postgres keeps it, not into a subquery, where it usually does.
+ * `query`, its rows made into a value by `make`. The rows come back as one JSON array, so every
+ * driver, PGlite as well, hands them over as text. The order goes into the aggregate, where
+ * Postgres keeps it, not into a subquery, where it usually does.
  */
-export async function queryRows<Row>(
-  connection: Connection | Transaction,
+export function catalogRead<Row, Value>(
   query: CatalogQuery<Row>,
-): Promise<readonly Row[]> {
+  make: (rows: readonly Row[]) => Value,
+): CatalogRead<Value> {
+  return {
+    label: query.label,
+    sql: `select coalesce(json_agg(rows${query.orderBy === undefined ? "" : ` order by ${query.orderBy}`}), '[]')
+      from (${query.select}) as rows`,
+    parse: (json) => make(array(query.row)(json, query.label)),
+  };
+}
+
+/** What each `CatalogRead` that `queryCatalog` ran makes. Throws for a read it was not given. */
+export type CatalogResults = <Value>(read: CatalogRead<Value>) => Value;
+
+/** Catalog reads to run together, and what their results make. */
+export interface CatalogReads<Value> {
+  readonly reads: readonly CatalogRead<unknown>[];
+  /** Asks `results` only for the reads in `reads`. */
+  readonly make: (results: CatalogResults) => Value;
+}
+
+/**
+ * Runs every one of `reads` in a single statement, so reading the catalog of a remote database
+ * waits one round trip rather than one for each kind of object. The reads share `parameters`.
+ */
+export async function queryCatalog(
+  connection: Connection | Transaction,
+  reads: readonly CatalogRead<unknown>[],
+  parameters: readonly string[] = [],
+): Promise<CatalogResults> {
   const { rows } = await rawQuery(
     connection,
-    `select coalesce(json_agg(rows${query.orderBy === undefined ? "" : ` order by ${query.orderBy}`}), '[]')::text
-    from (${query.select}) as rows`,
-    query.parameters ?? [],
+    `select ${reads.map((read) => `(${read.sql})::text`).join(", ")}`,
+    parameters,
   );
-  const text = rows[0]?.[0];
-  if (text === null || text === undefined) {
-    throw new CatalogShapeError(`the ${query.label} query returned no rows`);
-  }
-  return array(query.row)(JSON.parse(text), query.label);
+  const results = new Map(
+    reads.map((read, index) => {
+      const text = rows[0]?.[index];
+      if (text === null || text === undefined) {
+        throw new CatalogShapeError(`the ${read.label} query returned no rows`);
+      }
+      const json: unknown = JSON.parse(text);
+      return [read, json] as const;
+    }),
+  );
+  return (read) => {
+    if (!results.has(read)) {
+      throw new Error(`the ${read.label} query was not run`);
+    }
+    return read.parse(results.get(read));
+  };
 }

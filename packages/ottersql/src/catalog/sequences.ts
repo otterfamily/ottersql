@@ -1,7 +1,6 @@
-import type { Transaction } from "../sql/index.ts";
-import { boolean, fields, queryRows, string } from "./catalog-json.ts";
-import type { Shape } from "./catalog-json.ts";
-import { scopeParameters, userObject } from "./scope.ts";
+import { boolean, catalogRead, fields, string } from "./catalog-json.ts";
+import type { CatalogRead, Shape } from "./catalog-json.ts";
+import { userObject } from "./scope.ts";
 
 /** A sequence's numbers, as text since a bigint sequence's can exceed a JavaScript number. */
 export interface Sequence {
@@ -45,11 +44,8 @@ export function sequenceFields(sequenceClass: string, namespace: string): string
  * The sequences no column owns, such as one `CREATE SEQUENCE` makes for a default to call. Those
  * of `serial` and identity columns are read with their columns.
  */
-export async function readSequences(
-  transaction: Transaction,
-  omitSchemas: readonly string[],
-): Promise<readonly Sequence[]> {
-  return queryRows(transaction, {
+export const sequencesRead: CatalogRead<readonly Sequence[]> = catalogRead(
+  {
     select: `select json_build_object(${sequenceFields("c", "n")}) as sequence
       from pg_class c
       join pg_namespace n on n.oid = c.relnamespace
@@ -63,6 +59,6 @@ export async function readSequences(
     orderBy: "rows.sequence->>'schema', rows.sequence->>'name'",
     row: (value, path) => fields(value, path)("sequence", sequenceRow),
     label: "sequences",
-    parameters: scopeParameters(omitSchemas),
-  });
-}
+  },
+  (rows) => rows,
+);

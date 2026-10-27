@@ -1,28 +1,45 @@
-import type { Transaction } from "../sql/index.ts";
+import type { CatalogReads } from "./catalog-json.ts";
 import type { CatalogFeatures } from "./features.ts";
-import { readExtensions } from "./installed-extensions.ts";
+import { extensionsRead } from "./installed-extensions.ts";
 import type { Catalog } from "./model.ts";
-import { readRoutines } from "./routines.ts";
-import { readSequences } from "./sequences.ts";
-import { readTextSettings } from "./text-settings.ts";
-import { readUserTypes } from "./user-types.ts";
-import { readViews } from "./views.ts";
+import { routinesRead } from "./routines.ts";
+import { sequencesRead } from "./sequences.ts";
+import {
+  collationsRead,
+  textSearchConfigurationsRead,
+  textSearchDictionariesRead,
+} from "./text-settings.ts";
+import { userTypeReads } from "./user-types.ts";
+import { viewsRead } from "./views.ts";
 
 /**
  * What the user's schemas hold besides tables: extensions, sequences, types, collations, text
  * search settings, views and routines.
  */
-export async function readSchemaObjects(
-  transaction: Transaction,
+export function schemaObjectReads(
   features: CatalogFeatures,
-  omitSchemas: readonly string[],
-): Promise<Omit<Catalog, "capabilities" | "schemas" | "tables">> {
+): CatalogReads<Omit<Catalog, "capabilities" | "schemas" | "tables">> {
+  const userTypes = userTypeReads(features);
   return {
-    extensions: await readExtensions(transaction, omitSchemas),
-    sequences: await readSequences(transaction, omitSchemas),
-    ...(await readUserTypes(transaction, features, omitSchemas)),
-    ...(await readTextSettings(transaction, omitSchemas)),
-    views: await readViews(transaction, omitSchemas),
-    routines: await readRoutines(transaction, omitSchemas),
+    reads: [
+      extensionsRead,
+      sequencesRead,
+      ...userTypes.reads,
+      collationsRead,
+      textSearchConfigurationsRead,
+      textSearchDictionariesRead,
+      viewsRead,
+      routinesRead,
+    ],
+    make: (results) => ({
+      extensions: results(extensionsRead),
+      sequences: results(sequencesRead),
+      ...userTypes.make(results),
+      collations: results(collationsRead),
+      textSearchConfigurations: results(textSearchConfigurationsRead),
+      textSearchDictionaries: results(textSearchDictionariesRead),
+      views: results(viewsRead),
+      routines: results(routinesRead),
+    }),
   };
 }

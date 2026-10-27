@@ -1,11 +1,10 @@
-import type { Transaction } from "../sql/index.ts";
-import { array, boolean, fields, nullable, queryRows, string } from "./catalog-json.ts";
-import type { Shape } from "./catalog-json.ts";
+import { array, boolean, catalogRead, fields, nullable, string } from "./catalog-json.ts";
+import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
 import type { ColumnBaseRow } from "./columns.ts";
 import { parseComment } from "./comments.ts";
 import type { View } from "./model.ts";
-import { scopeParameters, userObject } from "./scope.ts";
+import { userObject } from "./scope.ts";
 
 interface ViewRow {
   readonly schema: string;
@@ -26,11 +25,8 @@ const viewRow: Shape<ViewRow> = (value, path) => {
   };
 };
 
-export async function readViews(
-  transaction: Transaction,
-  omitSchemas: readonly string[],
-): Promise<View[]> {
-  const rows = await queryRows(transaction, {
+export const viewsRead: CatalogRead<readonly View[]> = catalogRead(
+  {
     select: `select n.nspname as schema, c.relname as name, c.relkind = 'm' as materialized,
         ${columnsJson("c.oid")} as columns,
         obj_description(c.oid, 'pg_class') as comment
@@ -39,13 +35,13 @@ export async function readViews(
     orderBy: "rows.schema, rows.name",
     row: viewRow,
     label: "views",
-    parameters: scopeParameters(omitSchemas),
-  });
-  return rows.map((row) => ({
-    schema: row.schema,
-    name: row.name,
-    materialized: row.materialized,
-    columns: row.columns.map((column) => parseColumnBase(column)),
-    comment: parseComment(row.comment),
-  }));
-}
+  },
+  (rows) =>
+    rows.map((row) => ({
+      schema: row.schema,
+      name: row.name,
+      materialized: row.materialized,
+      columns: row.columns.map((column) => parseColumnBase(column)),
+      comment: parseComment(row.comment),
+    })),
+);

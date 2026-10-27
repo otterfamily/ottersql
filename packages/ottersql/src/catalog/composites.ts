@@ -1,11 +1,10 @@
-import type { Transaction } from "../sql/index.ts";
-import { array, fields, nullable, qualifiedName, queryRows, string } from "./catalog-json.ts";
-import type { Shape } from "./catalog-json.ts";
+import { array, catalogRead, fields, nullable, qualifiedName, string } from "./catalog-json.ts";
+import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { collationJson, columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
 import type { ColumnBaseRow } from "./columns.ts";
 import { parseComment } from "./comments.ts";
 import type { Comment, QualifiedName, ViewColumn } from "./model.ts";
-import { scopeParameters, userObject } from "./scope.ts";
+import { userObject } from "./scope.ts";
 
 /** A composite type `CREATE TYPE ... AS (...)` makes; the row types of tables and views are not. */
 export interface CompositeType {
@@ -46,12 +45,9 @@ const compositeRow: Shape<CompositeRow> = (value, path) => {
   };
 };
 
-export async function readComposites(
-  transaction: Transaction,
-  omitSchemas: readonly string[],
-): Promise<CompositeType[]> {
-  // A standalone composite type has a pg_class row of its own, of kind 'c'.
-  const rows = await queryRows(transaction, {
+// A standalone composite type has a pg_class row of its own, of kind 'c'.
+export const compositesRead: CatalogRead<readonly CompositeType[]> = catalogRead(
+  {
     select: `select n.nspname as schema, t.typname as name,
         ${columnsJson("c.oid", collationJson)} as attributes,
         obj_description(t.oid, 'pg_type') as comment
@@ -63,15 +59,15 @@ export async function readComposites(
     orderBy: "rows.schema, rows.name",
     row: compositeRow,
     label: "composite types",
-    parameters: scopeParameters(omitSchemas),
-  });
-  return rows.map((row) => ({
-    schema: row.schema,
-    name: row.name,
-    attributes: row.attributes.map((attribute) => ({
-      ...parseColumnBase(attribute),
-      collation: attribute.collation,
+  },
+  (rows) =>
+    rows.map((row) => ({
+      schema: row.schema,
+      name: row.name,
+      attributes: row.attributes.map((attribute) => ({
+        ...parseColumnBase(attribute),
+        collation: attribute.collation,
+      })),
+      comment: parseComment(row.comment),
     })),
-    comment: parseComment(row.comment),
-  }));
-}
+);

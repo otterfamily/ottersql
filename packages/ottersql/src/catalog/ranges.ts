@@ -1,9 +1,8 @@
-import type { Transaction } from "../sql/index.ts";
-import { fields, nullable, queryRows, string } from "./catalog-json.ts";
-import type { Shape } from "./catalog-json.ts";
+import { catalogRead, fields, nullable, string } from "./catalog-json.ts";
+import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
 import type { RangeType } from "./model.ts";
-import { scopeParameters, userObject } from "./scope.ts";
+import { userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 
@@ -26,11 +25,8 @@ const rangeRow: Shape<RangeRow> = (value, path) => {
   };
 };
 
-export async function readRanges(
-  transaction: Transaction,
-  omitSchemas: readonly string[],
-): Promise<RangeType[]> {
-  const rows = await queryRows(transaction, {
+export const rangesRead: CatalogRead<readonly RangeType[]> = catalogRead(
+  {
     select: `select n.nspname as schema, t.typname as name, m.typname as multirange,
         ${typeRefJson("r.rngsubtype")} as subtype,
         obj_description(t.oid, 'pg_type') as comment
@@ -42,13 +38,13 @@ export async function readRanges(
     orderBy: "rows.schema, rows.name",
     row: rangeRow,
     label: "ranges",
-    parameters: scopeParameters(omitSchemas),
-  });
-  return rows.map((row) => ({
-    schema: row.schema,
-    name: row.name,
-    multirange: row.multirange,
-    subtype: parseTypeRef(row.subtype),
-    comment: parseComment(row.comment),
-  }));
-}
+  },
+  (rows) =>
+    rows.map((row) => ({
+      schema: row.schema,
+      name: row.name,
+      multirange: row.multirange,
+      subtype: parseTypeRef(row.subtype),
+      comment: parseComment(row.comment),
+    })),
+);

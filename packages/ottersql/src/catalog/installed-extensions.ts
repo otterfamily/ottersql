@@ -1,7 +1,6 @@
-import type { Transaction } from "../sql/index.ts";
-import { fields, queryRows, string } from "./catalog-json.ts";
-import type { Shape } from "./catalog-json.ts";
-import { scopeParameters, userObject } from "./scope.ts";
+import { catalogRead, fields, string } from "./catalog-json.ts";
+import type { CatalogRead, Shape } from "./catalog-json.ts";
+import { userObject } from "./scope.ts";
 
 /**
  * An extension installed in the database, by the schema it was installed into. Its version is left
@@ -18,17 +17,14 @@ const extensionRow: Shape<InstalledExtension> = (value, path) => {
 };
 
 /** The extensions installed in user schemas; those in pg_catalog, such as plpgsql, come with Postgres. */
-export async function readExtensions(
-  transaction: Transaction,
-  omitSchemas: readonly string[],
-): Promise<readonly InstalledExtension[]> {
-  return queryRows(transaction, {
+export const extensionsRead: CatalogRead<readonly InstalledExtension[]> = catalogRead(
+  {
     select: `select n.nspname as schema, e.extname as name
       from pg_extension e join pg_namespace n on n.oid = e.extnamespace
       where ${userObject("pg_extension", "e.oid", "e.extnamespace")}`,
     orderBy: "rows.schema, rows.name",
     row: extensionRow,
     label: "extensions",
-    parameters: scopeParameters(omitSchemas),
-  });
-}
+  },
+  (rows) => rows,
+);

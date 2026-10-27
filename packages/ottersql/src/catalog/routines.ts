@@ -1,10 +1,9 @@
-import type { Transaction } from "../sql/index.ts";
-import { array, boolean, fields, nullable, number, queryRows, string } from "./catalog-json.ts";
-import type { Shape } from "./catalog-json.ts";
+import { array, boolean, catalogRead, fields, nullable, number, string } from "./catalog-json.ts";
+import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
 import { parseComment } from "./comments.ts";
 import type { Routine, RoutineArgument, RoutineResult } from "./model.ts";
-import { scopeParameters, userObject } from "./scope.ts";
+import { userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 
@@ -56,11 +55,8 @@ const routineRow: Shape<RoutineRow> = (value, path) => {
   };
 };
 
-export async function readRoutines(
-  transaction: Transaction,
-  omitSchemas: readonly string[],
-): Promise<Routine[]> {
-  const rows = await queryRows(transaction, {
+export const routinesRead: CatalogRead<readonly Routine[]> = catalogRead(
+  {
     select: `select n.nspname as schema, p.proname as name, p.prokind as kind,
         p.provolatile as volatility, p.proretset as "setOf",
         ${typeRefJson("p.prorettype")} as "resultType",
@@ -88,10 +84,9 @@ export async function readRoutines(
     orderBy: 'rows.schema, rows.name, rows."identityArguments"',
     row: routineRow,
     label: "routines",
-    parameters: scopeParameters(omitSchemas),
-  });
-  return rows.map((row) => parseRoutine(row));
-}
+  },
+  (rows) => rows.map((row) => parseRoutine(row)),
+);
 
 const routineKinds = {
   a: "aggregate",
