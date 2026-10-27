@@ -1,7 +1,7 @@
 import { clientConnection } from "./connection.ts";
 import type { Connection, DriverQuery, DriverTransaction } from "./connection.ts";
-import { errorField, reportingQueryErrors } from "./query-error.ts";
-import type { QueryErrorFields } from "./query-error.ts";
+import { errorFieldsReader, reportingQueryErrors } from "./query-error.ts";
+import type { ErrorFieldsReader } from "./query-error.ts";
 import { transactionModeSql } from "./transaction.ts";
 
 /** The part of a Bun `SQL` client, transaction or savepoint this file uses to query. */
@@ -93,21 +93,13 @@ function queryOn(sql: BunSqlQueries): DriverQuery {
 }
 
 /** The fields of Bun's PostgresError, whose `code` is Bun's own and `errno` the SQLSTATE. */
-function bunErrorFields(error: unknown): QueryErrorFields | null {
-  if (!(error instanceof Error) || error.name !== "PostgresError") {
-    return null;
-  }
-  const code = errorField(error, "errno");
-  return code === null
-    ? null
-    : {
-        code,
-        message: error.message,
-        detail: errorField(error, "detail"),
-        hint: errorField(error, "hint"),
-        schema: errorField(error, "schema"),
-        table: errorField(error, "table"),
-        column: errorField(error, "column"),
-        constraint: errorField(error, "constraint"),
-      };
-}
+const bunErrorFields: ErrorFieldsReader = errorFieldsReader(
+  (error) => error.name === "PostgresError",
+  {
+    code: "errno",
+    schema: "schema",
+    table: "table",
+    column: "column",
+    constraint: "constraint",
+  },
+);

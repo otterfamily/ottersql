@@ -47,13 +47,13 @@ export class QueryError extends Error implements QueryErrorFields {
   }
 }
 
-/**
- * Runs `query`, turning an error the driver reports for Postgres into a QueryError with `read`,
- * which returns `null` for errors that did not come from Postgres.
- */
+/** Reads the fields of an error a driver reports for Postgres, or `null` for any other error. */
+export type ErrorFieldsReader = (error: unknown) => QueryErrorFields | null;
+
+/** Runs `query`, turning an error the driver reports for Postgres into a QueryError with `read`. */
 export async function reportingQueryErrors<Result>(
   query: () => Promise<Result>,
-  read: (error: unknown) => QueryErrorFields | null,
+  read: ErrorFieldsReader,
 ): Promise<Result> {
   try {
     return await query();
@@ -63,34 +63,63 @@ export async function reportingQueryErrors<Result>(
   }
 }
 
-/** A string property of `error`, or `null`. */
-export function errorField(error: object, name: string): string | null {
-  const value: unknown = Reflect.get(error, name);
-  return typeof value === "string" ? value : null;
+/** The properties in which a driver's error keeps the fields that drivers name differently. */
+export interface ErrorFieldNames {
+  readonly code: string;
+  readonly schema: string;
+  readonly table: string;
+  readonly column: string;
+  readonly constraint: string;
 }
 
 const SQLSTATE = /^[0-9A-Z]{5}$/v;
 
 /**
+ * A reader of the fields of the errors `isFromPostgres` picks out, at the properties `names` gives.
+ * It returns `null` for any other error, and for one whose code is not a SQLSTATE, as a driver's
+ * own code for a failure that never reached Postgres is not.
+ */
+export function errorFieldsReader(
+  isFromPostgres: (error: Readonly<Error>) => boolean,
+  names: ErrorFieldNames,
+): ErrorFieldsReader {
+  return (error) => {
+    if (!(error instanceof Error) || !isFromPostgres(error)) {
+      return null;
+    }
+    const code = errorField(error, names.code);
+    if (code === null || !SQLSTATE.test(code)) {
+      return null;
+    }
+    return {
+      code,
+      message: error.message,
+      detail: errorField(error, "detail"),
+      hint: errorField(error, "hint"),
+      schema: errorField(error, names.schema),
+      table: errorField(error, names.table),
+      column: errorField(error, names.column),
+      constraint: errorField(error, names.constraint),
+    };
+  };
+}
+
+function errorField(error: object, name: string): string | null {
+  const value: unknown = Reflect.get(error, name);
+  return typeof value === "string" ? value : null;
+}
+
+/**
  * The fields of an error from Postgres as node-postgres's DatabaseError names them, which PGlite's
  * shares, or `null` for any other error.
  */
-export function databaseErrorFields(error: unknown): QueryErrorFields | null {
-  if (!(error instanceof Error) || !("severity" in error)) {
-    return null;
-  }
-  const code = errorField(error, "code");
-  if (code === null || !SQLSTATE.test(code)) {
-    return null;
-  }
-  return {
-    code,
-    message: error.message,
-    detail: errorField(error, "detail"),
-    hint: errorField(error, "hint"),
-    schema: errorField(error, "schema"),
-    table: errorField(error, "table"),
-    column: errorField(error, "column"),
-    constraint: errorField(error, "constraint"),
-  };
-}
+export const databaseErrorFields: ErrorFieldsReader = errorFieldsReader(
+  (error) => "severity" in error,
+  {
+    code: "code",
+    schema: "schema",
+    table: "table",
+    column: "column",
+    constraint: "constraint",
+  },
+);

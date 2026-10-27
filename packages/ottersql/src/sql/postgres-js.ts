@@ -2,8 +2,8 @@ import type { Sql, TransactionSql } from "postgres";
 
 import { clientConnection } from "./connection.ts";
 import type { Connection, Driver, DriverQuery, DriverTransaction } from "./connection.ts";
-import { errorField, reportingQueryErrors } from "./query-error.ts";
-import type { QueryErrorFields } from "./query-error.ts";
+import { errorFieldsReader, reportingQueryErrors } from "./query-error.ts";
+import type { ErrorFieldsReader } from "./query-error.ts";
 import { transactionModeSql } from "./transaction.ts";
 
 /**
@@ -77,21 +77,13 @@ function queryOn(sql: Sql | TransactionSql): DriverQuery {
 }
 
 /** The fields of postgres.js's PostgresError, which it names with a `_name` suffix. */
-function postgresErrorFields(error: unknown): QueryErrorFields | null {
-  if (!(error instanceof Error) || error.name !== "PostgresError") {
-    return null;
-  }
-  const code = errorField(error, "code");
-  return code === null
-    ? null
-    : {
-        code,
-        message: error.message,
-        detail: errorField(error, "detail"),
-        hint: errorField(error, "hint"),
-        schema: errorField(error, "schema_name"),
-        table: errorField(error, "table_name"),
-        column: errorField(error, "column_name"),
-        constraint: errorField(error, "constraint_name"),
-      };
-}
+const postgresErrorFields: ErrorFieldsReader = errorFieldsReader(
+  (error) => error.name === "PostgresError",
+  {
+    code: "code",
+    schema: "schema_name",
+    table: "table_name",
+    column: "column_name",
+    constraint: "constraint_name",
+  },
+);
