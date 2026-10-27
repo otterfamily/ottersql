@@ -2,7 +2,8 @@ import { isDeepStrictEqual } from "node:util";
 
 import { nameKey } from "../catalog/find.ts";
 import type { Catalog, CompositeType, TypeRef } from "../catalog/index.ts";
-import { identifier, literal, qualified } from "./sql-text.ts";
+import { initialComment } from "./comments.ts";
+import { identifier, qualified } from "./sql-text.ts";
 import {
   combine,
   manual,
@@ -79,15 +80,9 @@ function createType(item: CompositeType): Changes {
       object: objectName(item),
       statements: [
         `CREATE TYPE ${name} AS (${attributes.join(", ")})`,
-        ...(item.comment === null
-          ? []
-          : [`COMMENT ON TYPE ${name} IS ${literal(item.comment.text)}`]),
+        ...initialComment("TYPE", name, item.comment),
         ...item.attributes.flatMap((attribute) =>
-          attribute.comment === null
-            ? []
-            : [
-                `COMMENT ON COLUMN ${name}.${identifier(attribute.name)} IS ${literal(attribute.comment.text)}`,
-              ],
+          initialComment("COLUMN", `${name}.${identifier(attribute.name)}`, attribute.comment),
         ),
       ],
       phase: "expand",

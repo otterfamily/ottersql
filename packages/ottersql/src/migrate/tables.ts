@@ -2,7 +2,7 @@ import { isDeepStrictEqual } from "node:util";
 
 import type { Catalog, ForeignKey, Index, Table } from "../catalog/index.ts";
 import { columnChanges } from "./columns.ts";
-import { commentChange, indexCommentChange } from "./comments.ts";
+import { commentChange, indexComment, indexCommentChange } from "./comments.ts";
 import { constraintChanges, dropConstraint } from "./constraints.ts";
 import { newTable } from "./new-tables.ts";
 import {
@@ -10,7 +10,6 @@ import {
   dropIndexStatement,
   exceedsNameLimit,
   identifier,
-  indexComment,
   qualified,
   uncommented,
 } from "./sql-text.ts";

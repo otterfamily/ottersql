@@ -1,8 +1,8 @@
 import type { Check, Comment, Enforcement, ForeignKey, Table } from "../catalog/index.ts";
+import { constraintComment } from "./comments.ts";
 import {
   alterTable,
   checkDefinition,
-  constraintComment,
   enforcement,
   foreignKeyDefinition,
   identifier,

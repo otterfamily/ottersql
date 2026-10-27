@@ -1,12 +1,11 @@
 import { isDeepStrictEqual } from "node:util";
 
 import type { Catalog, Table, UniqueConstraint } from "../catalog/index.ts";
-import { constraintCommentChange } from "./comments.ts";
+import { constraintComment, constraintCommentChange } from "./comments.ts";
 import { dropConstraint } from "./constraints.ts";
 import { indexBackedKey, keyIndex, withoutOverlapsReason } from "./key-indexes.ts";
 import {
   alterTable,
-  constraintComment,
   createIndex,
   deferral,
   exceedsNameLimit,

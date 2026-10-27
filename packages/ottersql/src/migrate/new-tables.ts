@@ -1,22 +1,20 @@
 import { findTable } from "../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
 import { addCheck, addForeignKey } from "./add-constraints.ts";
+import { constraintComment, indexComment, initialComment } from "./comments.ts";
 import {
   alterTable,
   checkDefinition,
   columnDefinition,
   columnList,
   columnSqlName,
-  constraintComment,
   createIndex,
   createSequence,
   deferral,
   enforcement,
   foreignKeyDefinition,
   identifier,
-  indexComment,
   keyColumnList,
-  literal,
   qualified,
   setStorage,
   storageParameters,
@@ -46,15 +44,9 @@ function comments(table: Table): string[] {
     ...table.exclusionConstraints,
   ];
   return [
-    ...(table.comment === null
-      ? []
-      : [`COMMENT ON TABLE ${name} IS ${literal(table.comment.text)}`]),
+    ...initialComment("TABLE", name, table.comment),
     ...table.columns.flatMap((column) =>
-      column.comment === null
-        ? []
-        : [
-            `COMMENT ON COLUMN ${columnSqlName(table, column.name)} IS ${literal(column.comment.text)}`,
-          ],
+      initialComment("COLUMN", columnSqlName(table, column.name), column.comment),
     ),
     ...inline.flatMap((constraint) => constraintComment(table, constraint)),
     ...table.indexes.flatMap((index) => indexComment(table, index)),

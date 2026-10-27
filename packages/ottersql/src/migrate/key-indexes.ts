@@ -1,5 +1,6 @@
 import type { Index, PrimaryKey, Table, UniqueConstraint } from "../catalog/index.ts";
-import { alterTable, constraintComment, createIndex, deferral, identifier } from "./sql-text.ts";
+import { constraintComment } from "./comments.ts";
+import { alterTable, createIndex, deferral, identifier } from "./sql-text.ts";
 import { manual, objectName, only, outsideStep, step } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 

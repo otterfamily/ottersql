@@ -31,12 +31,11 @@ export function commentChange(target: {
   if (before?.text === after?.text) {
     return noChanges;
   }
-  const text = after === null ? "NULL" : literal(after.text);
   return only(
     step({
       kind: "comment",
       object,
-      statements: [`COMMENT ON ${on} ${name} IS ${text}`],
+      statements: [commentStatement(on, name, after)],
       phase: "expand",
       reversal: "reversible",
       lock: commentLocks[on],
@@ -44,9 +43,42 @@ export function commentChange(target: {
   );
 }
 
+/** `COMMENT ON` the object SQL names `name`, setting `comment`, or removing it for `null`. */
+function commentStatement(on: Commentable, name: string, comment: Comment | null): string {
+  return `COMMENT ON ${on} ${name} IS ${comment === null ? "NULL" : literal(comment.text)}`;
+}
+
+/** The statement that gives a new object its comment, or none for one without a comment. */
+export function initialComment(on: Commentable, name: string, comment: Comment | null): string[] {
+  return comment === null ? [] : [commentStatement(on, name, comment)];
+}
+
 interface Commented {
   readonly name: string;
   readonly comment: Comment | null;
+}
+
+function constraintSqlName(table: QualifiedName, constraint: string): string {
+  return `${identifier(constraint)} ON ${qualified(table.schema, table.name)}`;
+}
+
+/** An index is in its table's schema. */
+function indexSqlName(table: QualifiedName, index: string): string {
+  return qualified(table.schema, index);
+}
+
+/** The statement that comments a new constraint of `table`, or none for one without a comment. */
+export function constraintComment(table: QualifiedName, constraint: Commented): string[] {
+  return initialComment(
+    "CONSTRAINT",
+    constraintSqlName(table, constraint.name),
+    constraint.comment,
+  );
+}
+
+/** The statement that comments a new index of `table`, or none for one without a comment. */
+export function indexComment(table: QualifiedName, index: Commented): string[] {
+  return initialComment("INDEX", indexSqlName(table, index.name), index.comment);
 }
 
 /** A changed comment of a constraint of `table` that is otherwise kept as it is. */
@@ -58,7 +90,7 @@ export function constraintCommentChange(
   return commentChange({
     on: "CONSTRAINT",
     object: objectName(table, current.name),
-    name: `${identifier(current.name)} ON ${qualified(table.schema, table.name)}`,
+    name: constraintSqlName(table, current.name),
     before: old.comment,
     after: current.comment,
   });
@@ -73,7 +105,7 @@ export function indexCommentChange(
   return commentChange({
     on: "INDEX",
     object: objectName(table, current.name),
-    name: qualified(table.schema, current.name),
+    name: indexSqlName(table, current.name),
     before: old.comment,
     after: current.comment,
   });
