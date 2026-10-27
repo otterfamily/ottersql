@@ -3,7 +3,7 @@ import type { Catalog } from "../../catalog/index.ts";
 import { inOrder, readMigration } from "../files/migration-file.ts";
 import type { MigrationFile } from "../files/migration-file.ts";
 import type { Plan } from "../plan.ts";
-import { planMigration } from "../plan/plan-migration.ts";
+import { planMigration } from "../planner/plan-migration.ts";
 import { migratedObjects } from "./ledger.ts";
 
 /** The schema `files` build when run in order on an empty database, replayed in PGlite. */

@@ -186,6 +186,12 @@ function commented(text: string): string {
     comment on index t_lower is '${text}'`;
 }
 
+/** A table whose check `c`, NOT VALID or not as `valid` says, carries the comment `text`. */
+function withCheck(valid: string, text: string): string {
+  return `create table t (n int4); alter table t add constraint c check (n > 0)${valid};
+    comment on constraint c on t is '${text}'`;
+}
+
 describe("planMigration of comments on constraints and indexes", () => {
   test("writes them for a new table", async () => {
     const plan = planMigration(await loadCatalog(""), await loadCatalog(commented("New")));
@@ -217,9 +223,6 @@ describe("planMigration of comments on constraints and indexes", () => {
   });
 
   test("changes the comment of a constraint it validates", async () => {
-    const withCheck = (valid: string, text: string): string =>
-      `create table t (n int4); alter table t add constraint c check (n > 0)${valid};
-        comment on constraint c on t is '${text}'`;
     const plan = planMigration(
       await loadCatalog(withCheck(" not valid", "Old")),
       await loadCatalog(withCheck("", "New")),

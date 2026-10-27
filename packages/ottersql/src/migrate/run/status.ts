@@ -3,7 +3,7 @@ import type { Connection } from "../../sql/index.ts";
 import type { MigrationFile } from "../files/migration-file.ts";
 import { isEmptyPlan } from "../plan.ts";
 import type { Plan, Step } from "../plan.ts";
-import { planMigration } from "../plan/plan-migration.ts";
+import { planMigration } from "../planner/plan-migration.ts";
 import type { StepRef } from "./apply-migrations.ts";
 import { deployOrder, notYetApplied } from "./history.ts";
 import { migratedObjects, readLedger } from "./ledger.ts";

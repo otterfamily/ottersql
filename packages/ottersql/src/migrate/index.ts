@@ -13,7 +13,7 @@ export { pendingChanges } from "./run/replay.ts";
 export { pushSchema } from "./run/push.ts";
 export type { PushOptions, PushResult } from "./run/push.ts";
 export type { MigrationFile } from "./files/migration-file.ts";
-export { planMigration } from "./plan/plan-migration.ts";
+export { planMigration } from "./planner/plan-migration.ts";
 export type { Lock, ManualChange, Plan, Step, StepKind } from "./plan.ts";
 export { migrationStatus } from "./run/status.ts";
 export type { MigrationStatus, StepStatus } from "./run/status.ts";

@@ -6,7 +6,7 @@ import { QueryError } from "../../sql/index.ts";
 import type { Connection, Transaction } from "../../sql/index.ts";
 import { writeBlockingLocks } from "../plan.ts";
 import type { OutsideStep, Step } from "../plan.ts";
-import { dropIndexStatement } from "../plan/sql-text.ts";
+import { dropIndexStatement } from "../planner/sql-text.ts";
 
 export interface RunOptions {
   /**

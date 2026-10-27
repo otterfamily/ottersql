@@ -1,7 +1,7 @@
 import { loadCatalog, readCatalog } from "../../catalog/index.ts";
 import type { Connection } from "../../sql/index.ts";
 import type { ManualChange, Step } from "../plan.ts";
-import { planMigration } from "../plan/plan-migration.ts";
+import { planMigration } from "../planner/plan-migration.ts";
 import type { ApplyOptions } from "./apply-migrations.ts";
 import { checkApproval } from "./approval.ts";
 import { MigrationHistoryError, stepHash } from "./history.ts";
