@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { referencesTable } from "../../catalog/find.ts";
 import type { Catalog, Column, ForeignKey, Table } from "../../catalog/index.ts";
+import { referencesTable } from "../../catalog/internal.ts";
 import { manual, noChanges, objectName, only, step } from "./changes.ts";
 import type { Changes } from "./changes.ts";
 import { alterTable, identifier } from "./sql-text.ts";

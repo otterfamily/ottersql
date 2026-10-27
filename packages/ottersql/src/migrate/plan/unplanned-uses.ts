@@ -1,5 +1,5 @@
-import { nameKey } from "../../catalog/find.ts";
 import type { QualifiedName, TypeRef } from "../../catalog/index.ts";
+import { nameKey } from "../../catalog/internal.ts";
 import { manual, objectName } from "./changes.ts";
 import type { Changes } from "./changes.ts";
 

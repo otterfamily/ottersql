@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { referencesTable } from "../../catalog/find.ts";
 import type { Catalog, Table, UniqueConstraint } from "../../catalog/index.ts";
+import { referencesTable } from "../../catalog/internal.ts";
 import { combine, manual, objectName, only, outsideStep, step } from "./changes.ts";
 import type { Changes } from "./changes.ts";
 import { constraintComment, constraintCommentChange } from "./comments.ts";

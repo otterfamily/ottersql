@@ -1,7 +1,6 @@
-import { findDomain, findEnum, findRange } from "../catalog/find.ts";
 import type { Catalog, NamedTypeRef, TypeRef } from "../catalog/index.ts";
-import { baseCodecs } from "../sql/decode.ts";
-import { rangeSubtypes } from "../sql/type-info.ts";
+import { findDomain, findEnum, findRange } from "../catalog/internal.ts";
+import { baseCodecs, rangeSubtypes } from "../sql/internal.ts";
 
 /** Types the rendered module imports from `ottersql` when it uses them. */
 export type SqlTypeImport = "Interval" | "Json" | "Range";

@@ -2,7 +2,7 @@ import { access, mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, relative, resolve } from "node:path";
 
 import { SchemaError } from "../catalog/index.ts";
-import { defaultSchemaPath, migrationsDirectory } from "../content-mapper/project-layout.ts";
+import { defaultSchemaPath, migrationsDirectory } from "../content-mapper/internal.ts";
 import {
   LockWaitTimeoutError,
   MigrationFileError,

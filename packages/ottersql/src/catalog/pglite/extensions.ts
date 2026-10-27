@@ -1,6 +1,6 @@
 import type { Extension } from "@electric-sql/pglite";
 
-import { splitStatements } from "../../sql/statements.ts";
+import { splitStatements } from "../../sql/internal.ts";
 
 /** A `CREATE EXTENSION` statement of the SQL ottersql runs in PGlite. */
 interface CreatedExtension {

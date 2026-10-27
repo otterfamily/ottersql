@@ -3,9 +3,8 @@ import { readFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
 import { SchemaError } from "../catalog/index.ts";
-import { holdsQueries } from "../sql/query-file.ts";
 import { METHOD_NOT_FOUND, RpcError } from "./json-rpc.ts";
-import { defaultSchemaPath, migrationsDirectory } from "./project-layout.ts";
+import { defaultSchemaPath, isQueryFile } from "./project-layout.ts";
 import { DiagnosticCode } from "./render.ts";
 import type { RenderedFile } from "./render.ts";
 import { openQuerySession } from "./session.ts";
@@ -88,19 +87,6 @@ async function transform(state: State, params: unknown): Promise<object> {
   }
   return transformed(
     "session" in loaded ? await loaded.session.renderFile(content) : schemaFailure(loaded.error),
-  );
-}
-
-/**
- * Whether `file` holds queries to type: not the schema, not a migration, and with `-- @name`
- * queries, unlike the `.sql` files other tools keep next to it. Both the content mapper and
- * `ottersql types` go by it.
- */
-export function isQueryFile(schemaPath: string, file: string, content: string): boolean {
-  return (
-    file !== schemaPath &&
-    dirname(file) !== migrationsDirectory(schemaPath) &&
-    holdsQueries(content)
   );
 }
 

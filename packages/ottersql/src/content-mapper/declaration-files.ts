@@ -1,6 +1,6 @@
 import { basename, dirname, join } from "node:path";
 
-import { lineAndColumn } from "../sql/query-file.ts";
+import { lineAndColumn } from "../sql/internal.ts";
 import { openQuerySession } from "./session.ts";
 import type { QuerySession } from "./session.ts";
 

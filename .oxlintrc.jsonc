@@ -256,7 +256,7 @@
           {
             "patterns": [
               {
-                "group": ["../catalog/*", "../content-mapper/*", "../migrate/*", "../cli/*"],
+                "group": ["**/catalog/**", "**/content-mapper/**", "**/migrate/**", "**/cli/**"],
                 "message": "A layer imports only the layers below it (ADR 0006, ADR 0013).",
               },
             ],
@@ -273,16 +273,19 @@
           {
             "patterns": [
               {
-                // Modules in catalog/model and catalog/pglite reach the other layers one level up.
-                "group": [
-                  "../content-mapper/*",
-                  "../migrate/*",
-                  "../cli/*",
-                  "../../content-mapper/*",
-                  "../../migrate/*",
-                  "../../cli/*",
-                ],
+                "group": ["**/content-mapper/**", "**/migrate/**", "**/cli/**"],
                 "message": "A layer imports only the layers below it (ADR 0006, ADR 0013).",
+              },
+              {
+                "group": [
+                  "**/sql/**",
+                  "!**/sql/index.ts",
+                  "!**/sql/internal.ts",
+                  "!**/sql/driver.ts",
+                  "!**/sql/pg.ts",
+                  "!**/sql/pglite.ts",
+                ],
+                "message": "Another layer is imported through its index.ts, or internal.ts for what stays inside the package (ADR 0013).",
               },
             ],
           },
@@ -298,8 +301,23 @@
           {
             "patterns": [
               {
-                "group": ["../migrate/*", "../cli/*"],
+                "group": ["**/migrate/**", "**/cli/**"],
                 "message": "A layer imports only the layers below it (ADR 0006, ADR 0013).",
+              },
+              {
+                "group": [
+                  "**/sql/**",
+                  "!**/sql/index.ts",
+                  "!**/sql/internal.ts",
+                  "!**/sql/driver.ts",
+                  "!**/sql/pg.ts",
+                  "!**/sql/pglite.ts",
+                ],
+                "message": "Another layer is imported through its index.ts, or internal.ts for what stays inside the package (ADR 0013).",
+              },
+              {
+                "group": ["**/catalog/**", "!**/catalog/index.ts", "!**/catalog/internal.ts"],
+                "message": "Another layer is imported through its index.ts, or internal.ts for what stays inside the package (ADR 0013).",
               },
             ],
           },
@@ -308,15 +326,70 @@
     },
     {
       "files": ["packages/ottersql/src/migrate/**"],
-      // ADR 0013: migrations sit below the command.
+      // ADR 0013: migrations sit on the catalog and the runtime, below the command.
       "rules": {
         "eslint/no-restricted-imports": [
           "error",
           {
             "patterns": [
               {
-                "group": ["../cli/*"],
+                "group": ["**/content-mapper/**", "**/cli/**"],
                 "message": "A layer imports only the layers below it (ADR 0006, ADR 0013).",
+              },
+              {
+                "group": [
+                  "**/sql/**",
+                  "!**/sql/index.ts",
+                  "!**/sql/internal.ts",
+                  "!**/sql/driver.ts",
+                  "!**/sql/pg.ts",
+                  "!**/sql/pglite.ts",
+                ],
+                "message": "Another layer is imported through its index.ts, or internal.ts for what stays inside the package (ADR 0013).",
+              },
+              {
+                "group": ["**/catalog/**", "!**/catalog/index.ts", "!**/catalog/internal.ts"],
+                "message": "Another layer is imported through its index.ts, or internal.ts for what stays inside the package (ADR 0013).",
+              },
+            ],
+          },
+        ],
+      },
+    },
+    {
+      "files": ["packages/ottersql/src/cli/**"],
+      // ADR 0013: the command sits on every layer.
+      "rules": {
+        "eslint/no-restricted-imports": [
+          "error",
+          {
+            "patterns": [
+              {
+                "group": [
+                  "**/sql/**",
+                  "!**/sql/index.ts",
+                  "!**/sql/internal.ts",
+                  "!**/sql/driver.ts",
+                  "!**/sql/pg.ts",
+                  "!**/sql/pglite.ts",
+                ],
+                "message": "Another layer is imported through its index.ts, or internal.ts for what stays inside the package (ADR 0013).",
+              },
+              {
+                "group": ["**/catalog/**", "!**/catalog/index.ts", "!**/catalog/internal.ts"],
+                "message": "Another layer is imported through its index.ts, or internal.ts for what stays inside the package (ADR 0013).",
+              },
+              {
+                "group": [
+                  "**/content-mapper/**",
+                  "!**/content-mapper/index.ts",
+                  "!**/content-mapper/internal.ts",
+                ],
+                "message": "Another layer is imported through its index.ts, or internal.ts for what stays inside the package (ADR 0013).",
+              },
+              {
+                "group": ["**/migrate/**", "!**/migrate/index.ts", "!**/migrate/internal.ts"],
+                "message": "Another layer is imported through its index.ts, or internal.ts for what stays inside the package (ADR 0013).",
               },
             ],
           },

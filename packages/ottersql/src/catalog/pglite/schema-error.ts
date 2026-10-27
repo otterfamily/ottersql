@@ -1,4 +1,4 @@
-import { lineAndColumn, offsetOfPosition } from "../../sql/query-file.ts";
+import { lineAndColumn, offsetOfPosition } from "../../sql/internal.ts";
 
 /** Where in `schema.sql` Postgres reported an error, as `lineAndColumn` counts it. */
 export interface SchemaPosition {

@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { nameKey } from "../../catalog/find.ts";
 import type { Catalog, Table } from "../../catalog/index.ts";
+import { nameKey } from "../../catalog/internal.ts";
 import { combine, manual, objectName } from "./changes.ts";
 import type { Changes } from "./changes.ts";
 

@@ -1,5 +1,5 @@
-import { findTable } from "../../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../../catalog/index.ts";
+import { findTable } from "../../catalog/internal.ts";
 import { combine, objectName, only, step } from "./changes.ts";
 import type { Changes } from "./changes.ts";
 import { constraintComment, indexComment, initialComment } from "./comments.ts";

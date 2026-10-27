@@ -1,12 +1,12 @@
 import type { PGlite } from "@electric-sql/pglite";
 
-import { readRelations, readTypeRefs } from "../catalog/by-oid.ts";
-import type { Relation } from "../catalog/by-oid.ts";
 import { openSchema } from "../catalog/index.ts";
 import type { Catalog, TypeRef } from "../catalog/index.ts";
+import { readRelations, readTypeRefs } from "../catalog/internal.ts";
+import type { Relation } from "../catalog/internal.ts";
+import { fileOffset, offsetOfPosition, readQueryFile } from "../sql/internal.ts";
+import type { Query, Span } from "../sql/internal.ts";
 import { pgliteConnection } from "../sql/pglite.ts";
-import { fileOffset, offsetOfPosition, readQueryFile } from "../sql/query-file.ts";
-import type { Query, Span } from "../sql/query-file.ts";
 import { readBuiltInFacts } from "./built-in-functions.ts";
 import type { BuiltInFacts } from "./built-in-functions.ts";
 import { relationFacts, relationOids } from "./column-facts.ts";

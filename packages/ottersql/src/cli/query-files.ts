@@ -2,7 +2,7 @@ import { glob, readFile } from "node:fs/promises";
 import { basename, join, matchesGlob, relative } from "node:path";
 
 import { declarationFileName, isGeneratedDeclarationFile } from "../content-mapper/index.ts";
-import { isQueryFile } from "../content-mapper/mapper.ts";
+import { isQueryFile } from "../content-mapper/internal.ts";
 import type { Layout } from "./project.ts";
 
 /** Directories that hold no query files of the project. */

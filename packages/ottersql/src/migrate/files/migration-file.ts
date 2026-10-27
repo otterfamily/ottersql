@@ -1,6 +1,5 @@
-import { lineAndColumn } from "../../sql/query-file.ts";
-import { lineComments, splitStatements } from "../../sql/statements.ts";
-import type { Located } from "../../sql/statements.ts";
+import { lineAndColumn, lineComments, splitStatements } from "../../sql/internal.ts";
+import type { Located } from "../../sql/internal.ts";
 import { locks, phases, reversals, stepKinds, transactions } from "../plan.ts";
 import type { OutsideStep, Step } from "../plan.ts";
 import { isMigrationFileName, migrationNameRule } from "./migration-name.ts";

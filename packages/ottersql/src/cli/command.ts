@@ -1,7 +1,6 @@
 import { parseArgs } from "node:util";
 
-import { migrationLabelProblem } from "../migrate/files/migration-name.ts";
-import { DEFAULT_LOCK_WAIT } from "../migrate/run/run-lock.ts";
+import { DEFAULT_LOCK_WAIT, migrationLabelProblem } from "../migrate/internal.ts";
 
 /** What the command line asks for, parsed once where it enters. */
 export type Command =

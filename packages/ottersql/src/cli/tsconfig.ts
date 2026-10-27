@@ -2,7 +2,7 @@ import { readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
-import { lineAndColumn } from "../sql/query-file.ts";
+import { lineAndColumn } from "../sql/internal.ts";
 import { parseJsonc } from "./jsonc.ts";
 import { CommandError } from "./outcome.ts";
 

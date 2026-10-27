@@ -1,7 +1,7 @@
 import { isDeepStrictEqual } from "node:util";
 
-import { nameKey } from "../../catalog/find.ts";
 import type { Comment, QualifiedName } from "../../catalog/index.ts";
+import { nameKey } from "../../catalog/internal.ts";
 
 /** The items `to` adds, the ones `from` has that `to` removes, and the pairs both keep. */
 interface Matched<Item> {

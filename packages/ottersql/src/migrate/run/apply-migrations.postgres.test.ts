@@ -3,7 +3,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { postgresDatabase } from "@ottersql/testing";
 import { describe, expect, test } from "vitest";
 
-import type { PgClient } from "../../sql/pg-driver.ts";
+import type { PgClient } from "../../sql/internal.ts";
 import { pgConnection } from "../../sql/pg.ts";
 import { applyMigrations, LockWaitTimeoutError, SessionChangedError } from "../index.ts";
 import { connect, migrationFrom, step, users } from "../test-migrate.ts";
