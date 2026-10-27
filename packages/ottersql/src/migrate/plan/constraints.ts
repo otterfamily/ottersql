@@ -98,7 +98,10 @@ function keyedChanges<
     ...added.map((item) => plan.add(item)),
     ...validated.map(([, current]) => plan.validate?.(current) ?? noChanges),
     ...redefined.map(([old, current]) => plan.redefine(old, current)),
-    ...recommented.map(([old, current]) => constraintCommentChange(plan.table, old, current)),
+    // A constraint validated in place keeps its name, so its comment changes as a kept one's does.
+    ...[...validated, ...recommented].map(([old, current]) =>
+      constraintCommentChange(plan.table, old, current),
+    ),
   ]);
 }
 

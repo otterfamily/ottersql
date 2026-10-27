@@ -215,4 +215,18 @@ describe("planMigration of comments on constraints and indexes", () => {
       manual: [],
     });
   });
+
+  test("changes the comment of a constraint it validates", async () => {
+    const withCheck = (valid: string, text: string): string =>
+      `create table t (n int4); alter table t add constraint c check (n > 0)${valid};
+        comment on constraint c on t is '${text}'`;
+    const plan = planMigration(
+      await loadCatalog(withCheck(" not valid", "Old")),
+      await loadCatalog(withCheck("", "New")),
+    );
+    expect(plan.steps.map((step) => `${step.kind} ${step.object}`).toSorted()).toStrictEqual([
+      "comment public.t.c",
+      "validateCheck public.t.c",
+    ]);
+  });
 });
