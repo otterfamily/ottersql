@@ -273,7 +273,15 @@
           {
             "patterns": [
               {
-                "group": ["../content-mapper/*", "../migrate/*", "../cli/*"],
+                // Modules in catalog/model and catalog/pglite reach the other layers one level up.
+                "group": [
+                  "../content-mapper/*",
+                  "../migrate/*",
+                  "../cli/*",
+                  "../../content-mapper/*",
+                  "../../migrate/*",
+                  "../../cli/*",
+                ],
                 "message": "A layer imports only the layers below it (ADR 0006, ADR 0013).",
               },
             ],

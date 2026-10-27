@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { openSchema } from "./index.ts";
+import { openSchema } from "../index.ts";
 
 describe("openSchema", () => {
   test("keeps the database open with the schema applied, next to its catalog", async () => {

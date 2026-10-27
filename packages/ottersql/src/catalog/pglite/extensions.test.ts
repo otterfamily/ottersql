@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { loadCatalog, openSchema } from "./index.ts";
+import { loadCatalog, openSchema } from "../index.ts";
 
 describe("extensions in schema.sql", () => {
   test("load the extensions PGlite ships, when the schema creates them", async () => {

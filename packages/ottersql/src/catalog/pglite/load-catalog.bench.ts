@@ -1,7 +1,7 @@
 import { BENCHMARK_TABLES, benchmarkSchemaSql } from "@ottersql/testing/benchmark-schema";
 import { describe, test } from "vitest";
 
-import { loadCatalog } from "./index.ts";
+import { loadCatalog } from "../index.ts";
 
 describe("loadCatalog", () => {
   test("cost by schema size", async ({ bench }) => {

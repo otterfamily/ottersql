@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { loadCatalog, SchemaError } from "./index.ts";
+import { loadCatalog, SchemaError } from "../index.ts";
 
 async function schemaError(schemaSql: string): Promise<SchemaError> {
   const rejection: unknown = await loadCatalog(schemaSql).then(

@@ -19,7 +19,7 @@
   "imports": {
     "#query": "./src/sql/query.ts",
     "#server": "./src/content-mapper/server.ts",
-    "#snapshot-child": "./src/catalog/snapshot-child.ts"
+    "#snapshot-child": "./src/catalog/pglite/snapshot-child.ts"
   },
   "exports": {
     ".": "./src/sql/index.ts",
@@ -47,7 +47,7 @@
     "imports": {
       "#query": "./dist/sql/query.js",
       "#server": "./dist/content-mapper/server.js",
-      "#snapshot-child": "./dist/catalog/snapshot-child.js"
+      "#snapshot-child": "./dist/catalog/pglite/snapshot-child.js"
     },
     "exports": {
       ".": "./dist/sql/index.js",

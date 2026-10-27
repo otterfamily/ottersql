@@ -1,10 +1,10 @@
-export { loadCatalog, openSchema } from "./load-catalog.ts";
+export { loadCatalog, openSchema } from "./pglite/load-catalog.ts";
 export { readCatalog } from "./read-catalog.ts";
 export type { CatalogOptions } from "./read-catalog.ts";
 export { CatalogShapeError } from "./catalog-json.ts";
-export type { OpenSchema } from "./load-catalog.ts";
-export { SchemaError } from "./schema-error.ts";
-export type { SchemaPosition } from "./schema-error.ts";
+export type { OpenSchema } from "./pglite/load-catalog.ts";
+export { SchemaError } from "./pglite/schema-error.ts";
+export type { SchemaPosition } from "./pglite/schema-error.ts";
 export type * from "./model/catalog.ts";
 export type * from "./model/routines.ts";
 export type * from "./model/shared.ts";
