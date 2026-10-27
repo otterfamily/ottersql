@@ -25,8 +25,9 @@ const schemaSql = `${benchmarkSchemaSql};
     constraint item_positive check (owner_id > 0) no inherit);
   create unlogged table app.scratch (
     id int8 generated always as identity (start with 100 increment by 5),
-    body text storage external compression pglz
+    body text compression pglz
   ) with (fillfactor = 70);
+  alter table app.scratch alter column body set storage external;
   create index scratch_body on app.scratch (body) with (fillfactor = 50);
   comment on index app.scratch_body is 'By body';
   comment on constraint item_positive on app.item is 'Positive owners';

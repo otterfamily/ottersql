@@ -11,6 +11,7 @@ import {
   columnSqlName,
   exceedsNameLimit,
   identifier,
+  setStorage,
 } from "./sql-text.ts";
 import {
   combine,
@@ -120,7 +121,7 @@ function addColumn(table: Table, column: Column, to: Catalog): Changes {
   const add = step({
     kind: "addColumn",
     object,
-    statements: [alterTable(table, `ADD COLUMN ${definition}`)],
+    statements: [alterTable(table, [`ADD COLUMN ${definition}`, ...setStorage(column)].join(", "))],
     phase: "expand",
     reversal: "lossy",
     lock: "access exclusive",

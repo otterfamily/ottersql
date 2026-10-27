@@ -38,6 +38,29 @@ describe("pushSchema", () => {
     }
   });
 
+  test("sets column storage on every supported major, in a new table and a new column", async () => {
+    const client = await connect(await postgresDatabase(users));
+    try {
+      const result = await pushSchema(
+        pgConnection(client),
+        `create table users (id int8 primary key, email text, note text storage main);
+          create table notes (body text storage external)`,
+      );
+      const { rows } = await client.query(
+        "select attrelid::regclass::text as table, attname as column, attstorage as storage from pg_attribute where attname in ('note', 'body') order by 1",
+      );
+      expect({ failed: result.failed, rows }).toStrictEqual({
+        failed: null,
+        rows: [
+          { table: "notes", column: "body", storage: "e" },
+          { table: "users", column: "note", storage: "m" },
+        ],
+      });
+    } finally {
+      await client.end();
+    }
+  });
+
   test("runs nothing while a change is left to a person", async () => {
     const client = await connect(await postgresDatabase(users));
     try {

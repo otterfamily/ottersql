@@ -133,7 +133,8 @@ describe("planMigration of identity settings, column storage and table storage",
     const plan = planMigration(await loadCatalog(""), await loadCatalog(settings));
     expect(plan.steps.map((step) => step.statements)).toStrictEqual([
       [
-        'CREATE UNLOGGED TABLE "public"."t" ("id" bigint GENERATED ALWAYS AS IDENTITY (SEQUENCE NAME "public"."t_id_seq" INCREMENT BY 5 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 100 CACHE 1 NO CYCLE) NOT NULL, "b" text STORAGE EXTERNAL COMPRESSION pglz) WITH (fillfactor=70)',
+        'CREATE UNLOGGED TABLE "public"."t" ("id" bigint GENERATED ALWAYS AS IDENTITY (SEQUENCE NAME "public"."t_id_seq" INCREMENT BY 5 MINVALUE 1 MAXVALUE 9223372036854775807 START WITH 100 CACHE 1 NO CYCLE) NOT NULL, "b" text COMPRESSION pglz) WITH (fillfactor=70)',
+        'ALTER TABLE "public"."t" ALTER COLUMN "b" SET STORAGE EXTERNAL',
         'CREATE INDEX "t_b" ON "public"."t" USING btree ("b") WITH (fillfactor=50)',
       ],
     ]);

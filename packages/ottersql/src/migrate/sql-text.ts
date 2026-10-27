@@ -47,18 +47,28 @@ function foreignKeyColumnList(names: readonly string[], period: boolean): string
   return `(${quoted.map((name, index) => (period && index === last ? `PERIOD ${name}` : name)).join(", ")})`;
 }
 
+/** A column as `CREATE TABLE` and `ADD COLUMN` write it, without its storage (see `setStorage`). */
 export function columnDefinition(column: Column): string {
   const value = valueClause(column.value);
-  const { collation, storage, compression } = column;
+  const { collation, compression } = column;
   return [
     identifier(column.name),
     column.typeSql,
-    ...(storage === null ? [] : [`STORAGE ${storage.toUpperCase()}`]),
     ...(compression === null ? [] : [`COMPRESSION ${compression}`]),
     ...(collation === null ? [] : [`COLLATE ${qualified(collation.schema, collation.name)}`]),
     ...(value === null ? [] : [value]),
     ...(column.notNull ? [column.notNullNoInherit ? "NOT NULL NO INHERIT" : "NOT NULL"] : []),
   ].join(" ");
+}
+
+/**
+ * The `ALTER TABLE` action that gives a column its storage, or none when it has its type's.
+ * Postgres 15 has no `STORAGE` clause in a column definition, but has always had this action.
+ */
+export function setStorage(column: Column): string[] {
+  return column.storage === null
+    ? []
+    : [`ALTER COLUMN ${identifier(column.name)} SET STORAGE ${column.storage.toUpperCase()}`];
 }
 
 /** A check as `ADD CONSTRAINT` and `CREATE TABLE` write it, without its name or enforcement. */

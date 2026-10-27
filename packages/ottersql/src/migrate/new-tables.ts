@@ -18,6 +18,7 @@ import {
   keyColumnList,
   literal,
   qualified,
+  setStorage,
   storageParameters,
 } from "./sql-text.ts";
 import { combine, objectName, only, step } from "./steps.ts";
@@ -66,6 +67,8 @@ function createTable(table: Table): Changes {
     ...table.columns.map((column) => columnDefinition(column)),
     ...inlineConstraints(table),
   ];
+  const storage = table.columns.flatMap((column) => setStorage(column));
+  const storageStatements = storage.length === 0 ? [] : [alterTable(table, storage.join(", "))];
   const sequences = table.columns.flatMap((column) =>
     column.value.kind === "sequence" ? [{ column: column.name, ...column.value.sequence }] : [],
   );
@@ -76,6 +79,7 @@ function createTable(table: Table): Changes {
       statements: [
         ...sequences.map((sequence) => createSequence(sequence)),
         `CREATE ${table.unlogged ? "UNLOGGED " : ""}TABLE ${qualified(table.schema, table.name)} (${definitions.join(", ")})${storageParameters(table.options)}`,
+        ...storageStatements,
         ...sequences.map(
           (sequence) =>
             `ALTER SEQUENCE ${qualified(sequence.schema, sequence.name)} OWNED BY ${columnSqlName(table, sequence.column)}`,
