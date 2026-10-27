@@ -8,12 +8,13 @@ import { PREFIX } from "./migration-file.ts";
  */
 export function renderMigration(plan: Plan): string {
   const manual = plan.manual.map(
-    ({ object, reason }) => `-- ${PREFIX}manual ${object}\n-- ${reason}\n`,
+    ({ object, reason }) =>
+      `-- ${PREFIX}manual ${commentText(object)}\n-- ${commentText(reason)}\n`,
   );
   const steps = plan.steps.map((step) =>
     [
       `-- ${PREFIX}step ${stepHeader(step)}`,
-      ...(step.reason === null ? [] : [`-- ${step.reason}`]),
+      ...(step.reason === null ? [] : [`-- ${commentText(step.reason)}`]),
       ...(step.transaction === "outside" && step.cleanup !== null
         ? [
             `-- ${PREFIX}cleanup schema=${JSON.stringify(step.cleanup.schema)} index=${JSON.stringify(step.cleanup.name)}`,
@@ -24,6 +25,19 @@ export function renderMigration(plan: Plan): string {
     ].join("\n"),
   );
   return [...manual, ...steps].join("\n");
+}
+
+// Names may hold line breaks, which would end the comment and turn the rest of a name into SQL.
+const controlCharacter = /\p{Cc}/gv;
+const HEX = 16;
+const ESCAPE_DIGITS = 4;
+
+/** `text` for a `--` comment: its control characters escaped as `\u000A` is. */
+function commentText(text: string): string {
+  return text.replaceAll(controlCharacter, (character) => {
+    const code = (character.codePointAt(0) ?? 0).toString(HEX).toUpperCase();
+    return `\\u${code.padStart(ESCAPE_DIGITS, "0")}`;
+  });
 }
 
 /**

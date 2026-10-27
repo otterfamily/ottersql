@@ -44,6 +44,15 @@ describe("migration files", () => {
     },
   );
 
+  test("keep a name with a line break inside its comment, so it cannot become SQL", async () => {
+    const plan = planMigration(
+      await loadCatalog('create table "a\nselect 1; --" (id int8)'),
+      await loadCatalog("create table b (id int8)"),
+    );
+    expect(plan.manual).toHaveLength(1);
+    expect(renderMigration(plan)).not.toMatch(/^(?!--)./mv);
+  });
+
   test("list the changes left to a person as comments, which the check keeps failing on", async () => {
     const plan = planMigration(
       await loadCatalog(users),
