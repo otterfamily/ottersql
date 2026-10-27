@@ -41,8 +41,8 @@ export const tableRow: Shape<TableRow> = (value, path) => {
   };
 };
 
-/** The columns that select what a table holds, for the pg_class row `c`. */
-export function tablePartsJson(features: CatalogFeatures): string {
+/** Selects what a table holds, as `tableRow` reads it, for the pg_class row `c`. */
+export function tableRowJson(features: CatalogFeatures): string {
   return `
         ${tableColumnsJson("c.oid")} as columns,
         ${keysJson("c.oid", features)},
