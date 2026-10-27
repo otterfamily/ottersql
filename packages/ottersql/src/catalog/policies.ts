@@ -1,16 +1,7 @@
 import { fields, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
-
-/** Whether a table's row-level security is off, on for all but its owner, or on for its owner too. */
-export type RowSecurity = "disabled" | "enabled" | "forced";
-
-/** A row-level security policy, its rule as Postgres keeps it. */
-export interface Policy {
-  readonly name: string;
-  /** What the policy applies to and allows, such as `PERMISSIVE FOR ALL TO public USING (true)`. */
-  readonly definition: string;
-}
+import type { Policy, RowSecurity } from "./model/table.ts";
 
 export const policyRow: Shape<Policy> = (value, path) => {
   const field = fields(value, path);

@@ -1,7 +1,7 @@
 import { catalogRead, fields, nullable, string } from "./catalog-json.ts";
 import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
-import type { Schema } from "./model.ts";
+import type { Schema } from "./model/catalog.ts";
 import { userObject } from "./scope.ts";
 
 interface SchemaRow {

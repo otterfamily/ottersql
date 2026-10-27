@@ -1,7 +1,7 @@
 import { fields, nullable, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
-import type { ViewColumn } from "./model.ts";
+import type { ViewColumn } from "./model/views.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 

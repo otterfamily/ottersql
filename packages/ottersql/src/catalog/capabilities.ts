@@ -1,11 +1,6 @@
 import { catalogRead, CatalogShapeError, fields, number } from "./catalog-json.ts";
 import type { CatalogRead } from "./catalog-json.ts";
-
-/** What the database the catalog was read from supports. */
-export interface Capabilities {
-  readonly engine: "postgres";
-  readonly version: { readonly major: number; readonly minor: number };
-}
+import type { Capabilities } from "./model/catalog.ts";
 
 // Since Postgres 10, server_version_num is major * 10000 + minor.
 const SERVER_VERSION_NUM_PER_MAJOR = 10_000;

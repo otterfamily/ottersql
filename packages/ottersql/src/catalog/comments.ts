@@ -1,4 +1,4 @@
-import type { Annotation, Comment } from "./model.ts";
+import type { Annotation, Comment } from "./model/shared.ts";
 
 const annotationLine = /^\s*@(?<name>[a-z][\d\-a-z]*)(?:\s+(?<argument>\S(?:.*\S)?))?\s*$/v;
 

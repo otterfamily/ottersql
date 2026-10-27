@@ -1,7 +1,7 @@
 import { fields, nullable, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
-import type { NamedTypeRef, TypeRef } from "./model.ts";
+import type { NamedTypeRef, TypeRef } from "./model/shared.ts";
 
 /**
  * Selects the columns `parseTypeRef` reads, for the type whose oid is `oidExpression`. Its aliases

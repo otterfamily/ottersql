@@ -2,7 +2,8 @@ import { array, boolean, fields, nullable, qualifiedName, string } from "./catal
 import type { Shape } from "./catalog-json.ts";
 import { columnNames } from "./columns.ts";
 import { parseComment } from "./comments.ts";
-import type { Index, IndexKey, QualifiedName } from "./model.ts";
+import type { QualifiedName } from "./model/shared.ts";
+import type { Index, IndexKey } from "./model/table.ts";
 
 /**
  * Selects the indexes of the table `relationOid` as `parseIndex` reads them. Indexes that back a

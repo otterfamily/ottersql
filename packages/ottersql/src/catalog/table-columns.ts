@@ -10,9 +10,9 @@ import type { Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
 import { collationJson, columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
 import type { ColumnBaseRow } from "./columns.ts";
-import type { Column, ColumnValue, QualifiedName } from "./model.ts";
+import type { QualifiedName } from "./model/shared.ts";
+import type { Column, ColumnValue, Sequence } from "./model/table.ts";
 import { sequenceFields, sequenceRow } from "./sequences.ts";
-import type { Sequence } from "./sequences.ts";
 import { callsVolatile } from "./volatility.ts";
 
 export interface TableColumnRow extends ColumnBaseRow {

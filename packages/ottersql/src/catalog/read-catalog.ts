@@ -2,7 +2,7 @@ import type { Connection } from "../sql/index.ts";
 import { capabilitiesRead } from "./capabilities.ts";
 import { queryCatalog } from "./catalog-json.ts";
 import { featuresRead } from "./features.ts";
-import type { Catalog } from "./model.ts";
+import type { Catalog } from "./model/catalog.ts";
 import { schemaObjectReads } from "./schema-objects.ts";
 import { schemasRead } from "./schemas.ts";
 import { scopeParameters } from "./scope.ts";

@@ -4,7 +4,7 @@ import { checkBaseRow, domainChecksJson, parseDomainCheck } from "./checks.ts";
 import type { CheckBaseRow } from "./checks.ts";
 import { parseComment } from "./comments.ts";
 import type { CatalogFeatures } from "./features.ts";
-import type { Domain } from "./model.ts";
+import type { Domain } from "./model/types.ts";
 import { userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";

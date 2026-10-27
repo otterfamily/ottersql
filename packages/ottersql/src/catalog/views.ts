@@ -3,7 +3,7 @@ import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
 import type { ColumnBaseRow } from "./columns.ts";
 import { parseComment } from "./comments.ts";
-import type { View } from "./model.ts";
+import type { View } from "./model/views.ts";
 import { userObject } from "./scope.ts";
 
 interface ViewRow {

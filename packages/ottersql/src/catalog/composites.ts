@@ -3,21 +3,9 @@ import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { collationJson, columnBaseRow, columnsJson, parseColumnBase } from "./columns.ts";
 import type { ColumnBaseRow } from "./columns.ts";
 import { parseComment } from "./comments.ts";
-import type { Comment, QualifiedName, ViewColumn } from "./model.ts";
+import type { QualifiedName } from "./model/shared.ts";
+import type { CompositeType } from "./model/types.ts";
 import { userObject } from "./scope.ts";
-
-/** A composite type `CREATE TYPE ... AS (...)` makes; the row types of tables and views are not. */
-export interface CompositeType {
-  readonly schema: string;
-  readonly name: string;
-  readonly attributes: readonly CompositeAttribute[];
-  readonly comment: Comment | null;
-}
-
-export interface CompositeAttribute extends ViewColumn {
-  /** The attribute's collation, when it is not the one its type has. */
-  readonly collation: QualifiedName | null;
-}
 
 interface AttributeRow extends ColumnBaseRow {
   readonly collation: QualifiedName | null;

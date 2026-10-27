@@ -1,7 +1,7 @@
 import type { Connection } from "../sql/index.ts";
 import { array, catalogRead, fields, number, queryCatalog, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
-import type { TypeRef } from "./model.ts";
+import type { TypeRef } from "./model/shared.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";
 

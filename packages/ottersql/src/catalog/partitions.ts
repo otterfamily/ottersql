@@ -1,12 +1,6 @@
 import { fields, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
-
-/** The table a partition belongs to, and the bound of the rows it holds as Postgres prints it. */
-export interface Partition {
-  readonly schema: string;
-  readonly table: string;
-  readonly bound: string;
-}
+import type { Partition } from "./model/table.ts";
 
 export const partitionRow: Shape<Partition> = (value, path) => {
   const field = fields(value, path);

@@ -1,5 +1,7 @@
-import type { ForeignKey } from "./keys.ts";
-import type { Catalog, Domain, Enum, QualifiedName, RangeType, Table, TypeRef } from "./model.ts";
+import type { Catalog } from "./model/catalog.ts";
+import type { QualifiedName, TypeRef } from "./model/shared.ts";
+import type { ForeignKey, Table } from "./model/table.ts";
+import type { Domain, Enum, RangeType } from "./model/types.ts";
 
 /** A catalog's objects by schema-qualified name, for lookups that would otherwise scan a list. */
 interface ByName {

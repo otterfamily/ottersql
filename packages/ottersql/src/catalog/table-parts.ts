@@ -8,7 +8,7 @@ import type { KeyRows } from "./constraints.ts";
 import type { CatalogFeatures } from "./features.ts";
 import { indexesJson, indexRow, parseIndex } from "./indexes.ts";
 import type { IndexRow } from "./indexes.ts";
-import type { Table } from "./model.ts";
+import type { Table } from "./model/table.ts";
 import { parseTableColumn, tableColumnRow, tableColumnsJson } from "./table-columns.ts";
 import type { TableColumnRow } from "./table-columns.ts";
 import { parseTableSettings, tableSettingsJson, tableSettingsRow } from "./table-settings.ts";

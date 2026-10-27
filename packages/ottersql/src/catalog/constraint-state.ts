@@ -1,7 +1,7 @@
 import { boolean } from "./catalog-json.ts";
 import type { Field } from "./catalog-json.ts";
 import type { CatalogFeatures } from "./features.ts";
-import type { Deferral, Enforcement } from "./model.ts";
+import type { Deferral, Enforcement } from "./model/shared.ts";
 
 /**
  * Selects the fields `parseDeferral` and `parseEnforcement` read from the `pg_constraint` row

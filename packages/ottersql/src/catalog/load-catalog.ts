@@ -3,7 +3,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { pgliteConnection } from "../sql/pglite.ts";
 import { extensionsFor, skippedNote, withoutMissing } from "./extensions.ts";
 import { freshDatabase, restoredDatabase } from "./fresh-database.ts";
-import type { Catalog } from "./model.ts";
+import type { Catalog } from "./model/catalog.ts";
 import { readCatalog } from "./read-catalog.ts";
 import type { CatalogOptions } from "./read-catalog.ts";
 import { schemaError } from "./schema-error.ts";

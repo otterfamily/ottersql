@@ -1,7 +1,7 @@
 import type { CatalogReads } from "./catalog-json.ts";
 import type { CatalogFeatures } from "./features.ts";
 import { extensionsRead } from "./installed-extensions.ts";
-import type { Catalog } from "./model.ts";
+import type { Catalog } from "./model/catalog.ts";
 import { routinesRead } from "./routines.ts";
 import { sequencesRead } from "./sequences.ts";
 import {

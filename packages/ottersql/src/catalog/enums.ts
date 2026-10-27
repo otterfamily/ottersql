@@ -1,7 +1,7 @@
 import { array, catalogRead, fields, nullable, string } from "./catalog-json.ts";
 import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
-import type { Enum } from "./model.ts";
+import type { Enum } from "./model/types.ts";
 import { userObject } from "./scope.ts";
 
 const enumRow: Shape<EnumRow> = (value, path) => {

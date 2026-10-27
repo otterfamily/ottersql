@@ -11,8 +11,7 @@ import {
 } from "./constraint-state.ts";
 import type { ConstraintStateRow } from "./constraint-state.ts";
 import type { CatalogFeatures } from "./features.ts";
-import type { ForeignKey } from "./keys.ts";
-import type { Table } from "./model.ts";
+import type { ForeignKey, Table } from "./model/table.ts";
 
 /**
  * Selects the primary key, unique constraints and foreign keys of the table `relationOid` as the

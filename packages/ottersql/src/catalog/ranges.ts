@@ -1,7 +1,7 @@
 import { catalogRead, fields, nullable, string } from "./catalog-json.ts";
 import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { parseComment } from "./comments.ts";
-import type { RangeType } from "./model.ts";
+import type { RangeType } from "./model/types.ts";
 import { userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";

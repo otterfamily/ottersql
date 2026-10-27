@@ -1,6 +1,6 @@
 import { rawQuery } from "../sql/driver.ts";
 import type { Connection, Transaction } from "../sql/index.ts";
-import type { QualifiedName } from "./model.ts";
+import type { QualifiedName } from "./model/shared.ts";
 
 /**
  * Reads a JSON value the catalog queries return as a `Value`, or throws saying where it is not one.

@@ -2,7 +2,7 @@ import { array, boolean, catalogRead, fields, nullable, number, string } from ".
 import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
 import { parseComment } from "./comments.ts";
-import type { Routine, RoutineArgument, RoutineResult } from "./model.ts";
+import type { Routine, RoutineArgument, RoutineResult } from "./model/routines.ts";
 import { userObject } from "./scope.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
 import type { TypeRow } from "./type-ref.ts";

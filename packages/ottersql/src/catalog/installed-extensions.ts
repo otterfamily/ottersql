@@ -1,15 +1,7 @@
 import { catalogRead, fields, string } from "./catalog-json.ts";
 import type { CatalogRead, Shape } from "./catalog-json.ts";
+import type { InstalledExtension } from "./model/catalog.ts";
 import { userObject } from "./scope.ts";
-
-/**
- * An extension installed in the database, by the schema it was installed into. Its version is left
- * out: PGlite and a server can ship different versions of the same extension.
- */
-export interface InstalledExtension {
-  readonly schema: string;
-  readonly name: string;
-}
 
 const extensionRow: Shape<InstalledExtension> = (value, path) => {
   const field = fields(value, path);

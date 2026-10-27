@@ -5,7 +5,8 @@ import { parseComment } from "./comments.ts";
 import { constraintState, constraintStateFields, parseEnforcement } from "./constraint-state.ts";
 import type { ConstraintStateRow } from "./constraint-state.ts";
 import type { CatalogFeatures } from "./features.ts";
-import type { Check, DomainCheck } from "./model.ts";
+import type { Check } from "./model/table.ts";
+import type { DomainCheck } from "./model/types.ts";
 
 /**
  * Selects the fields `parseCheckBase` reads from the `pg_constraint` row `alias`, whose expression

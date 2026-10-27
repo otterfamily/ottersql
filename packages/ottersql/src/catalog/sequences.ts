@@ -1,20 +1,7 @@
 import { boolean, catalogRead, fields, string } from "./catalog-json.ts";
 import type { CatalogRead, Shape } from "./catalog-json.ts";
+import type { Sequence } from "./model/table.ts";
 import { userObject } from "./scope.ts";
-
-/** A sequence's numbers, as text since a bigint sequence's can exceed a JavaScript number. */
-export interface Sequence {
-  readonly schema: string;
-  readonly name: string;
-  /** `smallint`, `integer` or `bigint`. */
-  readonly dataType: string;
-  readonly start: string;
-  readonly increment: string;
-  readonly minimum: string;
-  readonly maximum: string;
-  readonly cache: string;
-  readonly cycle: boolean;
-}
 
 export const sequenceRow: Shape<Sequence> = (value, path) => {
   const field = fields(value, path);

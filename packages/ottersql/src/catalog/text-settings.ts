@@ -1,36 +1,8 @@
 import { array, boolean, catalogRead, fields, nullable, string } from "./catalog-json.ts";
 import type { CatalogRead, Shape } from "./catalog-json.ts";
 import { decode } from "./codes.ts";
+import type { Collation, TextSearchConfiguration, TextSearchDictionary } from "./model/catalog.ts";
 import { userObject } from "./scope.ts";
-
-/** A collation `CREATE COLLATION` makes. */
-export interface Collation {
-  readonly schema: string;
-  readonly name: string;
-  readonly provider: "default" | "libc" | "icu" | "builtin";
-  readonly deterministic: boolean;
-  /** The ICU or builtin locale; `null` for libc, which has `lcCollate` and `lcCtype` instead. */
-  readonly locale: string | null;
-  readonly lcCollate: string | null;
-  readonly lcCtype: string | null;
-}
-
-/** A text search configuration: its parser, and the dictionaries of each token type in order. */
-export interface TextSearchConfiguration {
-  readonly schema: string;
-  readonly name: string;
-  readonly parser: string;
-  /** `tokentype:dictionary`, by token type number and then in the order they are tried. */
-  readonly mappings: readonly string[];
-}
-
-/** A text search dictionary: the template it is made from and the options it is given. */
-export interface TextSearchDictionary {
-  readonly schema: string;
-  readonly name: string;
-  readonly template: string;
-  readonly options: string | null;
-}
 
 interface CollationRow extends Omit<Collation, "provider"> {
   readonly provider: string;
