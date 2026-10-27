@@ -1,6 +1,6 @@
 import type { Connection } from "../sql/index.ts";
 import { capabilitiesRead } from "./capabilities.ts";
-import { queryCatalog } from "./catalog-json.ts";
+import { queryCatalog, queryOne } from "./catalog-json.ts";
 import { featuresRead } from "./features.ts";
 import type { Catalog } from "./model/catalog.ts";
 import { schemaObjectReads } from "./schema-objects.ts";
@@ -32,7 +32,7 @@ export async function readCatalog(
   return connection.transaction(
     async (transaction) => {
       // The other queries are written from the features, so they cannot share their statement.
-      const features = (await queryCatalog(transaction, [featuresRead]))(featuresRead);
+      const features = await queryOne(transaction, featuresRead);
       const tables = tablesRead(features);
       const objects = schemaObjectReads(features);
       const results = await queryCatalog(

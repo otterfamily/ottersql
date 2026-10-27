@@ -137,3 +137,12 @@ export async function queryCatalog(
     return read.parse(results.get(read));
   };
 }
+
+/** Runs `read` alone, for a read that others cannot wait for or join. */
+export async function queryOne<Value>(
+  connection: Connection | Transaction,
+  read: CatalogRead<Value>,
+  parameters: readonly string[] = [],
+): Promise<Value> {
+  return (await queryCatalog(connection, [read], parameters))(read);
+}

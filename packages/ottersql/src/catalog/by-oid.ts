@@ -1,5 +1,5 @@
 import type { Connection } from "../sql/index.ts";
-import { array, catalogRead, fields, number, queryCatalog, string } from "./catalog-json.ts";
+import { array, catalogRead, fields, number, queryOne, string } from "./catalog-json.ts";
 import type { Shape } from "./catalog-json.ts";
 import type { TypeRef } from "./model/shared.ts";
 import { parseTypeRef, typeRefJson, typeRow } from "./type-ref.ts";
@@ -69,8 +69,7 @@ export async function readTypeRefs(
   connection: Connection,
   oids: readonly number[],
 ): Promise<ReadonlyMap<number, TypeRef>> {
-  const results = await queryCatalog(connection, [typeRefsRead], [oidArray(oids)]);
-  return results(typeRefsRead);
+  return queryOne(connection, typeRefsRead, [oidArray(oids)]);
 }
 
 /** The relations for relation oids, such as those Postgres reports as a result column's origin. */
@@ -78,6 +77,5 @@ export async function readRelations(
   connection: Connection,
   oids: readonly number[],
 ): Promise<ReadonlyMap<number, Relation>> {
-  const results = await queryCatalog(connection, [relationsRead], [oidArray(oids)]);
-  return results(relationsRead);
+  return queryOne(connection, relationsRead, [oidArray(oids)]);
 }
