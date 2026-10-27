@@ -168,6 +168,21 @@ describe("connections over Bun.sql", () => {
     );
   });
 
+  test("reject a transaction whose savepoint could not be rolled back to, even when the callback caught it", async () => {
+    const url = await postgresDatabase();
+    const body = `const sql = new SQL(URL, { prepare: false });
+      const db = bunSqlConnection(sql);
+      const outcome = await db.transaction(async (tx) => {
+        await tx.savepoint(async (sp) => {
+          await rawQuery(sp, "rollback", []);
+          throw new Error("no");
+        }).catch(() => null);
+      }).then(() => "resolved", (error) => error.name);
+      await sql.end();
+      console.log(outcome);`;
+    await expect(runInBun(bunScript(url, body), tmpdir())).resolves.toBe("QueryError\n");
+  });
+
   test("refuse a client that prepares statements, whose values may arrive in binary", async () => {
     const url = await postgresDatabase();
     const body = `const sql = new SQL(URL);

@@ -146,6 +146,26 @@ describe("transactions", () => {
     }
   });
 
+  test("reject when a savepoint could not be rolled back to, even if the callback caught its error", async ({
+    drivers,
+  }) => {
+    for (const db of drivers) {
+      await notes(db);
+      const rejected = db.transaction(async (tx) => {
+        await note(tx, "order");
+        const points = tx.savepoint(async (sp) => {
+          // Ends the transaction, so rolling back to the savepoint fails.
+          await rawQuery(sp, "rollback", []);
+          throw new Error("no points today");
+        });
+        await points.catch(() => null);
+        return "done";
+      });
+      await expect(rejected).rejects.toBeInstanceOf(QueryError);
+      await expect(bodies(db)).resolves.toStrictEqual([]);
+    }
+  });
+
   test("refuse queries on a transaction while one of its savepoints is open", async ({
     drivers,
   }) => {

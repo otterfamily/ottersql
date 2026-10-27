@@ -28,7 +28,11 @@ export function pgPromiseConnection(db: IDatabase<unknown>): Connection {
   // A transaction inside one is a savepoint to pg-promise.
   const transactionOn = (task: Pick<IDatabase<unknown>, "result" | "tx">): DriverTransaction => ({
     query: queryOn(task),
-    savepoint: async (run) => task.tx(async (inner) => run(transactionOn(inner))),
+    savepoint: async (run) =>
+      reportingQueryErrors(
+        async () => task.tx(async (inner) => run(transactionOn(inner))),
+        databaseErrorFields,
+      ),
   });
   return clientConnection(db, () => ({
     query: queryOn(db),

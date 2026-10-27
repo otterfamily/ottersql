@@ -67,9 +67,13 @@ function transactionOn(tx: BunSqlTransaction): DriverTransaction {
   return {
     query: queryOn(tx),
     savepoint: async (run) => {
-      const { result } = await tx.savepoint(async (sp) => ({
-        result: await run(transactionOn(sp)),
-      }));
+      const { result } = await reportingQueryErrors(
+        async () =>
+          tx.savepoint(async (sp) => ({
+            result: await run(transactionOn(sp)),
+          })),
+        bunErrorFields,
+      );
       return result;
     },
   };

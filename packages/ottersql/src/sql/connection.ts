@@ -46,8 +46,9 @@ export interface DriverTransaction {
   readonly query: DriverQuery;
   /**
    * Runs `run` in a savepoint: released once `run` resolves, rolled back to when it rejects,
-   * resolving or rejecting as `run` does. A driver with savepoints of its own uses them, since it
-   * may track the errors of the statements inside; `sqlTransaction` writes them otherwise.
+   * resolving or rejecting as `run` does, or with a `QueryError` when Postgres reports an error for
+   * the savepoint itself. A driver with savepoints of its own uses them, since it may track the
+   * errors of the statements inside; `sqlTransaction` writes them otherwise.
    */
   readonly savepoint: <Result>(
     run: (savepoint: DriverTransaction) => Promise<Result>,
@@ -70,9 +71,10 @@ export function sqlTransaction(query: DriverQuery, depth = 1): DriverTransaction
         await query(`release savepoint ${name}`, []);
         return result;
       } catch (error) {
-        // Released too, so failed savepoints do not pile up as open subtransactions. The error
-        // that undid the savepoint is the one to report, not a failed rollback's.
-        await rollBackTo(query, name);
+        // Released too, so failed savepoints do not pile up as open subtransactions. A rollback
+        // that fails rejects with its own error instead: the savepoint's work was not undone.
+        await query(`rollback to savepoint ${name}`, []);
+        await query(`release savepoint ${name}`, []);
         throw error;
       }
     },
@@ -115,15 +117,6 @@ export interface Transaction {
    * goes on. Resolves or rejects as `run` does.
    */
   readonly savepoint: <Result>(run: (sp: Transaction) => Promise<Result>) => Promise<Result>;
-}
-
-async function rollBackTo(query: DriverQuery, name: string): Promise<void> {
-  try {
-    await query(`rollback to savepoint ${name}`, []);
-    await query(`release savepoint ${name}`, []);
-  } catch {
-    // The transaction cannot commit then, which its COMMIT reports.
-  }
 }
 
 /** A `Connection` over `driver`, for adapters ottersql does not ship. */
@@ -203,14 +196,20 @@ function openScope(tx: DriverTransaction, key: object): Scope {
     // Set before the first await, so a second savepoint started meanwhile is refused.
     savepointOpen = true;
     try {
-      return await tx.savepoint(async (inner) => {
-        const scope = openScope(inner, key);
-        try {
-          return settled(await run(scope.transaction), scope);
-        } finally {
-          scope.end();
-        }
-      });
+      return await inSavepoint(
+        tx,
+        async (inner) => {
+          const scope = openScope(inner, key);
+          try {
+            return settled(await run(scope.transaction), scope);
+          } finally {
+            scope.end();
+          }
+        },
+        (error) => {
+          failure ??= error instanceof QueryError ? error : null;
+        },
+      );
     } finally {
       savepointOpen = false;
     }
@@ -223,6 +222,35 @@ function openScope(tx: DriverTransaction, key: object): Scope {
     },
     failure: () => failure,
   };
+}
+
+/**
+ * Runs `run` in a savepoint of `tx`. An error other than `run`'s is the savepoint's own, such as a
+ * rollback to it that failed: what `run` did may not be undone, so `failed` hears of it before the
+ * savepoint rejects, for the transaction not to commit as if it were.
+ */
+async function inSavepoint<Result>(
+  tx: DriverTransaction,
+  run: (inner: DriverTransaction) => Promise<Result>,
+  failed: (error: unknown) => void,
+): Promise<Result> {
+  // Set in the callback, which TypeScript does not see run before the catch below.
+  const rejection: { error?: unknown } = {};
+  try {
+    return await tx.savepoint(async (inner) => {
+      try {
+        return await run(inner);
+      } catch (error) {
+        rejection.error = error;
+        throw error;
+      }
+    });
+  } catch (error) {
+    if (!("error" in rejection && rejection.error === error)) {
+      failed(error);
+    }
+    throw error;
+  }
 }
 
 const connections = new WeakMap<object, Connection>();
