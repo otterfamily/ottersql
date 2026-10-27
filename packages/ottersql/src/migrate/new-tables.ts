@@ -1,7 +1,7 @@
 import { findTable } from "../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
-import { addCheck, addForeignKey } from "./add-constraints.ts";
 import { constraintComment, indexComment, initialComment } from "./comments.ts";
+import { addCheck, addForeignKey } from "./constraint-steps.ts";
 import {
   alterTable,
   checkDefinition,

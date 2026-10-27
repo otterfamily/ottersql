@@ -1,28 +1,18 @@
 import { isDeepStrictEqual } from "node:util";
 
-import type {
-  Check,
-  Comment,
-  Enforcement,
-  ForeignKey,
-  PrimaryKey,
-  Table,
-} from "../catalog/index.ts";
-import { addCheck, addForeignKey, validateStep } from "./add-constraints.ts";
+import type { Comment, Enforcement, PrimaryKey, Table } from "../catalog/index.ts";
 import { constraintCommentChange } from "./comments.ts";
-import { exclusionChanges } from "./exclusion-constraints.ts";
-import { indexBackedKey } from "./key-indexes.ts";
-import { matchDefinitions, uncommented } from "./match.ts";
-import type { Step } from "./plan.ts";
 import {
-  alterTable,
-  checkDefinition,
-  exceedsNameLimit,
-  identifier,
-  nameTooLongReason,
-  temporaryName,
-} from "./sql-text.ts";
-import { combine, manual, noChanges, objectName, only, step } from "./steps.ts";
+  addCheck,
+  addForeignKey,
+  dropConstraint,
+  replaceCheck,
+  replaceForeignKey,
+  validateStep,
+} from "./constraint-steps.ts";
+import { indexBackedKey } from "./index-backed-keys.ts";
+import { matchDefinitions, uncommented } from "./match.ts";
+import { combine, manual, noChanges, notPlanned, objectName } from "./steps.ts";
 import type { Changes } from "./steps.ts";
 
 /**
@@ -113,125 +103,19 @@ function keyedChanges<
 }
 
 /**
- * Foreign keys are dropped as a kind of their own, so that they go before the keys they reference
- * and the tables those keys belong to. Once rows that break the constraint are written, it cannot
- * be added back without changing them, so dropping it is lossy.
+ * Exclusion constraints a table with rows gains, loses or changes, for a person to handle: adding
+ * one checks every row while writes wait. A new table is created with them, in `CREATE TABLE`.
+ * One whose comment alone changed has its comment changed.
  */
-export function dropConstraint(
-  table: Table,
-  name: string,
-  { kind, phase }: Pick<Step, "kind" | "phase">,
-): Changes {
-  const statement = alterTable(table, `DROP CONSTRAINT ${identifier(name)}`);
-  return only(
-    step({
-      kind,
-      object: objectName(table, name),
-      statements: [statement],
-      phase,
-      reversal: "lossy",
-      lock: "access exclusive",
-    }),
+function exclusionChanges(before: Table, after: Table): Changes {
+  const { added, removed, redefined, recommented } = matchDefinitions(
+    before.exclusionConstraints,
+    after.exclusionConstraints,
   );
-}
-
-/**
- * After the deploy, drops the constraint `replaced` and renames `replacement`, which holds by then,
- * to `name`, in one transaction, so the table is never without one of them.
- */
-function replaceConstraint(
-  table: Table,
-  names: { readonly replaced: string; readonly replacement: string; readonly name: string },
-): Changes {
-  const drop = alterTable(table, `DROP CONSTRAINT ${identifier(names.replaced)}`);
-  const rename = alterTable(
-    table,
-    `RENAME CONSTRAINT ${identifier(names.replacement)} TO ${identifier(names.name)}`,
-  );
-  return only(
-    step({
-      kind: "replaceConstraint",
-      object: objectName(table, names.name),
-      statements: [drop, rename],
-      phase: "contract",
-      reversal: "lossy",
-      lock: "access exclusive",
-    }),
-  );
-}
-
-/** The temporary names a redefined constraint goes through, or `null` when one would be too long. */
-function swapNames(name: string): { readonly bridge: string; readonly next: string } | null {
-  const names = { bridge: temporaryName("old_or_new", name), next: temporaryName("new", name) };
-  return exceedsNameLimit(names.bridge) ? null : names;
-}
-
-/**
- * A changed check is never missing, and neither app's writes break it. Before the deploy a check
- * that allows what either the old or the new one allows takes the old one's place, added NOT
- * VALID since every row already passes the old one; after the deploy the new one is added and
- * validated under a temporary name, then takes the bridge's place and the name.
- */
-function replaceCheck(table: Table, old: Check, current: Check): Changes {
-  const names = swapNames(current.name);
-  if (names === null) {
-    return tooLong(table, current.name);
-  }
-  const either = `${checkDefinition({
-    expression: `(${old.expression}) OR (${current.expression})`,
-    noInherit: current.noInherit,
-  })} NOT VALID`;
-  const addBridge = alterTable(table, `ADD CONSTRAINT ${identifier(names.bridge)} ${either}`);
-  const dropOld = alterTable(table, `DROP CONSTRAINT ${identifier(old.name)}`);
-  const bridge = step({
-    kind: "replaceConstraint",
-    object: objectName(table, current.name),
-    statements: [addBridge, dropOld],
-    phase: "expand",
-    reversal: "lossy",
-    lock: "access exclusive",
-    reason: "Allows the rows of both the old and the new app until the new check is in place",
-  });
   return combine([
-    only(bridge),
-    addCheck(table, { ...current, name: names.next }),
-    replaceConstraint(table, {
-      replaced: names.bridge,
-      replacement: names.next,
-      name: current.name,
-    }),
+    ...[...added, ...removed, ...redefined.map(([, current]) => current)].map(({ name }) =>
+      manual(objectName(after, name), notPlanned("an exclusion constraint")),
+    ),
+    ...recommented.map(([old, current]) => constraintCommentChange(after, old, current)),
   ]);
-}
-
-/**
- * A foreign key whose actions, match or deferral changed is checked the same way on writes, so
- * the old one holds until the new one, added and validated under a temporary name after the
- * deploy, takes its place. One that refers from or to other columns has no form both apps' rows
- * satisfy, so it is left to a person.
- */
-function replaceForeignKey(table: Table, old: ForeignKey, current: ForeignKey): Changes {
-  const sameColumns =
-    isDeepStrictEqual(old.columns, current.columns) &&
-    isDeepStrictEqual(old.references, current.references);
-  if (!sameColumns) {
-    return manual(
-      objectName(table, current.name),
-      "A foreign key that now refers from or to other columns would stop rows of the old app or of the new one while both run; change it by hand: add the new key, deploy, then drop the old one",
-    );
-  }
-  const names = swapNames(current.name);
-  if (names === null) {
-    return tooLong(table, current.name);
-  }
-  return combine([
-    addForeignKey(table, { ...current, name: names.next }),
-    replaceConstraint(table, { replaced: old.name, replacement: names.next, name: current.name }),
-  ]);
-}
-
-function tooLong(table: Table, name: string): Changes {
-  return manual(
-    objectName(table, name),
-    nameTooLongReason(`The temporary constraint names for "${name}"`, "change the constraint"),
-  );
 }

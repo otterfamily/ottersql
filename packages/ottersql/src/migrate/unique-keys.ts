@@ -3,8 +3,8 @@ import { isDeepStrictEqual } from "node:util";
 import { referencesTable } from "../catalog/find.ts";
 import type { Catalog, Table, UniqueConstraint } from "../catalog/index.ts";
 import { constraintComment, constraintCommentChange } from "./comments.ts";
-import { dropConstraint } from "./constraints.ts";
-import { indexBackedKey, keyIndex, withoutOverlapsReason } from "./key-indexes.ts";
+import { dropConstraint } from "./constraint-steps.ts";
+import { indexBackedKey, keyIndex, withoutOverlapsReason } from "./index-backed-keys.ts";
 import { matchDefinitions, uncommented } from "./match.ts";
 import {
   alterTable,

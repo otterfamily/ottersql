@@ -4,7 +4,7 @@ import { referencesTable } from "../catalog/find.ts";
 import type { Catalog, ForeignKey, Table } from "../catalog/index.ts";
 import { changeTable } from "./changed-tables.ts";
 import type { Sides } from "./changed-tables.ts";
-import { dropConstraint } from "./constraints.ts";
+import { dropConstraint } from "./constraint-steps.ts";
 import { matchByQualifiedName } from "./match.ts";
 import { newTable } from "./new-tables.ts";
 import { qualified } from "./sql-text.ts";
