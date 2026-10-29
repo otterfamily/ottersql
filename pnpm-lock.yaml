@@ -168,8 +168,8 @@ catalogs:
       specifier: ^0.5.11
       version: 0.5.11
     '@electric-sql/pglite-pgvector':
-      specifier: ^0.0.12
-      version: 0.0.12
+      specifier: ^0.0.13
+      version: 0.0.13
     '@neondatabase/serverless':
       specifier: ^1.2.0
       version: 1.2.0
@@ -320,7 +320,7 @@ importers:
         version: 0.5.11
       '@electric-sql/pglite-pgvector':
         specifier: 'catalog:'
-        version: 0.0.12(@electric-sql/pglite@0.5.11)
+        version: 0.0.13(@electric-sql/pglite@0.5.11)
       '@neondatabase/serverless':
         specifier: 'catalog:'
         version: 1.2.0
@@ -424,10 +424,10 @@ packages:
   '@cacheable/utils@2.5.0':
     resolution: {integrity: sha512-buipgOVDkkPXNR5+xBpDw7Zk2n1EvU7qBJCNUcL7rhQ//kfpOXPAvQ511Os0vpLYJ1pZnvudNytkQt2hst3wqA==}
 
-  '@electric-sql/pglite-pgvector@0.0.12':
-    resolution: {integrity: sha512-n3TJqjWI9FXwFrGhuTVMghef8SL3E6nb4lxZnxYFW3UTg/7/hMUWfz7v2y0+idWzEsQ/raRpMNCsw9zvSdC/SA==}
+  '@electric-sql/pglite-pgvector@0.0.13':
+    resolution: {integrity: sha512-tTRGigSCWnrT3PdqkL69MpAyCovwpbxbPdHgqv7QKgOQZu85meXUymprvnJ/JTg361UC5GaBX1hnDfULn3bHnA==}
     peerDependencies:
-      '@electric-sql/pglite': 0.5.11
+      '@electric-sql/pglite': 0.5.12
 
   '@electric-sql/pglite@0.5.11':
     resolution: {integrity: sha512-SWuqsTjA4DDWqgZ05PC1RJaq8e00p5KACxbqaikDFQ8dIGA0SLRzuPniky7IW+q/c5RDNMdEXwv7mFBWIx9Hxw==}
@@ -3467,7 +3467,7 @@ snapshots:
       hashery: 1.5.1
       keyv: 5.6.0
 
-  '@electric-sql/pglite-pgvector@0.0.12(@electric-sql/pglite@0.5.11)':
+  '@electric-sql/pglite-pgvector@0.0.13(@electric-sql/pglite@0.5.11)':
     dependencies:
       '@electric-sql/pglite': 0.5.11
 
