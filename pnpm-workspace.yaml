@@ -4,7 +4,7 @@ packages:
 
 catalog:
   "@electric-sql/pglite": ^0.5.11
-  "@electric-sql/pglite-pgvector": ^0.0.12
+  "@electric-sql/pglite-pgvector": ^0.0.13
   "@neondatabase/serverless": ^1.2.0
   "@ottersql/testing": workspace:*
   "@testcontainers/postgresql": ^12.2.1
