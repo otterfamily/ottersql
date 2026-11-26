@@ -29,7 +29,7 @@
   "devEngines": {
     "runtime": {
       "name": "bun",
-      "version": "1.4.4",
+      "version": "1.4.5",
       "onFail": "download"
     }
   }
